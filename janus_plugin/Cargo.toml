@@ -1,0 +1,20 @@
+[package]
+name = "janus_plugin"
+version = "0.0.0"
+edition = "2021"
+
+[lib]
+name = "janus_plugin"
+crate-type = ["cdylib", "lib"]
+path = "src/lib.rs"
+
+[[bin]]
+name = "janus-standalone"
+path = "src/main.rs"
+
+[dependencies]
+nih_plug = { git = "https://github.com/robbert-vdh/nih-plug.git", features = ["assert_process_allocs", "standalone", "vst3"] }
+nih_plug_egui = { git = "https://github.com/robbert-vdh/nih-plug.git" }
+atomic_float = "0.1"
+
+janus = { path = "../janus" }

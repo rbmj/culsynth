@@ -1,0 +1,12 @@
+[package]
+name = "janus"
+version = "0.0.0"
+edition = "2021"
+description = "Janus Synthesizer"
+
+[lib]
+name = "janus"
+path = "src/lib.rs"
+
+[dependencies]
+fixed = "1.24"
