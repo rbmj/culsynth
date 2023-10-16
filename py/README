@@ -1,0 +1,6 @@
+The ipynb files are interactive notebook files for testing various functionality.
+
+To get functionality:
+
+$ pip install matplotlib
+$ pip install jupyter

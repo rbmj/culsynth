@@ -1,5 +1,6 @@
 [workspace]
 members = [
     "janus",
-    "janus_plugin"
+    "janus_plugin",
+    "janus-playground"
 ]

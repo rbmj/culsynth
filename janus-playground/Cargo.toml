@@ -1,0 +1,12 @@
+[package]
+name = "janus-playground"
+version = "0.0.0"
+edition = "2021"
+description = "Janus Testing Ground"
+
+[[bin]]
+name = "playground"
+path = "src/main.rs"
+
+[dependencies]
+janus = { path = "../janus" }
