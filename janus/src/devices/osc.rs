@@ -1,23 +1,86 @@
-use crate::fixedmath::midi_note_to_frequency;
-use crate::util::midi_note_pretty;
-
-//
 use super::*;
 
 type PhaseFxP = fixedmath::I4F28;
-type PhaseFxP_Trunc = fixedmath::I4F12;
 
-struct Oscillator<smp> {
-    sinbuf: BufferT<smp>,
-    sqbuf: BufferT<smp>,
-    tribuf: BufferT<smp>,
-    phase: smp
+pub struct Oscillator<Smp> {
+    sinbuf: BufferT<Smp>,
+    sqbuf: BufferT<Smp>,
+    tribuf: BufferT<Smp>,
+    phase: Smp
 }
 
-impl<smp> Oscillator<smp> {
-    fn process() {
-        //smp_per_period = sample_rate / frequency;
+pub struct OscOutput<'a, Smp> {
+    sin: &'a [Smp],
+    sq: &'a [Smp],
+    tri: &'a [Smp]
+}
 
+impl<Smp: Float> Oscillator<Smp> {
+    pub fn create() -> Self {
+        Self {
+            sinbuf: [Smp::zero(); STATIC_BUFFER_SIZE],
+            sqbuf: [Smp::zero(); STATIC_BUFFER_SIZE],
+            tribuf: [Smp::zero(); STATIC_BUFFER_SIZE],
+            phase: Smp::zero()
+        }
+    }
+    pub fn process(&mut self, note: &[Smp], shape: &[Smp]) -> OscOutput<Smp> {
+        let input_len = std::cmp::min(note.len(), shape.len());
+        let numsamples = std::cmp::min(input_len, STATIC_BUFFER_SIZE);
+        // We don't have to split sin up piecewise but we'll do it for symmetry with
+        // the fixed point implementation and to make it easy to switch to a taylor
+        // series approximation if performance dictates
+        for i in 0..numsamples {
+            //generate waveforms (piecewise defined)
+            let frac_2phase_pi = self.phase * Smp::FRAC_2_PI();
+            if self.phase < Smp::zero() {
+                self.sqbuf[i] = Smp::one().neg();
+                if self.phase < Smp::FRAC_PI_2() {  // phase in [-pi, pi/2)
+                    // sin(x) = -cos(x+pi/2)
+                    // TODO: Use fast approximation?
+                    self.sinbuf[i] = (self.phase + Smp::FRAC_PI_2()).cos().neg();
+                    // Subtract (1+1) because traits :eyeroll:
+                    self.tribuf[i] = frac_2phase_pi.neg() - (Smp::one() + Smp::one());
+                }
+                else {  // phase in [-pi/2, 0)
+                    self.sinbuf[i] = self.phase.sin();
+                    //triangle
+                    self.tribuf[i] = frac_2phase_pi;
+                }
+            }
+            else {
+                self.sqbuf[i] = Smp::one();
+                if self.phase < Smp::FRAC_PI_2() { // phase in [0, pi/2)
+                    self.sinbuf[i] = self.phase.sin();
+                    self.tribuf[i] = frac_2phase_pi;
+                }
+                else { // phase in [pi/2, pi)
+                    // sin(x) = cos(x-pi/2)
+                    self.sinbuf[i] = (self.phase - Smp::FRAC_PI_2()).cos();
+                    self.tribuf[i] = (Smp::one() + Smp::one()) - frac_2phase_pi;
+                }
+            }
+            let sample_rate = Smp::from(44100).unwrap();
+            //calculate the next phase
+            let phase_per_sample = midi_note_to_frequency(note[i])*Smp::TAU()/sample_rate;
+            let shape_clip = Smp::from(0.9375).unwrap();
+            let shp = if shape[i] < shape_clip { shape[i] } else { shape_clip };
+            let phase_per_smp_adj = if self.phase < Smp::zero() {
+                phase_per_sample * (Smp::one() / (Smp::one() + shp))
+            }
+            else {
+                phase_per_sample * (Smp::one() / (Smp::one() - shp))
+            };
+            self.phase = self.phase + phase_per_smp_adj;
+            if self.phase >= Smp::PI() {
+                self.phase = self.phase - Smp::TAU();
+            }
+        }
+        OscOutput {
+            sin: &self.sinbuf[0..numsamples],
+            tri: &self.tribuf[0..numsamples],
+            sq: &self.sqbuf[0..numsamples]
+        }    
     }
 }
 
@@ -43,17 +106,16 @@ impl OscillatorFxP {
             phase: PhaseFxP::ZERO
         }
     }
-    pub fn process(&mut self, note: &[NoteFxP], shape: &[fixedmath::U0F16]) -> OscOutputFxP {
+    pub fn process(&mut self, note: &[NoteFxP], shape: &[ScalarFxP]) -> OscOutputFxP {
         let input_len = std::cmp::min(note.len(), shape.len());
         let numsamples = std::cmp::min(input_len, STATIC_BUFFER_SIZE);
-        const FRAC_2_PI : fixedmath::U0F16 = fixedmath::U0F16::lit("0x0.a2fa");
+        const FRAC_2_PI : ScalarFxP = ScalarFxP::lit("0x0.a2fa");
         //FIXME: Variable sample rate?
-        const SAMPLE_RATE : fixedmath::U16F0 = fixedmath::U16F0::lit("44100");
         // 4096*2*pi/44.1k
         const FRAC_4096_2PI_SR : fixedmath::U0F32 = fixedmath::U0F32::lit("0x0.9565925d");
         for i in 0..numsamples {
             //generate waveforms (piecewise defined)
-            let frac_2phase_pi = SampleFxP::from_num(PhaseFxP_Trunc::from_num(
+            let frac_2phase_pi = SampleFxP::from_num(SampleFxP::from_num(
                 self.phase).wide_mul_unsigned(FRAC_2_PI));
             if self.phase < 0 {
                 self.sqbuf[i] = SampleFxP::NEG_ONE;
@@ -292,6 +354,51 @@ mod bindings {
                 note.offset(offset as isize).cast::<NoteFxP>(), samples as usize);
             let shape_s = std::slice::from_raw_parts(
                 shape.offset(offset as isize).cast::<fixedmath::U0F16>(), samples as usize);
+            let out = p.as_mut().unwrap().process(note_s, shape_s);
+            *sin = out.sin.as_ptr().cast();
+            *tri = out.tri.as_ptr().cast();
+            *sq = out.sq.as_ptr().cast();
+            out.sin.len() as i32
+        }
+    }
+
+    #[no_mangle]
+    pub extern "C" fn janus_osc_f32_new() -> *mut Oscillator<f32> {
+        Box::into_raw(Box::new(Oscillator::<f32>::create()))
+    }
+
+    #[no_mangle]
+    pub extern "C" fn janus_osc_f32_free(p: *mut Oscillator<f32>) {
+        if !p.is_null() {
+            let _ = unsafe { Box::from_raw(p) };
+        }
+    }
+
+    #[no_mangle]
+    pub extern "C" fn janus_osc_f32_process(
+        p: *mut Oscillator<f32>,
+        samples: u32,
+        note: *const f32,
+        shape: *const f32,
+        sin: *mut *const f32,
+        tri: *mut *const f32,
+        sq: *mut *const f32,
+        offset: u32
+    ) -> i32 {
+        if p.is_null()
+            || note.is_null()
+            || shape.is_null()
+            || sin.is_null()
+            || tri.is_null()
+            || sq.is_null()
+        {
+            return -1;
+        }
+        unsafe {
+            let note_s = std::slice::from_raw_parts(
+                note.offset(offset as isize), samples as usize);
+            let shape_s = std::slice::from_raw_parts(
+                shape.offset(offset as isize), samples as usize);
             let out = p.as_mut().unwrap().process(note_s, shape_s);
             *sin = out.sin.as_ptr().cast();
             *tri = out.tri.as_ptr().cast();
