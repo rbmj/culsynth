@@ -1,4 +1,5 @@
 pub mod osc;
+pub mod env;
 
 use super::fixedmath;
 use super::fixedmath::Sample as SampleFxP;
