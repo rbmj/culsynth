@@ -2,7 +2,7 @@ use super::*;
 
 type PhaseFxP = fixedmath::I4F28;
 
-pub struct Oscillator<Smp> {
+pub struct Osc<Smp> {
     sinbuf: BufferT<Smp>,
     sqbuf: BufferT<Smp>,
     tribuf: BufferT<Smp>,
@@ -15,7 +15,7 @@ pub struct OscOutput<'a, Smp> {
     tri: &'a [Smp]
 }
 
-impl<Smp: Float> Oscillator<Smp> {
+impl<Smp: Float> Osc<Smp> {
     pub fn create() -> Self {
         Self {
             sinbuf: [Smp::zero(); STATIC_BUFFER_SIZE],
@@ -90,16 +90,16 @@ pub struct OscOutputFxP<'a> {
     tri: &'a [SampleFxP]
 }
 
-pub struct OscillatorFxP {
+pub struct OscFxP {
     sinbuf: BufferT<SampleFxP>,
     sqbuf: BufferT<SampleFxP>,
     tribuf: BufferT<SampleFxP>,
     phase: PhaseFxP
 }
 
-impl OscillatorFxP {
-    pub fn create() -> OscillatorFxP {
-        OscillatorFxP {
+impl OscFxP {
+    pub fn create() -> OscFxP {
+        OscFxP {
             sinbuf: [SampleFxP::ZERO; STATIC_BUFFER_SIZE],
             sqbuf: [SampleFxP::ZERO; STATIC_BUFFER_SIZE],
             tribuf: [SampleFxP::ZERO; STATIC_BUFFER_SIZE],
@@ -318,12 +318,12 @@ mod bindings {
     use super::*;
 
     #[no_mangle]
-    pub extern "C" fn janus_osc_u16_new() -> *mut OscillatorFxP {
-        Box::into_raw(Box::new(OscillatorFxP::create()))
+    pub extern "C" fn janus_osc_u16_new() -> *mut OscFxP {
+        Box::into_raw(Box::new(OscFxP::create()))
     }
 
     #[no_mangle]
-    pub extern "C" fn janus_osc_u16_free(p: *mut OscillatorFxP) {
+    pub extern "C" fn janus_osc_u16_free(p: *mut OscFxP) {
         if !p.is_null() {
             let _ = unsafe { Box::from_raw(p) };
         }
@@ -331,7 +331,7 @@ mod bindings {
 
     #[no_mangle]
     pub extern "C" fn janus_osc_u16_process(
-        p: *mut OscillatorFxP,
+        p: *mut OscFxP,
         samples: u32,
         note: *const u16,
         shape: *const u16,
@@ -363,12 +363,12 @@ mod bindings {
     }
 
     #[no_mangle]
-    pub extern "C" fn janus_osc_f32_new() -> *mut Oscillator<f32> {
-        Box::into_raw(Box::new(Oscillator::<f32>::create()))
+    pub extern "C" fn janus_osc_f32_new() -> *mut Osc<f32> {
+        Box::into_raw(Box::new(Osc::<f32>::create()))
     }
 
     #[no_mangle]
-    pub extern "C" fn janus_osc_f32_free(p: *mut Oscillator<f32>) {
+    pub extern "C" fn janus_osc_f32_free(p: *mut Osc<f32>) {
         if !p.is_null() {
             let _ = unsafe { Box::from_raw(p) };
         }
@@ -376,7 +376,7 @@ mod bindings {
 
     #[no_mangle]
     pub extern "C" fn janus_osc_f32_process(
-        p: *mut Oscillator<f32>,
+        p: *mut Osc<f32>,
         samples: u32,
         note: *const f32,
         shape: *const f32,

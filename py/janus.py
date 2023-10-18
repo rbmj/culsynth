@@ -23,7 +23,7 @@ _janus_osc_u16_process.argtypes = [
 ]
 _janus_osc_u16_process.restype = c_int32
 
-class OscillatorFxP:
+class OscFxP:
     def __init__(self):
         self.ptr = _janus_osc_u16_new()
     def __del__(self):
