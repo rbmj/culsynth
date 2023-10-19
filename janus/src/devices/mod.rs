@@ -16,11 +16,31 @@ const SAMPLE_RATE : u16 = 44100;
 const FRAC_4096_2PI_SR : fixedmath::U0F32 = fixedmath::U0F32::lit("0x0.9565925d");
 
 pub trait Float : num_traits::Float + num_traits::FloatConst {
-    //TODO
+    const ZERO: Self;
+    const ONE: Self;
+    const TWO: Self;
+    const THREE: Self;
+    const ONE_HALF: Self;
+    const POINT_NINE_EIGHT: Self;
 }
 
-impl Float for f32 {}
-impl Float for f64 {}
+impl Float for f32 {
+    const ZERO: f32 = 0.0f32;
+    const ONE: f32 = 1.0f32;
+    const TWO: f32 = 2.0f32;
+    const THREE: f32 = 3.0f32;
+    const ONE_HALF: f32 = 0.5f32;
+    const POINT_NINE_EIGHT: f32 = 0.98f32;
+}
+
+impl Float for f64 {
+    const ZERO: f64 = 0.0f64;
+    const ONE: f64 = 1.0f64;
+    const TWO: f64 = 2.0f64;
+    const THREE: f64 = 3.0f64;
+    const ONE_HALF: f64 = 0.5f64;
+    const POINT_NINE_EIGHT: f64 = 0.98f64;
+}
 
 fn midi_note_to_frequency<T: Float>(note: T) -> T {
     let c69 = T::from(69).unwrap();

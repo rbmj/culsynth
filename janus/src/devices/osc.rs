@@ -6,13 +6,15 @@ pub struct Osc<Smp> {
     sinbuf: BufferT<Smp>,
     sqbuf: BufferT<Smp>,
     tribuf: BufferT<Smp>,
+    sawbuf: BufferT<Smp>,
     phase: Smp
 }
 
 pub struct OscOutput<'a, Smp> {
     sin: &'a [Smp],
     sq: &'a [Smp],
-    tri: &'a [Smp]
+    tri: &'a [Smp],
+    saw: &'a [Smp]
 }
 
 impl<Smp: Float> Osc<Smp> {
@@ -21,6 +23,7 @@ impl<Smp: Float> Osc<Smp> {
             sinbuf: [Smp::zero(); STATIC_BUFFER_SIZE],
             sqbuf: [Smp::zero(); STATIC_BUFFER_SIZE],
             tribuf: [Smp::zero(); STATIC_BUFFER_SIZE],
+            sawbuf: [Smp::zero(); STATIC_BUFFER_SIZE],
             phase: Smp::zero()
         }
     }
@@ -28,19 +31,20 @@ impl<Smp: Float> Osc<Smp> {
         let input_len = std::cmp::min(note.len(), shape.len());
         let numsamples = std::cmp::min(input_len, STATIC_BUFFER_SIZE);
         // We don't have to split sin up piecewise but we'll do it for symmetry with
-        // the fixed point implementation and to make it easy to switch to a taylor
-        // series approximation if performance dictates
+        // the fixed point implementation and to make it easy to switch to an
+        // approximation if performance dictates
         for i in 0..numsamples {
             //generate waveforms (piecewise defined)
             let frac_2phase_pi = self.phase * Smp::FRAC_2_PI();
-            if self.phase < Smp::zero() {
+            self.sawbuf[i] = frac_2phase_pi / (Smp::one() + Smp::one());
+            if self.phase < Smp::ZERO {
                 self.sqbuf[i] = Smp::one().neg();
                 if self.phase < Smp::FRAC_PI_2() {  // phase in [-pi, pi/2)
                     // sin(x) = -cos(x+pi/2)
                     // TODO: Use fast approximation?
                     self.sinbuf[i] = (self.phase + Smp::FRAC_PI_2()).cos().neg();
                     // Subtract (1+1) because traits :eyeroll:
-                    self.tribuf[i] = frac_2phase_pi.neg() - (Smp::one() + Smp::one());
+                    self.tribuf[i] = frac_2phase_pi.neg() - Smp::TWO;
                 }
                 else {  // phase in [-pi/2, 0)
                     self.sinbuf[i] = self.phase.sin();
@@ -57,19 +61,19 @@ impl<Smp: Float> Osc<Smp> {
                 else { // phase in [pi/2, pi)
                     // sin(x) = cos(x-pi/2)
                     self.sinbuf[i] = (self.phase - Smp::FRAC_PI_2()).cos();
-                    self.tribuf[i] = (Smp::one() + Smp::one()) - frac_2phase_pi;
+                    self.tribuf[i] = Smp::TWO - frac_2phase_pi;
                 }
             }
-            let sample_rate = Smp::from(44100).unwrap();
+            let sample_rate = Smp::from(SAMPLE_RATE).unwrap();
             //calculate the next phase
             let phase_per_sample = midi_note_to_frequency(note[i])*Smp::TAU()/sample_rate;
             let shape_clip = Smp::from(0.9375).unwrap();
             let shp = if shape[i] < shape_clip { shape[i] } else { shape_clip };
             let phase_per_smp_adj = if self.phase < Smp::zero() {
-                phase_per_sample * (Smp::one() / (Smp::one() + shp))
+                phase_per_sample * (Smp::ONE / (Smp::ONE + shp))
             }
             else {
-                phase_per_sample * (Smp::one() / (Smp::one() - shp))
+                phase_per_sample * (Smp::ONE / (Smp::ONE - shp))
             };
             self.phase = self.phase + phase_per_smp_adj;
             if self.phase >= Smp::PI() {
@@ -79,7 +83,8 @@ impl<Smp: Float> Osc<Smp> {
         OscOutput {
             sin: &self.sinbuf[0..numsamples],
             tri: &self.tribuf[0..numsamples],
-            sq: &self.sqbuf[0..numsamples]
+            sq: &self.sqbuf[0..numsamples],
+            saw: &self.sawbuf[0..numsamples]
         }    
     }
 }
@@ -87,13 +92,15 @@ impl<Smp: Float> Osc<Smp> {
 pub struct OscOutputFxP<'a> {
     sin: &'a [SampleFxP],
     sq: &'a [SampleFxP],
-    tri: &'a [SampleFxP]
+    tri: &'a [SampleFxP],
+    saw: &'a [SampleFxP]
 }
 
 pub struct OscFxP {
     sinbuf: BufferT<SampleFxP>,
     sqbuf: BufferT<SampleFxP>,
     tribuf: BufferT<SampleFxP>,
+    sawbuf: BufferT<SampleFxP>,
     phase: PhaseFxP
 }
 
@@ -103,6 +110,7 @@ impl OscFxP {
             sinbuf: [SampleFxP::ZERO; STATIC_BUFFER_SIZE],
             sqbuf: [SampleFxP::ZERO; STATIC_BUFFER_SIZE],
             tribuf: [SampleFxP::ZERO; STATIC_BUFFER_SIZE],
+            sawbuf: [SampleFxP::ZERO; STATIC_BUFFER_SIZE],
             phase: PhaseFxP::ZERO
         }
     }
@@ -114,10 +122,14 @@ impl OscFxP {
             //generate waveforms (piecewise defined)
             let frac_2phase_pi = SampleFxP::from_num(SampleFxP::from_num(
                 self.phase).wide_mul_unsigned(FRAC_2_PI));
+            //Sawtooth wave does not have to be piecewise-defined
+            self.sawbuf[i] = frac_2phase_pi.unwrapped_shr(1);
+            //All other functions are piecewise-defined:
             if self.phase < 0 {
                 self.sqbuf[i] = SampleFxP::NEG_ONE;
                 if self.phase < PhaseFxP::FRAC_PI_2.unwrapped_neg() {  // phase in [-pi, pi/2)
-                    // sin(x) = -cos(x+pi/2)
+                    // Use the identity sin(x) = -cos(x+pi/2) since our taylor series
+                    // approximations are centered about zero and this will be more accurate
                     self.sinbuf[i] = fixedmath::cos_fixed(
                         SampleFxP::from_num(self.phase + PhaseFxP::FRAC_PI_2))
                         .unwrapped_neg();
@@ -125,7 +137,6 @@ impl OscFxP {
                 }
                 else {  // phase in [-pi/2, 0)
                     self.sinbuf[i] = fixedmath::sin_fixed(SampleFxP::from_num(self.phase));
-                    //triangle
                     self.tribuf[i] = frac_2phase_pi;
                 }
             }
@@ -161,7 +172,8 @@ impl OscFxP {
         OscOutputFxP {
             sin: &self.sinbuf[0..numsamples],
             tri: &self.tribuf[0..numsamples],
-            sq: &self.sqbuf[0..numsamples]
+            sq: &self.sqbuf[0..numsamples],
+            saw: &self.sawbuf[0..numsamples]
         }    
     }
 }
@@ -335,6 +347,7 @@ mod bindings {
         sin: *mut *const i16,
         tri: *mut *const i16,
         sq: *mut *const i16,
+        saw: *mut *const i16,
         offset: u32
     ) -> i32 {
         if p.is_null()
@@ -355,6 +368,7 @@ mod bindings {
             *sin = out.sin.as_ptr().cast();
             *tri = out.tri.as_ptr().cast();
             *sq = out.sq.as_ptr().cast();
+            *saw = out.saw.as_ptr().cast();
             out.sin.len() as i32
         }
     }
@@ -380,6 +394,7 @@ mod bindings {
         sin: *mut *const f32,
         tri: *mut *const f32,
         sq: *mut *const f32,
+        saw: *mut *const f32,
         offset: u32
     ) -> i32 {
         if p.is_null()
@@ -388,6 +403,7 @@ mod bindings {
             || sin.is_null()
             || tri.is_null()
             || sq.is_null()
+            || saw.is_null()
         {
             return -1;
         }
@@ -400,6 +416,7 @@ mod bindings {
             *sin = out.sin.as_ptr().cast();
             *tri = out.tri.as_ptr().cast();
             *sq = out.sq.as_ptr().cast();
+            *saw = out.saw.as_ptr().cast();
             out.sin.len() as i32
         }
     }
