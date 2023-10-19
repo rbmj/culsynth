@@ -29,6 +29,7 @@ impl EnvFxP {
             last: Self::SIGNAL_MIN
         }
     }
+    //TODO: Pull this and the one in EnvFxP into fixedmath with generic fractional bits...
     fn one_over(x: fixedmath::U19F13) -> (fixedmath::U1F15, u32) {
         let mut shift = x.leading_zeros();
         let mut x_shifted = fixedmath::U1F31::from_bits(x.to_bits()).unwrapped_shl(shift);
@@ -79,7 +80,6 @@ impl EnvFxP {
             else {
                 release[i]
             };
-            const SAMPLE_RATE : u16 = 44100;
             // This is equivalen to saying rise time = 4 time constants...
             let sr = fixedmath::U16F0::from_bits(SAMPLE_RATE >> 1);
             let k = rise.wide_mul(sr) + fixedmath::U19F13::ONE;

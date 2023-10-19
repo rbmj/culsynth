@@ -24,6 +24,10 @@ const FREQ_E4 : Frequency = Frequency::lit("329.627557");
 // 256 / [the freq above]
 const FRAC_256_FREQ_E4 : U8F24 = U8F24::lit("0x0.c6d17e");
 
+// As a quick aside - all of these functions prioritize
+// speed over accuracy.  Don't use for scientific calculations...
+// you have been warned!
+
 pub fn sin_fixed(x : Sample) -> Sample {
     //small angle approximation.  Faster and removes 0 as an edge case
     if x.abs() < SMALL_ANGLE_LESS {
@@ -69,6 +73,13 @@ pub fn cos_fixed(x: Sample) -> Sample {
     let a_mult_b_nested = x2.wide_mul(b_nested).unwrapped_shr(1);
     // cos(x) ~= 1 - a*b_nested
     Sample::ONE - Sample::from_num(a_mult_b_nested)
+}
+
+pub fn tan_fixed(x: U0F16) -> U1F15 {
+    let x2 = x.wide_mul(x);
+    let x2_over3 = U0F16::from_num(x2).wide_mul(FRAC_2_3).unwrapped_shr(1);
+    let res_over_x = U1F15::from_num(x2_over3) + U1F15::ONE;
+    U1F15::from_num(res_over_x.wide_mul(x))
 }
 
 // calculate e^x in the range [-0.5, 0.5) using an order 4 Taylor series

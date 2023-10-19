@@ -110,9 +110,6 @@ impl OscFxP {
         let input_len = std::cmp::min(note.len(), shape.len());
         let numsamples = std::cmp::min(input_len, STATIC_BUFFER_SIZE);
         const FRAC_2_PI : ScalarFxP = ScalarFxP::lit("0x0.a2fa");
-        //FIXME: Variable sample rate?
-        // 4096*2*pi/44.1k
-        const FRAC_4096_2PI_SR : fixedmath::U0F32 = fixedmath::U0F32::lit("0x0.9565925d");
         for i in 0..numsamples {
             //generate waveforms (piecewise defined)
             let frac_2phase_pi = SampleFxP::from_num(SampleFxP::from_num(
