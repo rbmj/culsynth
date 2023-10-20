@@ -1,6 +1,5 @@
 use super::*;
 
-
 pub struct FiltOutput<'a, Smp> {
     low: &'a [Smp],
     band: &'a [Smp],
@@ -11,10 +10,8 @@ pub struct Filt<Smp> {
     low : BufferT<Smp>,
     band : BufferT<Smp>,
     high : BufferT<Smp>,
-    input_z: (Smp, Smp),
-    low_z: (Smp, Smp),
-    band_z: (Smp, Smp),
-    high_z: (Smp, Smp),
+    low_z: Smp,
+    band_z: Smp,    
 }
 
 impl<Smp: Float> Filt<Smp> {
@@ -23,50 +20,40 @@ impl<Smp: Float> Filt<Smp> {
             low: [Smp::ZERO; STATIC_BUFFER_SIZE],
             band: [Smp::ZERO; STATIC_BUFFER_SIZE],
             high: [Smp::ZERO; STATIC_BUFFER_SIZE],
-            input_z: (Smp::ZERO, Smp::ZERO),
-            low_z: (Smp::ZERO, Smp::ZERO),
-            band_z: (Smp::ZERO, Smp::ZERO),
-            high_z: (Smp::ZERO, Smp::ZERO)
+            
+            low_z: Smp::ZERO,
+            band_z: Smp::ZERO,
         }
+    }
+    
+    fn prewarped_gain(f: Smp) -> Smp {
+        let f_c = midi_note_to_frequency(f);
+        Smp::tan(Smp::PI()*f_c / Smp::from(SAMPLE_RATE).unwrap())
     }
     pub fn process(&mut self, input: &[Smp], cutoff: &[Smp], resonance: &[Smp]) -> FiltOutput<Smp> {
         let numsamples = std::cmp::min(
             std::cmp::min(input.len(), cutoff.len()),
             std::cmp::min(resonance.len(), STATIC_BUFFER_SIZE));
         for i in 0..numsamples {
-            // omega_d = omega_c*Ts/2 = 2pi*f_c / (2*SR) = f_c*2pi*2^12 / (SR*2^13)
-            let f_c = midi_note_to_frequency(cutoff[i]);
-            let omega_d = Smp::PI()*f_c / Smp::from(SAMPLE_RATE).unwrap();
-            let omega_p = Smp::tan(omega_d);
-            let omega_p_2 = omega_p * omega_p;
-            let omega_p_r = omega_p * resonance[i];
-            let omega_p_2_plus1 = omega_p_2 + Smp::ONE;
-            let quad_term = omega_p_2_plus1 - (Smp::TWO * omega_p_r);
-            // linear term is 2*omega_p^2 - 2 = 2 * (omega_p^2 - 1)
-            let linear_term = Smp::TWO * (omega_p_2 - Smp::ONE);
-            let denom = omega_p_2_plus1 + (Smp::TWO * omega_p_r);
-            let low_feedback = (self.low_z.1 * quad_term) + (self.low_z.0 * linear_term);
-            let band_feedback = (self.band_z.1 * quad_term) + (self.band_z.0 * linear_term);
-            let high_feedback = (self.high_z.1 * quad_term) + (self.high_z.0 * linear_term);
-            let low_control = (self.input_z.1 + (self.input_z.0 * Smp::TWO) + input[i])*omega_p_2;
-            let band_control = (input[i] - self.input_z.1)*omega_p;
-            let high_control = self.input_z.1 - (self.input_z.0 * Smp::TWO) + input[i];
-            self.low[i] = (low_control - low_feedback) / denom;
-            self.band[i] = (band_control - band_feedback) / denom;
-            self.high[i] = (high_control - high_feedback) / denom;
-            //rotate all the new values into the output arrays and rotate the state arrays
-            self.low_z.1 = self.low_z.0;
-            self.band_z.1 = self.band_z.0;
-            self.high_z.1 = self.high_z.0;
-            self.low_z.0 = self.low[i];
-            self.band_z.0 = self.band[i];
-            self.high_z.0 = self.high[i];
+            let res = Smp::ONE - if resonance[i] < Smp::RES_MAX { resonance[i] } else { Smp::RES_MAX };
+            let gain = Self::prewarped_gain(cutoff[i]);
+            let denom = gain*gain + Smp::TWO*res*gain + Smp::ONE;
+            self.high[i] = (input[i] - (Smp::TWO*res + gain)*self.band_z - self.low_z) /
+                    denom;
+            let band_gain = gain*self.high[i];
+            self.band[i] = band_gain + self.band_z;
+            self.band_z = self.band[i] + band_gain;
+
+            let low_gain = gain*self.band[i];
+            self.low[i] = low_gain + self.low_z;
+            self.low_z = self.low[i] + low_gain;
         }
         FiltOutput {
             low: &self.low[0..numsamples],
             band: &self.band[0..numsamples],
             high: &self.high[0..numsamples]
         }
+        
     }
 }
 
@@ -81,18 +68,19 @@ pub struct FiltFxP {
     low : BufferT<SampleFxP>,
     band : BufferT<SampleFxP>,
     high : BufferT<SampleFxP>,
-    input_z: (SampleFxP, SampleFxP),
-    low_z: (SampleFxP, SampleFxP),
-    band_z: (SampleFxP, SampleFxP),
-    high_z: (SampleFxP, SampleFxP),
+    low_z: fixedmath::I12F20,
+    band_z: fixedmath::I12F20
 }
 
 impl FiltFxP {
+    const RES_MAX : ScalarFxP = ScalarFxP::lit("0x0.F000");
     //TODO: Pull this and the one in EnvFxP into fixedmath with generic fractional bits...
     fn one_over(x: fixedmath::U3F29) -> (fixedmath::U1F15, u32) {
-        let mut shift = x.leading_zeros();
-        let mut x_shifted = fixedmath::U1F31::from_bits(x.to_bits()).unwrapped_shl(shift);
-        if x_shifted >= fixedmath::U1F31::SQRT_2 && shift > 0 { //FIXME
+        //x must be at least 1, or this will panic at the return statement (2 - shift < 0)
+        let mut shift = x.leading_zeros() as i32;
+        let mut x_shifted = fixedmath::U1F31::from_bits(x.to_bits())
+            .unwrapped_shl(shift as u32);
+        if x_shifted >= fixedmath::U1F31::SQRT_2 {
             shift -= 1;
             x_shifted = x_shifted.unwrapped_shr(1);
         }
@@ -100,18 +88,25 @@ impl FiltFxP {
         let x2 = fixedmath::I3F29::from_num(x_shifted_trunc.wide_mul(x_shifted_trunc));
         let one_minus_x = fixedmath::I3F29::ONE - fixedmath::I3F29::from_num(x_shifted);
         let result = x2 + one_minus_x + one_minus_x.unwrapped_shl(1);
-        (fixedmath::U1F15::from_num(result), 2 - shift)
+        (fixedmath::U1F15::from_num(result), (2 - shift) as u32)
     }
     pub fn create() -> Self {
         Self {
             low: [SampleFxP::ZERO; STATIC_BUFFER_SIZE],
             band: [SampleFxP::ZERO; STATIC_BUFFER_SIZE],
             high: [SampleFxP::ZERO; STATIC_BUFFER_SIZE],
-            input_z: (SampleFxP::ZERO, SampleFxP::ZERO),
-            low_z: (SampleFxP::ZERO, SampleFxP::ZERO),
-            band_z: (SampleFxP::ZERO, SampleFxP::ZERO),
-            high_z: (SampleFxP::ZERO, SampleFxP::ZERO)
+            low_z: fixedmath::I12F20::ZERO,
+            band_z: fixedmath::I12F20::ZERO
         }
+    }
+    fn prewarped_gain(n: NoteFxP) -> fixedmath::U1F15 {
+        let f_c = fixedmath::U14F2::from_num(
+            fixedmath::midi_note_to_frequency(n));
+        let omega_d =
+            ScalarFxP::from_num(
+                f_c.wide_mul(ScalarFxP::from_num(FRAC_4096_2PI_SR))
+            .unwrapped_shr(13));
+        fixedmath::tan_fixed(omega_d)
     }
     pub fn process(&mut self,
         input: &[SampleFxP],
@@ -122,69 +117,36 @@ impl FiltFxP {
             std::cmp::min(input.len(), cutoff.len()),
             std::cmp::min(resonance.len(), STATIC_BUFFER_SIZE));
         for i in 0..numsamples {
-            // omega_d = omega_c*Ts/2 = 2pi*f_c / (2*SR) = f_c*2pi*2^12 / (SR*2^13)
-            let f_c = fixedmath::U14F2::from_num(
-                    fixedmath::midi_note_to_frequency(cutoff[i]));
-            let omega_d = ScalarFxP::from_num(f_c.wide_mul(ScalarFxP::from_num(FRAC_4096_2PI_SR))
-                .unwrapped_shr(13));
-            let omega_p = fixedmath::tan_fixed(omega_d);
-            let omega_p_2 = omega_p.wide_mul(omega_p);
-            let omega_p_r = omega_p.wide_mul(resonance[i]);
-            let omega_p_2_plus1 = omega_p_2 + fixedmath::U2F30::ONE;
-            let x = omega_p_2_plus1 - fixedmath::U2F30::from_num(omega_p_r);
-            let quad_term = if x < omega_p_r { // may be possible with some variety of truncation
-                fixedmath::U2F30::ZERO
-            }
-            else {
-                x - fixedmath::U2F30::from_num(omega_p_r)
-            };
-            // linear term is 2*omega_p^2 - 2 = 2 * (-1 + omega_p^2)
-            let linear_term = fixedmath::I2F30::NEG_ONE.add_unsigned(omega_p_2).unwrapped_shl(1);
-            let denom = fixedmath::U3F29::from_num(omega_p_2_plus1) +
-                fixedmath::U3F29::from_num(omega_p_r).unwrapped_shl(1);
-            let (scalar, shift) = Self::one_over(denom);
-            //TODO: Are all these demotions strictly necessary, or can we prove that some are not required?
-            let low_feedback = 
-                fixedmath::I7F25::from_num(self.low_z.1.wide_mul_unsigned(fixedmath::U2F14::from_num(quad_term))) +
-                fixedmath::I7F25::from_num(self.low_z.0.wide_mul(fixedmath::I2F14::from_num(linear_term)));
-            let band_feedback = 
-                fixedmath::I7F25::from_num(self.band_z.1.wide_mul_unsigned(fixedmath::U2F14::from_num(quad_term))) +
-                fixedmath::I7F25::from_num(self.band_z.0.wide_mul(fixedmath::I2F14::from_num(linear_term)));
-            let high_feedback = 
-                fixedmath::I7F25::from_num(self.high_z.1.wide_mul_unsigned(fixedmath::U2F14::from_num(quad_term))) +
-                fixedmath::I7F25::from_num(self.high_z.0.wide_mul(fixedmath::I2F14::from_num(linear_term)));
-            let low_control_sum = 
-                fixedmath::I6F26::from_num(self.input_z.1) + 
-                fixedmath::I6F26::from_num(self.input_z.0).unwrapped_shl(1) +
-                fixedmath::I6F26::from_num(input[i]);
-            let low_control = fixedmath::I6F10::from_num(low_control_sum)
-                .wide_mul_unsigned(fixedmath::U2F14::from_num(omega_p_2));
-            let band_control_sum =
-                fixedmath::I6F26::from_num(input[i]) -
-                fixedmath::I6F26::from_num(self.input_z.1);
-            let band_control = fixedmath::I6F10::from_num(band_control_sum)
-                .wide_mul_unsigned(fixedmath::U2F14::from_num(omega_p));
+            let res = ScalarFxP::MAX - std::cmp::min(resonance[i], Self::RES_MAX);
+            // include type annotations to make the fixed point logic more explicit
+            let gain : fixedmath::U1F15 = Self::prewarped_gain(cutoff[i]);
+            let gain2 = fixedmath::U3F29::from_num(gain.wide_mul(gain));
+            // resonance * gain is a U1F31, so this will only lose the least significant bit
+            // and provides space for the shift left below (should be optimized out)
+            let gain_r = fixedmath::U3F29::from_num(res.wide_mul(gain));
+            let denom = gain2 + gain_r.unwrapped_shl(1) + fixedmath::U3F29::ONE;
+            let (denom_inv, shift) = Self::one_over(denom);
 
-            let high_control =
-                    fixedmath::I6F26::from_num(self.input_z.1) -
-                    fixedmath::I6F26::from_num(self.input_z.0).unwrapped_shl(1) +
-                    fixedmath::I6F26::from_num(input[i]);
-            let low = fixedmath::I7F9::from_num(fixedmath::I7F25::from_num(low_control) - low_feedback)
-                .wide_mul_unsigned(scalar).unwrapped_shr(shift);
-            let band = fixedmath::I7F9::from_num(fixedmath::I7F25::from_num(band_control) - band_feedback)
-                .wide_mul_unsigned(scalar).unwrapped_shr(shift);
-            let high = fixedmath::I7F9::from_num(fixedmath::I7F25::from_num(high_control) - high_feedback)
-                .wide_mul_unsigned(scalar).unwrapped_shr(shift);
-            //rotate all the new values into the output arrays and rotate the state arrays
-            self.low[i] = SampleFxP::from_num(low);
-            self.band[i] = SampleFxP::from_num(band);
-            self.high[i] = SampleFxP::ZERO; //SampleFxP::from_num(high);
-            self.low_z.1 = self.low_z.0;
-            self.band_z.1 = self.band_z.0;
-            self.high_z.1 = self.high_z.0;
-            self.low_z.0 = self.low[i];
-            self.band_z.0 = self.band[i];
-            self.high_z.0 = self.high[i];
+            let gain_plus_2r = fixedmath::U3F29::from_num(res).unwrapped_shl(1) +
+                fixedmath::U3F29::from_num(gain);
+            let band_high_feedback: fixedmath::I7F25 = fixedmath::U3F13::from_num(gain_plus_2r)
+                .wide_mul_signed(SampleFxP::saturating_from_num(self.band_z));
+            let high_num = SampleFxP::saturating_from_num(
+                fixedmath::I12F20::from_num(input[i])
+                - fixedmath::I12F20::from_num(band_high_feedback)
+                - self.low_z);
+            let high_unshifted : fixedmath::I5F27 = high_num.wide_mul_unsigned(denom_inv);
+            self.high[i] = SampleFxP::saturating_from_num(high_unshifted.unwrapped_shr(shift));
+
+            let band_gain = fixedmath::I12F20::from_num(gain.wide_mul_signed(self.high[i]));
+            let band = band_gain + self.band_z;
+            self.band[i] = SampleFxP::saturating_from_num(band_gain + self.band_z);
+            self.band_z = band + band_gain;
+
+            let low_gain = fixedmath::I12F20::from_num(gain.wide_mul_signed(self.band[i]));
+            let low = low_gain + self.low_z;
+            self.low[i] = SampleFxP::saturating_from_num(low);
+            self.low_z = low + low_gain;
         }
         FiltOutputFxP {
             low: &self.low[0..numsamples],
