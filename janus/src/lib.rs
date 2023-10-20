@@ -1,7 +1,7 @@
 //
 
 mod fixedmath;
-mod util;
+pub mod util;
 
 pub mod devices;
 

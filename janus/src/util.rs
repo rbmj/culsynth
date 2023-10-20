@@ -1,5 +1,5 @@
 pub fn calculate_cents(base: f32, freq: f32) -> f32 {
-    1200.0*f32::ln(freq/base)/f32::ln(2.0)
+    1200.0*f32::log2(freq/base)
 }
 
 pub fn midi_note_pretty(note: i8) -> String {

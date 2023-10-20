@@ -10,3 +10,4 @@ path = "src/main.rs"
 
 [dependencies]
 janus = { path = "../janus" }
+fixed = "1.24"

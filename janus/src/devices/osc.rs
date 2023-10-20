@@ -156,9 +156,11 @@ impl OscFxP {
             let phase_per_sample = PhaseFxP::from_num(fixedmath::midi_note_to_frequency(note[i])
                 .wide_mul(FRAC_4096_2PI_SR)
                 .unwrapped_shr(12));
+            //FIXME: Is this the best fixed point accuracy or are we throwing bits away here?
             let phase_per_smp_adj = if self.phase < PhaseFxP::ZERO {
-                PhaseFxP::from_num(phase_per_sample.wide_mul(fixedmath::I20F12::from_num(
-                    one_over_one_plus_x(shape[i]))))
+                let (x, s) = fixedmath::one_over_one_plus_highacc(shape[i]);
+                PhaseFxP::from_num(phase_per_sample.wide_mul(
+                    fixedmath::I20F12::from_num(x))).unwrapped_shr(s)
             }
             else {
                 PhaseFxP::from_num(phase_per_sample.wide_mul(fixedmath::I20F12::from_num(
@@ -269,27 +271,6 @@ fn one_over_one_minus_x(x: ScalarFxP) -> USampleFxP {
     lookup_val + USampleFxP::from_num(interp)
 }
 
-//we're not going to use the generic fixedmath implementation because
-//we need more accuracy (FIXME)
-fn one_over_one_plus_x(x_arg: ScalarFxP) -> fixedmath::U1F15 {
-    if x_arg == ScalarFxP::ZERO {
-        return fixedmath::U1F15::ONE;
-    }
-    // Need to match the clipping behavior of the other one_over_one_minus_x():
-    let x = fixedmath::I1F15::from_num(clip_shape(x_arg));
-    let x_prime = x - fixedmath::I1F15::lit("0.333333333");
-    let mut acc = fixedmath::I2F14::ONE;
-    for _ in 0..4 {
-        let mut prod = fixedmath::I16F16::from_num(acc.wide_mul(x_prime));
-        prod += prod.unwrapped_shl(1); // acc *= 3
-        prod = prod.unwrapped_shr(2);  // acc /= 4
-        acc = fixedmath::I2F14::ONE - fixedmath::I2F14::from_num(prod);
-    }
-    acc = acc.unwrapped_shr(2);  // acc / 4
-    acc += acc.unwrapped_shl(1); // acc *= 3
-    fixedmath::U1F15::from_num(acc)
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
@@ -301,7 +282,8 @@ mod test {
             let x_wide = fixedmath::U16F16::from_num(i).unwrapped_shr(10);
             let x = clip_shape(ScalarFxP::from_num(x_wide));
             let xf = x.to_num::<f32>();
-            let x_pos = one_over_one_plus_x(x);
+            let (x_pos_, shift) = fixedmath::one_over_one_plus_highacc(x);
+            let x_pos = x_pos_.unwrapped_shr(shift);
             let xf_pos = 1f32 / (1f32 + xf);
             let x_neg = one_over_one_minus_x(x);
             let xf_neg = 1f32 / (1f32 - xf);
@@ -319,7 +301,7 @@ mod test {
     fn shape_mod_nopanic() {
         for i in 0..(1<<16) {
             let x = ScalarFxP::from_bits(i as u16);
-            let _pos = one_over_one_plus_x(x);
+            let (_pos, _) = fixedmath::one_over_one_plus_highacc(x);
             let _neg = one_over_one_minus_x(x);
         }
     }

@@ -30,7 +30,7 @@ const FRAC_256_FREQ_E4 : U8F24 = U8F24::lit("0x0.c6d17e");
 // speed over accuracy.  Don't use for scientific calculations...
 // you have been warned!
 
-pub fn one_over_one_plus<Frac>(n: FixedU32<Frac>) -> (U1F15, u32)
+fn one_over_one_plus_helper<Frac>(n: FixedU32<Frac>) -> (U1F31, u32)
     where Frac: Unsigned + IsLessOrEqual<U31, Output = True> + LeEqU32
 {
     let nbits = FixedU32::<Frac>::INT_NBITS;
@@ -43,11 +43,29 @@ pub fn one_over_one_plus<Frac>(n: FixedU32<Frac>) -> (U1F15, u32)
         shift -= 1;
         x_shifted = x_shifted.unwrapped_shr(1);
     }
+    (x_shifted, nbits - shift)
+}
+
+pub fn one_over_one_plus<Frac>(x: FixedU32<Frac>) -> (U1F15, u32)
+    where Frac: Unsigned + IsLessOrEqual<U31, Output = True> + LeEqU32
+{
+    let (x_shifted, shift) = one_over_one_plus_helper(x);
     let x_shifted_trunc = U1F15::from_num(x_shifted);
     let x2 = I3F29::from_num(x_shifted_trunc.wide_mul(x_shifted_trunc));
     let one_minus_x = I3F29::ONE - I3F29::from_num(x_shifted);
-    let result = x2 + one_minus_x + one_minus_x.unwrapped_shl(1);
-    (U1F15::from_num(result), (nbits - shift))
+    (U1F15::from_num(x2 + one_minus_x + one_minus_x.unwrapped_shl(1)), shift)
+}
+
+pub fn one_over_one_plus_highacc(x: U0F16) -> (U1F15, u32) {
+    let (x_shifted, shift) = one_over_one_plus_helper(U16F16::from_num(x));
+    const FIVE_NAR : U3F13 = U3F13::lit("5");
+    const FIVE : U4F28 = U4F28::lit("5");
+    const TEN : U4F28 = U4F28::lit("10");
+    let x_shifted_trunc = U1F15::from_num(x_shifted);
+    let p1 = x_shifted_trunc.wide_mul(FIVE_NAR - U3F13::from_num(x_shifted_trunc));
+    let p2 = x_shifted_trunc.wide_mul(U3F13::from_num(TEN - p1));
+    let p3 = x_shifted_trunc.wide_mul(U3F13::from_num(TEN - p2));
+    (U1F15::from_num(FIVE - p3), shift)
 }
 
 pub fn sin_fixed(x : Sample) -> Sample {
