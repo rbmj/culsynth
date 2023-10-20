@@ -39,7 +39,7 @@ impl<Smp: Float> Osc<Smp> {
             self.sawbuf[i] = frac_2phase_pi / (Smp::one() + Smp::one());
             if self.phase < Smp::ZERO {
                 self.sqbuf[i] = Smp::one().neg();
-                if self.phase < Smp::FRAC_PI_2() {  // phase in [-pi, pi/2)
+                if self.phase < Smp::FRAC_PI_2().neg() {  // phase in [-pi, pi/2)
                     // sin(x) = -cos(x+pi/2)
                     // TODO: Use fast approximation?
                     self.sinbuf[i] = (self.phase + Smp::FRAC_PI_2()).cos().neg();
@@ -269,6 +269,8 @@ fn one_over_one_minus_x(x: ScalarFxP) -> USampleFxP {
     lookup_val + USampleFxP::from_num(interp)
 }
 
+//we're not going to use the generic fixedmath implementation because
+//we need more accuracy (FIXME)
 fn one_over_one_plus_x(x_arg: ScalarFxP) -> fixedmath::U1F15 {
     if x_arg == ScalarFxP::ZERO {
         return fixedmath::U1F15::ONE;

@@ -98,20 +98,6 @@ impl EnvFxP {
             last: Self::SIGNAL_MIN
         }
     }
-    //TODO: Pull this and the one in EnvFxP into fixedmath with generic fractional bits...
-    fn one_over(x: fixedmath::U19F13) -> (fixedmath::U1F15, u32) {
-        let mut shift = x.leading_zeros();
-        let mut x_shifted = fixedmath::U1F31::from_bits(x.to_bits()).unwrapped_shl(shift);
-        if x_shifted >= fixedmath::U1F31::SQRT_2 {
-            shift -= 1;
-            x_shifted = x_shifted.unwrapped_shr(1);
-        }
-        let x_shifted_trunc = fixedmath::U1F15::from_num(x_shifted);
-        let x2 = fixedmath::I3F29::from_num(x_shifted_trunc.wide_mul(x_shifted_trunc));
-        let one_minus_x = fixedmath::I3F29::ONE - fixedmath::I3F29::from_num(x_shifted);
-        let result = x2 + one_minus_x + one_minus_x.unwrapped_shl(1);
-        (fixedmath::U1F15::from_num(result), 18 - shift)
-    }
     pub fn process(&mut self,
         gate: &[SampleFxP],
         attack: &[EnvParamFxP],
@@ -151,8 +137,8 @@ impl EnvFxP {
             };
             // This is equivalen to saying rise time = 4 time constants...
             let sr = fixedmath::U16F0::from_bits(SAMPLE_RATE >> 1);
-            let k = rise.wide_mul(sr) + fixedmath::U19F13::ONE;
-            let (gain, shift) = Self::one_over(k);
+            let k = rise.wide_mul(sr);
+            let (gain, shift) = fixedmath::one_over_one_plus(k);
             let pro = fixedmath::I2F14::from_num(
                 setpoint_old + self.setpoint - self.last.unwrapped_shl(1));
             let delta = pro.wide_mul_unsigned(gain).unwrapped_shr(shift);

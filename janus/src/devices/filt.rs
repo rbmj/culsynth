@@ -74,22 +74,6 @@ pub struct FiltFxP {
 
 impl FiltFxP {
     const RES_MAX : ScalarFxP = ScalarFxP::lit("0x0.F000");
-    //TODO: Pull this and the one in EnvFxP into fixedmath with generic fractional bits...
-    fn one_over(x: fixedmath::U3F29) -> (fixedmath::U1F15, u32) {
-        //x must be at least 1, or this will panic at the return statement (2 - shift < 0)
-        let mut shift = x.leading_zeros() as i32;
-        let mut x_shifted = fixedmath::U1F31::from_bits(x.to_bits())
-            .unwrapped_shl(shift as u32);
-        if x_shifted >= fixedmath::U1F31::SQRT_2 {
-            shift -= 1;
-            x_shifted = x_shifted.unwrapped_shr(1);
-        }
-        let x_shifted_trunc = fixedmath::U1F15::from_num(x_shifted);
-        let x2 = fixedmath::I3F29::from_num(x_shifted_trunc.wide_mul(x_shifted_trunc));
-        let one_minus_x = fixedmath::I3F29::ONE - fixedmath::I3F29::from_num(x_shifted);
-        let result = x2 + one_minus_x + one_minus_x.unwrapped_shl(1);
-        (fixedmath::U1F15::from_num(result), (2 - shift) as u32)
-    }
     pub fn create() -> Self {
         Self {
             low: [SampleFxP::ZERO; STATIC_BUFFER_SIZE],
@@ -124,8 +108,8 @@ impl FiltFxP {
             // resonance * gain is a U1F31, so this will only lose the least significant bit
             // and provides space for the shift left below (should be optimized out)
             let gain_r = fixedmath::U3F29::from_num(res.wide_mul(gain));
-            let denom = gain2 + gain_r.unwrapped_shl(1) + fixedmath::U3F29::ONE;
-            let (denom_inv, shift) = Self::one_over(denom);
+            let k = gain2 + gain_r.unwrapped_shl(1);
+            let (denom_inv, shift) = fixedmath::one_over_one_plus(k);
 
             let gain_plus_2r = fixedmath::U3F29::from_num(res).unwrapped_shl(1) +
                 fixedmath::U3F29::from_num(gain);

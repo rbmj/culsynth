@@ -1,4 +1,6 @@
 pub use fixed::types::*;
+use fixed::types::extra::{Unsigned, IsLessOrEqual, LeEqU32, U31, True};
+use fixed::FixedU32;
 use fixed::traits::ToFixed;
 
 pub type Sample = I4F12;       // Provides 3 bits (9dB) of headroom
@@ -27,6 +29,26 @@ const FRAC_256_FREQ_E4 : U8F24 = U8F24::lit("0x0.c6d17e");
 // As a quick aside - all of these functions prioritize
 // speed over accuracy.  Don't use for scientific calculations...
 // you have been warned!
+
+pub fn one_over_one_plus<Frac>(n: FixedU32<Frac>) -> (U1F15, u32)
+    where Frac: Unsigned + IsLessOrEqual<U31, Output = True> + LeEqU32
+{
+    let nbits = FixedU32::<Frac>::INT_NBITS;
+    let x = n + FixedU32::<Frac>::ONE;
+    let mut shift = x.leading_zeros();
+    let mut x_shifted = U1F31::from_bits(x.to_bits())
+        .unwrapped_shl(shift);
+    shift = shift + 1;
+    if x_shifted >= U1F31::SQRT_2 {
+        shift -= 1;
+        x_shifted = x_shifted.unwrapped_shr(1);
+    }
+    let x_shifted_trunc = U1F15::from_num(x_shifted);
+    let x2 = I3F29::from_num(x_shifted_trunc.wide_mul(x_shifted_trunc));
+    let one_minus_x = I3F29::ONE - I3F29::from_num(x_shifted);
+    let result = x2 + one_minus_x + one_minus_x.unwrapped_shl(1);
+    (U1F15::from_num(result), (nbits - shift))
+}
 
 pub fn sin_fixed(x : Sample) -> Sample {
     //small angle approximation.  Faster and removes 0 as an edge case
