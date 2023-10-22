@@ -1,49 +1,43 @@
+use fixed::{FixedU32, FixedU16};
 use fixed::types::*;
-use fixed::types::extra::{Unsigned, IsLessOrEqual, LeEqU32, U31, True};
-use fixed::FixedU32;
-use janus::util::calculate_cents;
+use fixed::types::extra::*;
+use core::ops::{Add, Sub};
 
-
-
-fn osc_implementation(x_arg: U0F16) -> I4F28 {
-    if x_arg == U0F16::ZERO {
-        return I4F28::ONE;
+fn scale_fixedfloat<FracA, FracB>(a: FixedU32<FracA>, b: FixedU16<FracB>) -> FixedU32<FracA>
+    where FracA: Unsigned + LeEqU32 + Sub<U16>,
+          FracB: Unsigned + LeEqU16 + Add<U16> + IsLessOrEqual<FracA>,
+          <FracA as Sub::<U16>>::Output: LeEqU16
+{
+    let bbits = FixedU16::<FracB>::INT_NBITS;
+    let shift = a.leading_zeros();
+    //ALL WRONG - logical shift by shift - abits
+    let a_shifted = U0F32::from_bits(a.unwrapped_shl(shift).to_bits());
+    let prod = b.wide_mul(U0F16::from_num(a_shifted));
+    let res = if shift > bbits {
+        prod.unwrapped_shr(shift - bbits)
     }
-    let x = I1F15::from_num(x_arg);
-    let x_prime = x - I1F15::lit("0.333333333");
-    let mut acc = I2F14::ONE;
-    for _ in 0..4 {
-        let mut prod = I16F16::from_num(acc.wide_mul(x_prime));
-        prod += prod.unwrapped_shl(1); // acc *= 3
-        prod = prod.unwrapped_shr(2);  // acc /= 4
-        acc = I2F14::ONE - I2F14::from_num(prod);
-    }
-    acc = acc.unwrapped_shr(2);  // acc / 4
-    acc += acc.unwrapped_shl(1); // acc *= 3
-    //fixedmath::U1F15::from_num(acc)
-    I4F28::from_num(acc)
+    else {
+        prod.unwrapped_shl(bbits - shift)
+    };
+    FixedU32::<FracA>::from_bits(res.to_bits())
 }
 
 fn main() {
-    let mut err_generic = 0f64;
-    let mut err_generic_highacc = 0f64;
-    let mut err_osc = 0f64;
-    for i in 0..65535u16 {
-        let x = U0F16::from_bits(i);
-        let x_wide = U16F16::from_num(x);
-        let f = x.to_num::<f32>();
-        let res = 1f32 / (1f32 + f);
-        let (g1, g1s) = one_over_one_plus(x_wide);
-        let (g2, g2s) = one_over_one_plus_highacc(x);
-        let generic = calculate_cents(g1.unwrapped_shr(g1s).to_num::<f32>(), res);
-        let generic_highacc = calculate_cents(g2.unwrapped_shr(g2s).to_num::<f32>(), res);
-        let osc = calculate_cents(osc_implementation(x).to_num::<f32>(), res);
-        err_generic += (generic*generic) as f64;
-        err_generic_highacc += (generic_highacc*generic_highacc) as f64;
-        err_osc += (osc*osc) as f64;
+    let mut buf = String::new();
+    loop {
+        buf.clear();
+        if std::io::stdin().read_line(&mut buf).is_err() {
+            continue;
+        }
+        match U4F28::from_str(&buf[0..buf.len()-2]) {
+            Ok(x) => {
+                //let mut f = x.to_num::<f32>();
+                let y = U1F15::lit("0.25");
+                println!("{} * 0.25 = {}", x, scale_fixedfloat(x, y));
+            },
+            Err(e) => {
+                println!("{}", e);
+            }
+        }
     }
-    err_generic /= 65536f64;
-    err_generic_highacc /= 65536f64;
-    err_osc /= 65536f64;
-    println!("Generic:\t{}\nHigh Accuracy:\t{}\nOsc:\t{}", err_generic.sqrt(), err_generic_highacc.sqrt(), err_osc.sqrt());
 }

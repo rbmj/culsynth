@@ -153,19 +153,18 @@ impl OscFxP {
                 }
             }
             //calculate the next phase
-            let phase_per_sample = PhaseFxP::from_num(fixedmath::midi_note_to_frequency(note[i])
+            let phase_per_sample = fixedmath::U4F28::from_num(fixedmath::midi_note_to_frequency(note[i])
                 .wide_mul(FRAC_4096_2PI_SR)
                 .unwrapped_shr(12));
-            //FIXME: Is this the best fixed point accuracy or are we throwing bits away here?
-            let phase_per_smp_adj = if self.phase < PhaseFxP::ZERO {
+            let phase_per_smp_adj = PhaseFxP::from_num(if self.phase < PhaseFxP::ZERO {
                 let (x, s) = fixedmath::one_over_one_plus_highacc(shape[i]);
-                PhaseFxP::from_num(phase_per_sample.wide_mul(
-                    fixedmath::I20F12::from_num(x))).unwrapped_shr(s)
+                fixedmath::scale_fixedfloat(phase_per_sample, x).unwrapped_shr(s)
             }
             else {
-                PhaseFxP::from_num(phase_per_sample.wide_mul(fixedmath::I20F12::from_num(
-                    one_over_one_minus_x(shape[i]))))
-            };
+                fixedmath::scale_fixedfloat(phase_per_sample, one_over_one_minus_x(shape[i]))
+            });
+            //FIXME:  when shape is close to 1, tuning becomes inaccurate due to the incorrect phase
+            //calculation at the transition between the two halfs of the waveform
             self.phase += phase_per_smp_adj;
             if self.phase >= PhaseFxP::PI {
                 self.phase -= PhaseFxP::TAU;

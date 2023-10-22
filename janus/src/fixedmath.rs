@@ -1,7 +1,8 @@
 pub use fixed::types::*;
-use fixed::types::extra::{Unsigned, IsLessOrEqual, LeEqU32, U31, True};
-use fixed::FixedU32;
+use fixed::types::extra::{Unsigned, IsLessOrEqual, LeEqU32, LeEqU16, U16, U31, True};
+use fixed::{FixedU32, FixedU16};
 use fixed::traits::ToFixed;
+use core::ops::Add;
 
 pub type Sample = I4F12;       // Provides 3 bits (9dB) of headroom
 pub type USample = U4F12;      // (Unsigned)
@@ -25,6 +26,25 @@ const FRAC_4LN2_3 : Scalar = Scalar::lit("0x0.ec98");
 const FREQ_E4 : Frequency = Frequency::lit("329.627557");
 // 256 / [the freq above]
 const FRAC_256_FREQ_E4 : U8F24 = U8F24::lit("0x0.c6d17e");
+
+
+pub fn scale_fixedfloat<FracA, FracB>(a: FixedU32<FracA>, b: FixedU16<FracB>) -> FixedU32<FracA>
+    where FracA: Unsigned + LeEqU32,
+          FracB: Unsigned + LeEqU16 + Add<U16> + IsLessOrEqual<FracA>,
+{
+    let bbits = FixedU16::<FracB>::INT_NBITS;
+    let shift = a.leading_zeros();
+    //ALL WRONG - logical shift by shift - abits
+    let a_shifted = U0F32::from_bits(a.unwrapped_shl(shift).to_bits());
+    let prod = b.wide_mul(U0F16::from_num(a_shifted));
+    let res = if shift > bbits {
+        prod.unwrapped_shr(shift - bbits)
+    }
+    else {
+        prod.unwrapped_shl(bbits - shift)
+    };
+    FixedU32::<FracA>::from_bits(res.to_bits())
+}
 
 // As a quick aside - all of these functions prioritize
 // speed over accuracy.  Don't use for scientific calculations...
