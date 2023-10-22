@@ -95,6 +95,12 @@ impl<Smp: Float> Osc<Smp> {
     }
 }
 
+impl<Smp: Float> Default for Osc<Smp> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub struct OscOutputFxP<'a> {
     pub sin: &'a [SampleFxP],
     pub sq: &'a [SampleFxP],
@@ -187,6 +193,12 @@ impl OscFxP {
             sq: &self.sqbuf[0..numsamples],
             saw: &self.sawbuf[0..numsamples]
         }    
+    }
+}
+
+impl Default for OscFxP {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

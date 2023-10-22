@@ -18,7 +18,7 @@ impl EnvParamBuffer {
         Self::default()
     }
     pub fn len(&self) -> usize {
-        return self.attack.len()
+        self.attack.len()
     }
     pub fn allocate(&mut self, sz: u32) {
         if self.len() >= sz as usize {
@@ -105,7 +105,7 @@ impl OscParamBuffer {
         Self::default()
     }
     pub fn len(&self) -> usize {
-        return self.shape.len()
+        self.shape.len()
     }
     pub fn allocate(&mut self, sz: u32) {
         if self.len() >= sz as usize {
@@ -153,7 +153,7 @@ impl FiltParamBuffer {
         Self::default()
     }
     pub fn len(&self) -> usize {
-        return self.cutoff.len()
+        self.cutoff.len()
     }
     pub fn allocate(&mut self, sz: u32) {
         if self.len() >= sz as usize {

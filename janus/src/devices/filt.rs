@@ -64,6 +64,12 @@ impl<Smp: Float> Filt<Smp> {
     }
 }
 
+impl<Smp: Float> Default for Filt<Smp> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 
 pub struct FiltOutputFxP<'a> {
     pub low: &'a [SampleFxP],
@@ -147,6 +153,12 @@ impl FiltFxP {
             band: &self.band[0..numsamples],
             high: &self.high[0..numsamples]
         }
+    }
+}
+
+impl Default for FiltFxP {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

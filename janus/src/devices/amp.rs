@@ -24,6 +24,12 @@ impl<Smp: Float> Amp<Smp> {
     }
 }
 
+impl <Smp: Float> Default for Amp<Smp> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub struct AmpFxP {
     outbuf : BufferT<SampleFxP>,
 }
@@ -45,6 +51,12 @@ impl AmpFxP {
             self.outbuf[i] = signal[i].saturating_mul(gain[i]);
         }
         &self.outbuf[0..numsamples]
+    }
+}
+
+impl Default for AmpFxP {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

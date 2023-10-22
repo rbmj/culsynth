@@ -57,7 +57,7 @@ fn one_over_one_plus_helper<Frac>(n: FixedU32<Frac>) -> (U1F31, u32)
     let mut shift = x.leading_zeros();
     let mut x_shifted = U1F31::from_bits(x.to_bits())
         .unwrapped_shl(shift);
-    shift = shift + 1;
+    shift += 1;
     if x_shifted >= U1F31::SQRT_2 {
         shift -= 1;
         x_shifted = x_shifted.unwrapped_shr(1);

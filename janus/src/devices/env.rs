@@ -83,6 +83,12 @@ impl<Smp: Float> Env<Smp> {
     }
 }
 
+impl<Smp: Float> Default for Env<Smp> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub struct EnvParamsFxP<'a> {
     pub attack: &'a [EnvParamFxP],
     pub decay: &'a [EnvParamFxP],
@@ -159,6 +165,12 @@ impl EnvFxP {
             self.outbuf[i] = ScalarFxP::from_num(self.last);
         }
         &self.outbuf[0..numsamples]
+    }
+}
+
+impl Default for EnvFxP {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

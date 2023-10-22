@@ -57,8 +57,8 @@ impl VoiceAllocator for MonoSynthFxP {
                 op.params_fxp(processed, self.index),
                 fp.params_fxp(processed, self.index),
                 eap.params_fxp(processed, self.index));
-            for i in 0..thisiter.len() {
-                self.outbuf[processed] = thisiter[i].to_num::<f32>();
+            for smp in thisiter {
+                self.outbuf[processed] = smp.to_num::<f32>();
                 processed += 1;
             }
         }
