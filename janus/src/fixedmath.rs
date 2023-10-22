@@ -34,7 +34,6 @@ pub fn scale_fixedfloat<FracA, FracB>(a: FixedU32<FracA>, b: FixedU16<FracB>) ->
 {
     let bbits = FixedU16::<FracB>::INT_NBITS;
     let shift = a.leading_zeros();
-    //ALL WRONG - logical shift by shift - abits
     let a_shifted = U0F32::from_bits(a.unwrapped_shl(shift).to_bits());
     let prod = b.wide_mul(U0F16::from_num(a_shifted));
     let res = if shift > bbits {

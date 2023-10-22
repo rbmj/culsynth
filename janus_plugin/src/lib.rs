@@ -3,6 +3,12 @@ use nih_plug::prelude::*;
 use nih_plug_egui::{create_egui_editor, egui, widgets, EguiState};
 use std::sync::Arc;
 
+mod parambuf;
+use parambuf::{EnvParamBuffer, OscParamBuffer, FiltParamBuffer};
+
+mod voicealloc;
+use voicealloc::{VoiceAllocator, MonoSynthFxP};
+
 pub struct JanusPlugin {
     params: Arc<JanusParams>,
 
@@ -14,6 +20,13 @@ pub struct JanusPlugin {
     ///
     /// This is stored as voltage gain.
     peak_meter: Arc<AtomicF32>,
+
+    osc_params: OscParamBuffer,
+    filt_params: FiltParamBuffer,
+    env_amp_params: EnvParamBuffer,
+
+    gainbuf: Vec<f32>,
+    voices: Option<Box<dyn VoiceAllocator + Send>>
 }
 
 #[derive(Params)]
@@ -38,6 +51,13 @@ impl Default for JanusPlugin {
 
             peak_meter_decay_weight: 1.0,
             peak_meter: Arc::new(AtomicF32::new(util::MINUS_INFINITY_DB)),
+
+            osc_params: Default::default(),
+            filt_params: Default::default(),
+            env_amp_params: Default::default(),
+
+            gainbuf: Default::default(),
+            voices: None
         }
     }
 }
@@ -146,7 +166,13 @@ impl Plugin for JanusPlugin {
         _context: &mut impl InitContext<Self>,
     ) -> bool {
         // TODO
-
+        let bufsz = buffer_config.max_buffer_size;
+        self.osc_params.allocate(bufsz);
+        self.filt_params.allocate(bufsz);
+        self.env_amp_params.allocate(bufsz);
+        self.gainbuf.resize(bufsz as usize, 1f32);
+        self.voices = Some(Box::new(MonoSynthFxP::new()));
+        self.voices.as_mut().unwrap().initialize(bufsz as usize);
         true
     }
 
@@ -154,36 +180,73 @@ impl Plugin for JanusPlugin {
         &mut self,
         buffer: &mut Buffer,
         _aux: &mut AuxiliaryBuffers,
-        _context: &mut impl ProcessContext<Self>,
+        context: &mut impl ProcessContext<Self>,
     ) -> ProcessStatus {
-        for channel_samples in buffer.iter_samples() {
-            let mut amplitude = 0.0;
-            let num_samples = channel_samples.len();
+        let voices = &mut self.voices.as_mut().unwrap();
+        let mut amplitude = 0f32;
+        let mut index = 0;
+        let mut next_event = context.next_event();
+        for (sample_id, _channel_samples) in buffer.iter_samples().enumerate() {
+            // Smoothing is optionally built into the parameters themselves
+            self.gainbuf[index] = self.params.gain.smoothed.next();
+            // TODO: Actually make these parameters
+            self.osc_params.shape_mut()[index] = 0f32;
+            self.filt_params.cutoff_mut()[index] = 127f32;
+            self.filt_params.res_mut()[index] = 0f32;
+            self.env_amp_params.a_mut()[index] = 0.1f32;
+            self.env_amp_params.d_mut()[index] = 0.1f32;
+            self.env_amp_params.s_mut()[index] = 1f32;
+            self.env_amp_params.r_mut()[index] = 0.1f32;
 
-            let gain = self.params.gain.smoothed.next();
-            for sample in channel_samples {
-                *sample *= gain;
-                amplitude += *sample;
+            // Process MIDI events:
+            while let Some(event) = next_event {
+                if event.timing() > sample_id as u32 {
+                    break;
+                }
+                match event {
+                    NoteEvent::NoteOn { note, velocity, .. } => {
+                        voices.note_on(note, (velocity*127f32) as u8);
+                    }
+                    NoteEvent::NoteOff { note, velocity, .. } => {
+                        voices.note_off(note, (velocity*127f32) as u8);
+                    }
+                    _ => (),
+                }
+                next_event = context.next_event();
             }
-
-            // To save resources, a plugin can (and probably should!) only perform expensive
-            // calculations that are only displayed on the GUI while the GUI is open
-            if self.params.editor_state.is_open() {
-                amplitude = (amplitude / num_samples as f32).abs();
-                let current_peak_meter = self.peak_meter.load(std::sync::atomic::Ordering::Relaxed);
-                let new_peak_meter = if amplitude > current_peak_meter {
-                    amplitude
-                } else {
-                    current_peak_meter * self.peak_meter_decay_weight
-                        + amplitude * (1.0 - self.peak_meter_decay_weight)
-                };
-
-                self.peak_meter
-                    .store(new_peak_meter, std::sync::atomic::Ordering::Relaxed)
-            }
+            voices.sample_tick();
+            index += 1;
         }
+        if voices.is_fixed_point() {
+            self.osc_params.conv_fxp();
+            self.filt_params.conv_fxp();
+            self.env_amp_params.conv_fxp();
+        }
+        let output = voices.process(&self.osc_params, &self.filt_params, &self.env_amp_params);
+        index = 0;
+        for channel_samples in buffer.iter_samples() {
+            for smp in channel_samples {
+                *smp = output[index] * self.gainbuf[index];
+                amplitude += *smp;
+            }
+            index += 1;
+        }
+        // To save resources, a plugin can (and probably should!) only perform expensive
+        // calculations that are only displayed on the GUI while the GUI is open
+        if self.params.editor_state.is_open() {
+            amplitude = (amplitude / buffer.as_slice().len() as f32).abs();
+            let current_peak_meter = self.peak_meter.load(std::sync::atomic::Ordering::Relaxed);
+            let new_peak_meter = if amplitude > current_peak_meter {
+                amplitude
+            } else {
+                current_peak_meter * self.peak_meter_decay_weight
+                    + amplitude * (1.0 - self.peak_meter_decay_weight)
+            };
 
-        ProcessStatus::Normal
+            self.peak_meter
+                .store(new_peak_meter, std::sync::atomic::Ordering::Relaxed)
+        }
+        ProcessStatus::KeepAlive
     }
 }
 

@@ -1,15 +1,12 @@
 pub mod osc;
 pub mod env;
 pub mod filt;
+pub mod amp;
 
-use super::fixedmath;
-use super::fixedmath::Sample as SampleFxP;
-use super::fixedmath::USample as USampleFxP;
-use super::fixedmath::Note as NoteFxP;
-use super::fixedmath::Scalar as ScalarFxP;
+use super::{fixedmath, SampleFxP, USampleFxP, NoteFxP, ScalarFxP, EnvParamFxP};
 
-const STATIC_BUFFER_SIZE : usize = 256;
-type BufferT<T> = [T; STATIC_BUFFER_SIZE];
+use super::STATIC_BUFFER_SIZE;
+use super::BufferT;
 
 //TODO: Support multiple sample rates
 const SAMPLE_RATE : u16 = 44100;
@@ -51,3 +48,8 @@ fn midi_note_to_frequency<T: Float>(note: T) -> T {
     let c440 = T::from(440).unwrap();
     c440 * ((note - c69) / c12).exp2()
 }
+
+pub use osc::{Osc, OscParams, OscOutput, OscFxP, OscParamsFxP, OscOutputFxP};
+pub use env::{Env, EnvParams, EnvFxP, EnvParamsFxP};
+pub use filt::{Filt, FiltOutput, FiltParams, FiltFxP, FiltOutputFxP, FiltParamsFxP};
+pub use amp::{Amp, AmpFxP};

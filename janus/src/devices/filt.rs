@@ -1,9 +1,14 @@
 use super::*;
 
 pub struct FiltOutput<'a, Smp> {
-    low: &'a [Smp],
-    band: &'a [Smp],
-    high: &'a [Smp]
+    pub low: &'a [Smp],
+    pub band: &'a [Smp],
+    pub high: &'a [Smp]
+}
+
+pub struct FiltParams<'a, Smp> {
+    pub cutoff: &'a [Smp],
+    pub resonance: &'a [Smp]
 }
 
 pub struct Filt<Smp> {
@@ -15,7 +20,7 @@ pub struct Filt<Smp> {
 }
 
 impl<Smp: Float> Filt<Smp> {
-    pub fn create() -> Self {
+    pub fn new() -> Self {
         Self {
             low: [Smp::ZERO; STATIC_BUFFER_SIZE],
             band: [Smp::ZERO; STATIC_BUFFER_SIZE],
@@ -30,7 +35,9 @@ impl<Smp: Float> Filt<Smp> {
         let f_c = midi_note_to_frequency(f);
         Smp::tan(Smp::PI()*f_c / Smp::from(SAMPLE_RATE).unwrap())
     }
-    pub fn process(&mut self, input: &[Smp], cutoff: &[Smp], resonance: &[Smp]) -> FiltOutput<Smp> {
+    pub fn process(&mut self, input: &[Smp], params: FiltParams<Smp>) -> FiltOutput<Smp> {
+        let cutoff = params.cutoff;
+        let resonance = params.resonance;
         let numsamples = std::cmp::min(
             std::cmp::min(input.len(), cutoff.len()),
             std::cmp::min(resonance.len(), STATIC_BUFFER_SIZE));
@@ -59,9 +66,14 @@ impl<Smp: Float> Filt<Smp> {
 
 
 pub struct FiltOutputFxP<'a> {
-    low: &'a [SampleFxP],
-    band: &'a [SampleFxP],
-    high: &'a [SampleFxP]
+    pub low: &'a [SampleFxP],
+    pub band: &'a [SampleFxP],
+    pub high: &'a [SampleFxP]
+}
+
+pub struct FiltParamsFxP<'a> {
+    pub cutoff: &'a [NoteFxP],
+    pub resonance: &'a [ScalarFxP]
 }
 
 pub struct FiltFxP {
@@ -74,7 +86,7 @@ pub struct FiltFxP {
 
 impl FiltFxP {
     const RES_MAX : ScalarFxP = ScalarFxP::lit("0x0.F000");
-    pub fn create() -> Self {
+    pub fn new() -> Self {
         Self {
             low: [SampleFxP::ZERO; STATIC_BUFFER_SIZE],
             band: [SampleFxP::ZERO; STATIC_BUFFER_SIZE],
@@ -92,11 +104,9 @@ impl FiltFxP {
             .unwrapped_shr(13));
         fixedmath::tan_fixed(omega_d)
     }
-    pub fn process(&mut self,
-        input: &[SampleFxP],
-        cutoff: &[NoteFxP],
-        resonance: &[ScalarFxP]
-    ) -> FiltOutputFxP {
+    pub fn process(&mut self, input: &[SampleFxP], params: FiltParamsFxP) -> FiltOutputFxP {
+        let cutoff = params.cutoff;
+        let resonance = params.resonance;
         let numsamples = std::cmp::min(
             std::cmp::min(input.len(), cutoff.len()),
             std::cmp::min(resonance.len(), STATIC_BUFFER_SIZE));
@@ -145,7 +155,7 @@ mod bindings {
 
     #[no_mangle]
     pub extern "C" fn janus_filt_u16_new() -> *mut FiltFxP {
-        Box::into_raw(Box::new(FiltFxP::create()))
+        Box::into_raw(Box::new(FiltFxP::new()))
     }
 
     #[no_mangle]
@@ -184,7 +194,8 @@ mod bindings {
                 cutoff.offset(offset as isize).cast::<NoteFxP>(), samples as usize);
             let r = std::slice::from_raw_parts(
                 resonance.offset(offset as isize).cast::<ScalarFxP>(), samples as usize);
-            let out = p.as_mut().unwrap().process(i, c, r);
+            let params = FiltParamsFxP { cutoff: c, resonance: r };
+            let out = p.as_mut().unwrap().process(i, params);
             *low = out.low.as_ptr().cast();
             *band = out.band.as_ptr().cast();
             *high = out.high.as_ptr().cast();
@@ -194,7 +205,7 @@ mod bindings {
 
     #[no_mangle]
     pub extern "C" fn janus_filt_f32_new() -> *mut Filt<f32> {
-        Box::into_raw(Box::new(Filt::create()))
+        Box::into_raw(Box::new(Filt::new()))
     }
 
     #[no_mangle]
@@ -233,7 +244,8 @@ mod bindings {
                 cutoff.offset(offset as isize), samples as usize);
             let r = std::slice::from_raw_parts(
                 resonance.offset(offset as isize), samples as usize);
-            let out = p.as_mut().unwrap().process(i, c, r);
+            let params = FiltParams::<f32> { cutoff: c, resonance: r };
+            let out = p.as_mut().unwrap().process(i, params);
             *low = out.low.as_ptr().cast();
             *band = out.band.as_ptr().cast();
             *high = out.high.as_ptr().cast();

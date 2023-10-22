@@ -1,12 +1,19 @@
 use super::*;
 
-type EnvParamFxP = fixedmath::U3F13;
+use super::EnvParamFxP;
 
 #[derive(Eq, PartialEq)]
 enum EnvState {
     Release,
     Attack,
     Decay
+}
+
+pub struct EnvParams<'a, Smp> {
+    pub attack: &'a [Smp],
+    pub decay: &'a [Smp],
+    pub sustain: &'a [Smp],
+    pub release: &'a [Smp]
 }
 
 
@@ -23,7 +30,7 @@ impl<Smp: Float> Env<Smp> {
     const ATTACK_THRESHOLD: Smp = Smp::POINT_NINE_EIGHT;
     const SIGNAL_MAX: Smp = Smp::ONE;
     const SIGNAL_MIN: Smp = Smp::ZERO;
-    pub fn create() -> Self {
+    pub fn new() -> Self {
         Self {
             state: EnvState::Release,
             outbuf: [Smp::ZERO; STATIC_BUFFER_SIZE],
@@ -31,13 +38,11 @@ impl<Smp: Float> Env<Smp> {
             last: Self::SIGNAL_MIN
         }
     }
-    pub fn process(&mut self,
-        gate: &[Smp],
-        attack: &[Smp],
-        decay: &[Smp],
-        sustain: &[Smp],
-        release: &[Smp]
-    ) -> &[Smp] {
+    pub fn process(&mut self, gate: &[Smp], params: EnvParams<Smp>) -> &[Smp] {
+        let attack = params.attack;
+        let decay = params.decay;
+        let sustain = params.sustain;
+        let release = params.release;
         let numsamples = std::cmp::min(
             std::cmp::min(
                     std::cmp::min(attack.len(), decay.len()),
@@ -78,6 +83,14 @@ impl<Smp: Float> Env<Smp> {
     }
 }
 
+pub struct EnvParamsFxP<'a> {
+    pub attack: &'a [EnvParamFxP],
+    pub decay: &'a [EnvParamFxP],
+    pub sustain: &'a [ScalarFxP],
+    pub release: &'a [EnvParamFxP]
+}
+
+
 pub struct EnvFxP {
     state : EnvState,
     outbuf : BufferT<ScalarFxP>,
@@ -90,7 +103,7 @@ impl EnvFxP {
     const ATTACK_THRESHOLD: ScalarFxP = ScalarFxP::lit("0.98");
     const SIGNAL_MAX: ScalarFxP = ScalarFxP::lit("0x0.FFFC");
     const SIGNAL_MIN: fixedmath::I3F29 = fixedmath::I3F29::lit("0x0.0004");
-    pub fn create() -> Self {
+    pub fn new() -> Self {
         Self {
             state: EnvState::Release,
             outbuf: [ScalarFxP::ZERO; STATIC_BUFFER_SIZE],
@@ -98,13 +111,11 @@ impl EnvFxP {
             last: Self::SIGNAL_MIN
         }
     }
-    pub fn process(&mut self,
-        gate: &[SampleFxP],
-        attack: &[EnvParamFxP],
-        decay: &[EnvParamFxP],
-        sustain: &[ScalarFxP],
-        release: &[EnvParamFxP]
-    ) -> &[ScalarFxP] {
+    pub fn process(&mut self, gate: &[SampleFxP], params: EnvParamsFxP) -> &[ScalarFxP] {
+        let attack = params.attack;
+        let decay = params.decay;
+        let sustain = params.sustain;
+        let release = params.release;
         let numsamples = std::cmp::min(
             std::cmp::min(
                     std::cmp::min(attack.len(), decay.len()),
@@ -156,7 +167,7 @@ mod bindings {
 
     #[no_mangle]
     pub extern "C" fn janus_env_u16_new() -> *mut EnvFxP {
-        Box::into_raw(Box::new(EnvFxP::create()))
+        Box::into_raw(Box::new(EnvFxP::new()))
     }
 
     #[no_mangle]
@@ -199,8 +210,8 @@ mod bindings {
                 sustain.offset(offset as isize).cast::<ScalarFxP>(), samples as usize);
             let r = std::slice::from_raw_parts(
                 release.offset(offset as isize).cast::<EnvParamFxP>(), samples as usize);
-
-            let out = p.as_mut().unwrap().process(g, a, d, s, r);
+            let params = EnvParamsFxP { attack: a, decay: d, sustain: s, release: r };
+            let out = p.as_mut().unwrap().process(g, params);
             *signal = out.as_ptr().cast();
             out.len() as i32
         }
@@ -209,7 +220,7 @@ mod bindings {
     
     #[no_mangle]
     pub extern "C" fn janus_env_f32_new() -> *mut Env<f32> {
-        Box::into_raw(Box::new(Env::create()))
+        Box::into_raw(Box::new(Env::new()))
     }
 
     #[no_mangle]
@@ -252,8 +263,8 @@ mod bindings {
                 sustain.offset(offset as isize), samples as usize);
             let r = std::slice::from_raw_parts(
                 release.offset(offset as isize), samples as usize);
-
-            let out = p.as_mut().unwrap().process(g, a, d, s, r);
+            let params = EnvParams::<f32> { attack: a, decay: d, sustain: s, release: r };
+            let out = p.as_mut().unwrap().process(g, params);
             *signal = out.as_ptr().cast();
             out.len() as i32
         }

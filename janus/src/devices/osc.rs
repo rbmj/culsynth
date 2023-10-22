@@ -11,14 +11,19 @@ pub struct Osc<Smp> {
 }
 
 pub struct OscOutput<'a, Smp> {
-    sin: &'a [Smp],
-    sq: &'a [Smp],
-    tri: &'a [Smp],
-    saw: &'a [Smp]
+    pub sin: &'a [Smp],
+    pub sq: &'a [Smp],
+    pub tri: &'a [Smp],
+    pub saw: &'a [Smp]
 }
 
+pub struct OscParams<'a, Smp> {
+    pub shape: &'a [Smp]
+}
+
+
 impl<Smp: Float> Osc<Smp> {
-    pub fn create() -> Self {
+    pub fn new() -> Self {
         Self {
             sinbuf: [Smp::zero(); STATIC_BUFFER_SIZE],
             sqbuf: [Smp::zero(); STATIC_BUFFER_SIZE],
@@ -27,7 +32,8 @@ impl<Smp: Float> Osc<Smp> {
             phase: Smp::zero()
         }
     }
-    pub fn process(&mut self, note: &[Smp], shape: &[Smp]) -> OscOutput<Smp> {
+    pub fn process(&mut self, note: &[Smp], params: OscParams<Smp>) -> OscOutput<Smp> {
+        let shape = params.shape;
         let input_len = std::cmp::min(note.len(), shape.len());
         let numsamples = std::cmp::min(input_len, STATIC_BUFFER_SIZE);
         // We don't have to split sin up piecewise but we'll do it for symmetry with
@@ -90,10 +96,14 @@ impl<Smp: Float> Osc<Smp> {
 }
 
 pub struct OscOutputFxP<'a> {
-    sin: &'a [SampleFxP],
-    sq: &'a [SampleFxP],
-    tri: &'a [SampleFxP],
-    saw: &'a [SampleFxP]
+    pub sin: &'a [SampleFxP],
+    pub sq: &'a [SampleFxP],
+    pub tri: &'a [SampleFxP],
+    pub saw: &'a [SampleFxP]
+}
+
+pub struct OscParamsFxP<'a> {
+    pub shape: &'a [ScalarFxP]
 }
 
 pub struct OscFxP {
@@ -105,7 +115,7 @@ pub struct OscFxP {
 }
 
 impl OscFxP {
-    pub fn create() -> OscFxP {
+    pub fn new() -> OscFxP {
         OscFxP {
             sinbuf: [SampleFxP::ZERO; STATIC_BUFFER_SIZE],
             sqbuf: [SampleFxP::ZERO; STATIC_BUFFER_SIZE],
@@ -114,7 +124,8 @@ impl OscFxP {
             phase: PhaseFxP::ZERO
         }
     }
-    pub fn process(&mut self, note: &[NoteFxP], shape: &[ScalarFxP]) -> OscOutputFxP {
+    pub fn process(&mut self, note: &[NoteFxP], params: OscParamsFxP) -> OscOutputFxP {
+        let shape = params.shape;
         let input_len = std::cmp::min(note.len(), shape.len());
         let numsamples = std::cmp::min(input_len, STATIC_BUFFER_SIZE);
         const FRAC_2_PI : ScalarFxP = ScalarFxP::lit("0x0.a2fa");
@@ -157,7 +168,7 @@ impl OscFxP {
                 .wide_mul(FRAC_4096_2PI_SR)
                 .unwrapped_shr(12));
             let phase_per_smp_adj = PhaseFxP::from_num(if self.phase < PhaseFxP::ZERO {
-                let (x, s) = fixedmath::one_over_one_plus_highacc(shape[i]);
+                let (x, s) = fixedmath::one_over_one_plus_highacc(clip_shape(shape[i]));
                 fixedmath::scale_fixedfloat(phase_per_sample, x).unwrapped_shr(s)
             }
             else {
@@ -188,6 +199,7 @@ fn clip_shape(x: ScalarFxP) -> ScalarFxP {
         x
     }
 }
+
 fn one_over_one_minus_x(x: ScalarFxP) -> USampleFxP {
     let x_bits = clip_shape(x).to_bits();
     // Table generated with python:
@@ -311,7 +323,7 @@ mod bindings {
 
     #[no_mangle]
     pub extern "C" fn janus_osc_u16_new() -> *mut OscFxP {
-        Box::into_raw(Box::new(OscFxP::create()))
+        Box::into_raw(Box::new(OscFxP::new()))
     }
 
     #[no_mangle]
@@ -347,7 +359,8 @@ mod bindings {
                 note.offset(offset as isize).cast::<NoteFxP>(), samples as usize);
             let shape_s = std::slice::from_raw_parts(
                 shape.offset(offset as isize).cast::<fixedmath::U0F16>(), samples as usize);
-            let out = p.as_mut().unwrap().process(note_s, shape_s);
+            let params = OscParamsFxP{ shape: shape_s };
+            let out = p.as_mut().unwrap().process(note_s, params);
             *sin = out.sin.as_ptr().cast();
             *tri = out.tri.as_ptr().cast();
             *sq = out.sq.as_ptr().cast();
@@ -358,7 +371,7 @@ mod bindings {
 
     #[no_mangle]
     pub extern "C" fn janus_osc_f32_new() -> *mut Osc<f32> {
-        Box::into_raw(Box::new(Osc::<f32>::create()))
+        Box::into_raw(Box::new(Osc::<f32>::new()))
     }
 
     #[no_mangle]
@@ -395,7 +408,8 @@ mod bindings {
                 note.offset(offset as isize), samples as usize);
             let shape_s = std::slice::from_raw_parts(
                 shape.offset(offset as isize), samples as usize);
-            let out = p.as_mut().unwrap().process(note_s, shape_s);
+            let params = OscParams::<f32> { shape: shape_s };
+            let out = p.as_mut().unwrap().process(note_s, params);
             *sin = out.sin.as_ptr().cast();
             *tri = out.tri.as_ptr().cast();
             *sq = out.sq.as_ptr().cast();
