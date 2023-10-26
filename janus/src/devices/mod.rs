@@ -2,6 +2,8 @@ pub mod osc;
 pub mod env;
 pub mod filt;
 pub mod amp;
+pub mod modfilt;
+pub mod mixosc;
 
 use super::{fixedmath, SampleFxP, USampleFxP, NoteFxP, ScalarFxP, EnvParamFxP};
 
@@ -20,6 +22,7 @@ pub trait Float : num_traits::Float + num_traits::FloatConst {
     const ONE_HALF: Self;
     const POINT_NINE_EIGHT: Self;
     const RES_MAX: Self;
+    const NOTE_MAX: Self;
 }
 
 impl Float for f32 {
@@ -29,7 +32,8 @@ impl Float for f32 {
     const THREE: f32 = 3.0f32;
     const ONE_HALF: f32 = 0.5f32;
     const POINT_NINE_EIGHT: f32 = 0.98f32;
-    const RES_MAX: f32 = (0xF000 as f32) / (0xFFFF as f32);
+    const RES_MAX: f32 = 0xF000 as f32 / 0xFFFF as f32;
+    const NOTE_MAX: f32 = 127.0f32 * (0xFFFF as f32 / 0x10000 as f32);
 }
 
 impl Float for f64 {
@@ -39,7 +43,8 @@ impl Float for f64 {
     const THREE: f64 = 3.0f64;
     const ONE_HALF: f64 = 0.5f64;
     const POINT_NINE_EIGHT: f64 = 0.98f64;
-    const RES_MAX: f64 = (0xF000 as f64) / (0xFFFF as f64);
+    const RES_MAX: f64 = 0xF000 as f64 / 0xFFFF as f64;
+    const NOTE_MAX: f64 = 127.0f64 * (0xFFFF as f64 / 0x10000 as f64);
 }
 
 fn midi_note_to_frequency<T: Float>(note: T) -> T {
@@ -53,3 +58,5 @@ pub use osc::{Osc, OscParams, OscOutput, OscFxP, OscParamsFxP, OscOutputFxP};
 pub use env::{Env, EnvParams, EnvFxP, EnvParamsFxP};
 pub use filt::{Filt, FiltOutput, FiltParams, FiltFxP, FiltOutputFxP, FiltParamsFxP};
 pub use amp::{Amp, AmpFxP};
+pub use modfilt::{ModFilt, ModFiltParams, ModFiltFxP, ModFiltParamsFxP};
+pub use mixosc::{MixOsc, MixOscParams, MixOscFxP, MixOscParamsFxP};

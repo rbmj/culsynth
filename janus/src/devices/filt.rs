@@ -11,6 +11,12 @@ pub struct FiltParams<'a, Smp> {
     pub resonance: &'a [Smp]
 }
 
+impl<'a, Smp> FiltParams<'a, Smp> {
+    pub fn len(&self) -> usize {
+        std::cmp::min(self.cutoff.len(), self.resonance.len())
+    }
+}
+
 pub struct Filt<Smp> {
     low : BufferT<Smp>,
     band : BufferT<Smp>,
@@ -30,7 +36,6 @@ impl<Smp: Float> Filt<Smp> {
             band_z: Smp::ZERO,
         }
     }
-    
     fn prewarped_gain(f: Smp) -> Smp {
         let f_c = midi_note_to_frequency(f);
         Smp::tan(Smp::PI()*f_c / Smp::from(SAMPLE_RATE).unwrap())
@@ -38,9 +43,8 @@ impl<Smp: Float> Filt<Smp> {
     pub fn process(&mut self, input: &[Smp], params: FiltParams<Smp>) -> FiltOutput<Smp> {
         let cutoff = params.cutoff;
         let resonance = params.resonance;
-        let numsamples = std::cmp::min(
-            std::cmp::min(input.len(), cutoff.len()),
-            std::cmp::min(resonance.len(), STATIC_BUFFER_SIZE));
+        let numsamples = std::cmp::min(STATIC_BUFFER_SIZE,
+            std::cmp::min(input.len(), params.len()));
         for i in 0..numsamples {
             let res = Smp::ONE - if resonance[i] < Smp::RES_MAX { resonance[i] } else { Smp::RES_MAX };
             let gain = Self::prewarped_gain(cutoff[i]);
@@ -70,7 +74,6 @@ impl<Smp: Float> Default for Filt<Smp> {
     }
 }
 
-
 pub struct FiltOutputFxP<'a> {
     pub low: &'a [SampleFxP],
     pub band: &'a [SampleFxP],
@@ -80,6 +83,12 @@ pub struct FiltOutputFxP<'a> {
 pub struct FiltParamsFxP<'a> {
     pub cutoff: &'a [NoteFxP],
     pub resonance: &'a [ScalarFxP]
+}
+
+impl<'a> FiltParamsFxP<'a> {
+    pub fn len(&self) -> usize {
+        std::cmp::min(self.cutoff.len(), self.resonance.len())
+    }
 }
 
 pub struct FiltFxP {

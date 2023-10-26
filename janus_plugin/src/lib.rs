@@ -1,14 +1,14 @@
-use atomic_float::AtomicF32;
+//use atomic_float::AtomicF32;
 use nih_plug::prelude::*;
 use nih_plug_egui::EguiState;
 use std::sync::Arc;
 use fixed::traits::Fixed;
 
-use janus::{ScalarFxP, EnvParamFxP, SampleFxP, NoteFxP, devices::EnvParamsFxP};
+use janus::{ScalarFxP, EnvParamFxP, NoteFxP};
 
 mod editor;
 
-mod parambuf;
+pub mod parambuf;
 use parambuf::{EnvParamBuffer, OscParamBuffer, FiltParamBuffer};
 
 mod voicealloc;
@@ -17,20 +17,11 @@ use voicealloc::{VoiceAllocator, MonoSynthFxP};
 pub struct JanusPlugin {
     params: Arc<JanusParams>,
 
-    /// Needed to normalize the peak meter's response based on the sample rate.
-    peak_meter_decay_weight: f32,
-    /// The current data for the peak meter. This is stored as an [`Arc`] so we can share it between
-    /// the GUI and the audio processing parts. If you have more state to share, then it's a good
-    /// idea to put all of that in a struct behind a single `Arc`.
-    ///
-    /// This is stored as voltage gain.
-    peak_meter: Arc<AtomicF32>,
-
     osc_params: OscParamBuffer,
     filt_params: FiltParamBuffer,
     env_amp_params: EnvParamBuffer,
+    env_filt_params: EnvParamBuffer,
 
-    gainbuf: Vec<f32>,
     voices: Option<Box<dyn VoiceAllocator>>
 }
 
@@ -41,17 +32,41 @@ pub struct JanusParams {
     #[persist = "editor-state"]
     editor_state: Arc<EguiState>,
 
-    #[id = "gain"]
-    pub gain: FloatParam,
-
     #[id = "osc1_shape"]
     pub osc1_shape: IntParam,
+
+    #[id = "osc1_sin"]
+    pub osc1_sin: IntParam,
+
+    #[id = "osc1_sq"]
+    pub osc1_sq: IntParam,
+
+    #[id = "osc1_tri"]
+    pub osc1_tri: IntParam,
+
+    #[id = "osc1_saw"]
+    pub osc1_saw: IntParam,
+
+    #[id = "filt_kbd"]
+    pub filt_kbd: IntParam,
+
+    #[id = "filt_env"]
+    pub filt_env: IntParam,
 
     #[id = "filt_cutoff"]
     pub filt_cutoff: IntParam,
 
     #[id = "filt_res"]
     pub filt_res: IntParam,
+
+    #[id = "filt_low"]
+    pub filt_low: IntParam,
+
+    #[id = "filt_band"]
+    pub filt_band: IntParam,
+
+    #[id = "filt_high"]
+    pub filt_high: IntParam,
 
     #[id = "env_vca_a"]
     pub env_vca_a: IntParam,
@@ -64,26 +79,32 @@ pub struct JanusParams {
 
     #[id = "env_vca_r"]
     pub env_vca_r: IntParam,
+
+    #[id = "env_vcf_a"]
+    pub env_vcf_a: IntParam,
+
+    #[id = "env_vcf_d"]
+    pub env_vcf_d: IntParam,
+
+    #[id = "env_vcf_s"]
+    pub env_vcf_s: IntParam,
+
+    #[id = "env_vcf_r"]
+    pub env_vcf_r: IntParam,
 }
 
 impl Default for JanusPlugin {
     fn default() -> Self {
         Self {
             params: Arc::new(JanusParams::default()),
-
-            peak_meter_decay_weight: 1.0,
-            peak_meter: Arc::new(AtomicF32::new(util::MINUS_INFINITY_DB)),
-
             osc_params: Default::default(),
             filt_params: Default::default(),
             env_amp_params: Default::default(),
-
-            gainbuf: Default::default(),
+            env_filt_params: Default::default(),
             voices: None
         }
     }
 }
-
 
 fn fixed_v2s<F: Fixed>(x: i32) -> String
     where i32: TryFrom<F::Bits>
@@ -157,24 +178,27 @@ impl Default for JanusParams {
         Self {
             editor_state: editor::default_state(),
 
-            // See the main gain example for more details
-            gain: FloatParam::new(
-                "Gain",
-                util::db_to_gain(0.0),
-                FloatRange::Skewed {
-                    min: util::db_to_gain(-30.0),
-                    max: util::db_to_gain(30.0),
-                    factor: FloatRange::gain_skew_factor(-30.0, 30.0),
-                },
-            )
-            .with_smoother(SmoothingStyle::Logarithmic(50.0))
-            .with_unit(" dB")
-            .with_value_to_string(formatters::v2s_f32_gain_to_db(2))
-            .with_string_to_value(formatters::s2v_f32_gain_to_db()),
-
             osc1_shape: new_fixed_param("Oscillator 1 Shape", ScalarFxP::ZERO),
+            osc1_sin: new_fixed_param_percent("Oscillator 1 Sin", ScalarFxP::ZERO),
+            osc1_saw: new_fixed_param_percent("Oscillator 1 Saw", ScalarFxP::MAX),
+            osc1_sq: new_fixed_param_percent("Oscillator 1 Square", ScalarFxP::ZERO),
+            osc1_tri: new_fixed_param_percent("Oscillator 1 Triangle", ScalarFxP::ZERO),
+
+            filt_env: new_fixed_param_percent("Filter Envelope Modulation", ScalarFxP::ZERO),
+            filt_kbd: new_fixed_param_percent("Filter Keyboard Tracking", ScalarFxP::ZERO),
             filt_cutoff: new_fixed_param_freq("Filter Cutoff", NoteFxP::lit("127")),
             filt_res: new_fixed_param_percent("Filter Resonance", ScalarFxP::ZERO),
+            filt_low: new_fixed_param_percent("Filter Low Pass", ScalarFxP::MAX),
+            filt_band: new_fixed_param_percent("Filter Band Pass", ScalarFxP::ZERO),
+            filt_high: new_fixed_param_percent("Filter High Pass", ScalarFxP::ZERO),
+
+            env_vcf_a: new_fixed_param("VCF Envelope Attack", EnvParamFxP::lit("0.1"))
+                .with_unit(" sec"),
+            env_vcf_d: new_fixed_param("VCF Envelope Decay", EnvParamFxP::lit("0.1"))
+                .with_unit(" sec"),
+            env_vcf_s: new_fixed_param_percent("VCF Envelope Sustain", ScalarFxP::MAX),
+            env_vcf_r: new_fixed_param("VCF Envelope Release", EnvParamFxP::lit("0.1")),
+
             env_vca_a: new_fixed_param("VCA Envelope Attack", EnvParamFxP::lit("0.1"))
                 .with_unit(" sec"),
             env_vca_d: new_fixed_param("VCA Envelope Decay", EnvParamFxP::lit("0.1"))
@@ -215,10 +239,7 @@ impl Plugin for JanusPlugin {
     }
 
     fn editor(&mut self, _async_executor: AsyncExecutor<Self>) -> Option<Box<dyn Editor>> {
-        editor::create(
-            self.params.clone(),
-            self.params.editor_state.clone(),
-        )
+        editor::create(self.params.clone())
     }
 
     fn initialize(
@@ -232,7 +253,7 @@ impl Plugin for JanusPlugin {
         self.osc_params.allocate(bufsz);
         self.filt_params.allocate(bufsz);
         self.env_amp_params.allocate(bufsz);
-        self.gainbuf.resize(bufsz as usize, 1f32);
+        self.env_filt_params.allocate(bufsz);
         self.voices = Some(Box::new(MonoSynthFxP::new()));
         self.voices.as_mut().unwrap().initialize(bufsz as usize);
         true
@@ -245,19 +266,35 @@ impl Plugin for JanusPlugin {
         context: &mut impl ProcessContext<Self>,
     ) -> ProcessStatus {
         let voices = &mut self.voices.as_mut().unwrap();
-        let mut amplitude = 0f32;
         let mut index = 0;
         let mut next_event = context.next_event();
         for (sample_id, _channel_samples) in buffer.iter_samples().enumerate() {
-            // Smoothing is optionally built into the parameters themselves
-            self.gainbuf[index] = self.params.gain.smoothed.next();
-            // TODO: Actually make these parameters
             self.osc_params.shape_mut()[index] =
                 ScalarFxP::from_bits(self.params.osc1_shape.smoothed.next() as u16);
+            self.osc_params.sin_mut()[index] =
+                ScalarFxP::from_bits(self.params.osc1_sin.smoothed.next() as u16);
+            self.osc_params.sq_mut()[index] =
+                ScalarFxP::from_bits(self.params.osc1_sq.smoothed.next() as u16);
+            self.osc_params.saw_mut()[index] =
+                ScalarFxP::from_bits(self.params.osc1_saw.smoothed.next() as u16);
+            self.osc_params.tri_mut()[index] =
+                ScalarFxP::from_bits(self.params.osc1_tri.smoothed.next() as u16);
+            
+            self.filt_params.env_mod_mut()[index] =
+                ScalarFxP::from_bits(self.params.filt_env.smoothed.next() as u16);
+            self.filt_params.kbd_mut()[index] =
+                ScalarFxP::from_bits(self.params.filt_kbd.smoothed.next() as u16);
             self.filt_params.cutoff_mut()[index] =
                 NoteFxP::from_bits(self.params.filt_cutoff.smoothed.next() as u16);
             self.filt_params.res_mut()[index] =
                 ScalarFxP::from_bits(self.params.filt_res.smoothed.next() as u16);
+            self.filt_params.low_mix_mut()[index] =
+                ScalarFxP::from_bits(self.params.filt_low.smoothed.next() as u16);
+            self.filt_params.band_mix_mut()[index] =
+                ScalarFxP::from_bits(self.params.filt_band.smoothed.next() as u16);
+            self.filt_params.high_mix_mut()[index] =
+                ScalarFxP::from_bits(self.params.filt_high.smoothed.next() as u16);
+
             self.env_amp_params.a_mut()[index] =
                 EnvParamFxP::from_bits(self.params.env_vca_a.smoothed.next() as u16);
             self.env_amp_params.d_mut()[index] =
@@ -266,6 +303,15 @@ impl Plugin for JanusPlugin {
                 ScalarFxP::from_bits(self.params.env_vca_s.smoothed.next() as u16);
             self.env_amp_params.r_mut()[index] =
                 EnvParamFxP::from_bits(self.params.env_vca_r.smoothed.next() as u16);
+
+            self.env_filt_params.a_mut()[index] =
+                EnvParamFxP::from_bits(self.params.env_vcf_a.smoothed.next() as u16);
+            self.env_filt_params.d_mut()[index] =
+                EnvParamFxP::from_bits(self.params.env_vcf_d.smoothed.next() as u16);
+            self.env_filt_params.s_mut()[index] =
+                ScalarFxP::from_bits(self.params.env_vcf_s.smoothed.next() as u16);
+            self.env_filt_params.r_mut()[index] =
+                EnvParamFxP::from_bits(self.params.env_vcf_r.smoothed.next() as u16);
 
             // Process MIDI events:
             while let Some(event) = next_event {
@@ -290,30 +336,20 @@ impl Plugin for JanusPlugin {
             self.osc_params.conv_float();
             self.filt_params.conv_float();
             self.env_amp_params.conv_float();
+            self.env_filt_params.conv_float();
         }
-        let output = voices.process(&self.osc_params, &self.filt_params, &self.env_amp_params);
+        let output = voices.process(&self.osc_params, &self.filt_params, &self.env_filt_params, &self.env_amp_params);
         index = 0;
         for channel_samples in buffer.iter_samples() {
             for smp in channel_samples {
-                *smp = output[index] * self.gainbuf[index];
-                amplitude += *smp;
+                *smp = output[index];
             }
             index += 1;
         }
         // To save resources, a plugin can (and probably should!) only perform expensive
         // calculations that are only displayed on the GUI while the GUI is open
         if self.params.editor_state.is_open() {
-            amplitude = (amplitude / buffer.as_slice().len() as f32).abs();
-            let current_peak_meter = self.peak_meter.load(std::sync::atomic::Ordering::Relaxed);
-            let new_peak_meter = if amplitude > current_peak_meter {
-                amplitude
-            } else {
-                current_peak_meter * self.peak_meter_decay_weight
-                    + amplitude * (1.0 - self.peak_meter_decay_weight)
-            };
-
-            self.peak_meter
-                .store(new_peak_meter, std::sync::atomic::Ordering::Relaxed)
+            //Do editor update logic
         }
         ProcessStatus::KeepAlive
     }

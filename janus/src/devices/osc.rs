@@ -21,6 +21,11 @@ pub struct OscParams<'a, Smp> {
     pub shape: &'a [Smp]
 }
 
+impl<'a, Smp> OscParams<'a, Smp> {
+    pub fn len(&self) -> usize {
+        self.shape.len()
+    }
+}
 
 impl<Smp: Float> Osc<Smp> {
     pub fn new() -> Self {
@@ -110,6 +115,12 @@ pub struct OscOutputFxP<'a> {
 
 pub struct OscParamsFxP<'a> {
     pub shape: &'a [ScalarFxP]
+}
+
+impl<'a> OscParamsFxP<'a> {
+    pub fn len(&self) -> usize {
+        self.shape.len()
+    }
 }
 
 pub struct OscFxP {

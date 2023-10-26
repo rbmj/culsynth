@@ -1,5 +1,5 @@
 use janus::{EnvParamFxP, ScalarFxP, NoteFxP};
-use janus::devices::{EnvParams, EnvParamsFxP, OscParams, OscParamsFxP, FiltParams, FiltParamsFxP};
+use janus::devices::{EnvParams, EnvParamsFxP, MixOscParams, MixOscParamsFxP, ModFiltParams, ModFiltParamsFxP};
 
 #[derive(Default)]
 pub struct EnvParamBuffer {
@@ -97,7 +97,15 @@ impl EnvParamBuffer {
 #[derive(Default)]
 pub struct OscParamBuffer {
     shape: Vec<f32>,
-    shape_fxp: Vec<ScalarFxP>
+    sin: Vec<f32>,
+    sq: Vec<f32>,
+    tri: Vec<f32>,
+    saw: Vec<f32>,
+    shape_fxp: Vec<ScalarFxP>,
+    sin_fxp: Vec<ScalarFxP>,
+    sq_fxp: Vec<ScalarFxP>,
+    tri_fxp: Vec<ScalarFxP>,
+    saw_fxp: Vec<ScalarFxP>
 }
 
 impl OscParamBuffer {
@@ -112,21 +120,41 @@ impl OscParamBuffer {
             return;
         }
         self.shape.resize(sz as usize, 0f32);
+        self.sin.resize(sz as usize, 0f32);
+        self.sq.resize(sz as usize, 0f32);
+        self.tri.resize(sz as usize, 0f32);
+        self.saw.resize(sz as usize, 0f32);
         self.shape_fxp.resize(sz as usize, ScalarFxP::ZERO);
+        self.sin_fxp.resize(sz as usize, ScalarFxP::ZERO);
+        self.sq_fxp.resize(sz as usize, ScalarFxP::ZERO);
+        self.tri_fxp.resize(sz as usize, ScalarFxP::ZERO);
+        self.saw_fxp.resize(sz as usize, ScalarFxP::ZERO);
     }
     pub fn conv_float(&mut self) {
         for i in 0..self.len() {
             self.shape[i] = self.shape_fxp[i].to_num();
+            self.sin[i] = self.sin_fxp[i].to_num();
+            self.sq[i] = self.sq_fxp[i].to_num();
+            self.tri[i] = self.tri_fxp[i].to_num();
+            self.saw[i] = self.saw_fxp[i].to_num();
         }
     }
-    pub fn params_float(&self, base: usize, end: usize) -> OscParams<f32> {
-        OscParams {
+    pub fn params_float(&self, base: usize, end: usize) -> MixOscParams<f32> {
+        MixOscParams {
             shape: &self.shape[base..end],
+            sin: &self.sin[base..end],
+            sq: &self.sq[base..end],
+            tri: &self.tri[base..end],
+            saw: &self.saw[base..end]
         }
     }
-    pub fn params(&self, base: usize, end: usize) -> OscParamsFxP {
-        OscParamsFxP {
+    pub fn params(&self, base: usize, end: usize) -> MixOscParamsFxP {
+        MixOscParamsFxP {
             shape: &self.shape_fxp[base..end],
+            sin: &self.sin_fxp[base..end],
+            sq: &self.sq_fxp[base..end],
+            tri: &self.tri_fxp[base..end],
+            saw: &self.saw_fxp[base..end]
         }
     }
     pub fn shape(&self) -> &[ScalarFxP] {
@@ -138,14 +166,60 @@ impl OscParamBuffer {
     pub fn shape_float(&self) -> &[f32] {
         self.shape.as_slice()
     }
+    pub fn sin(&self) -> &[ScalarFxP] {
+        self.sin_fxp.as_slice()
+    }
+    pub fn sin_mut(&mut self) -> &mut [ScalarFxP] {
+        self.sin_fxp.as_mut_slice()
+    }
+    pub fn sin_float(&self) -> &[f32] {
+        self.sin.as_slice()
+    }
+    pub fn sq(&self) -> &[ScalarFxP] {
+        self.sq_fxp.as_slice()
+    }
+    pub fn sq_mut(&mut self) -> &mut [ScalarFxP] {
+        self.sq_fxp.as_mut_slice()
+    }
+    pub fn sq_float(&self) -> &[f32] {
+        self.sq.as_slice()
+    }
+    pub fn tri(&self) -> &[ScalarFxP] {
+        self.tri_fxp.as_slice()
+    }
+    pub fn tri_mut(&mut self) -> &mut [ScalarFxP] {
+        self.tri_fxp.as_mut_slice()
+    }
+    pub fn tri_float(&self) -> &[f32] {
+        self.tri.as_slice()
+    }
+    pub fn saw(&self) -> &[ScalarFxP] {
+        self.saw_fxp.as_slice()
+    }
+    pub fn saw_mut(&mut self) -> &mut [ScalarFxP] {
+        self.saw_fxp.as_mut_slice()
+    }
+    pub fn saw_float(&self) -> &[f32] {
+        self.saw.as_slice()
+    }
 }
 
 #[derive(Default)]
 pub struct FiltParamBuffer {
+    env_mod: Vec<f32>,
+    kbd: Vec<f32>,
     cutoff: Vec<f32>,
     resonance: Vec<f32>,
+    low_mix: Vec<f32>,
+    band_mix: Vec<f32>,
+    high_mix: Vec<f32>,
+    env_mod_fxp: Vec<ScalarFxP>,
+    kbd_fxp: Vec<ScalarFxP>,
     cutoff_fxp: Vec<NoteFxP>,
-    resonance_fxp: Vec<ScalarFxP>
+    resonance_fxp: Vec<ScalarFxP>,
+    low_mix_fxp: Vec<ScalarFxP>,
+    band_mix_fxp: Vec<ScalarFxP>,
+    high_mix_fxp: Vec<ScalarFxP>
 }
 
 impl FiltParamBuffer {
@@ -159,29 +233,68 @@ impl FiltParamBuffer {
         if self.len() >= sz as usize {
             return;
         }
-        for buf in [&mut self.cutoff, &mut self.resonance] {
+        for buf in [&mut self.env_mod, &mut self.kbd, &mut self.cutoff, &mut self.resonance,
+            &mut self.low_mix, &mut self.band_mix, &mut self.high_mix]
+        {
             buf.resize(sz as usize, 0f32);
         }
         self.cutoff_fxp.resize(sz as usize, NoteFxP::ZERO);
-        self.resonance_fxp.resize(sz as usize, ScalarFxP::ZERO);
+        for buf in [&mut self.env_mod_fxp, &mut self.kbd_fxp, &mut self.resonance_fxp,
+            &mut self.low_mix_fxp, &mut self.band_mix_fxp, &mut self.high_mix_fxp]
+        {
+            buf.resize(sz as usize, ScalarFxP::ZERO);
+        }
     }
     pub fn conv_float(&mut self) {
         for i in 0..self.len() {
+            self.env_mod[i] = self.env_mod_fxp[i].to_num();
+            self.kbd[i] = self.kbd_fxp[i].to_num();
             self.cutoff[i] = self.cutoff_fxp[i].to_num();
             self.resonance[i] = self.resonance_fxp[i].to_num();
+            self.low_mix[i] = self.low_mix_fxp[i].to_num();
+            self.band_mix[i] = self.band_mix_fxp[i].to_num();
+            self.high_mix[i] = self.high_mix_fxp[i].to_num();
         }
     }
-    pub fn params_float(&self, base: usize, end: usize) -> FiltParams<f32> {
-        FiltParams {
+    pub fn params_float(&self, base: usize, end: usize) -> ModFiltParams<f32> {
+        ModFiltParams {
+            env_mod: &self.env_mod[base..end],
+            kbd: &self.kbd[base..end],
             cutoff: &self.cutoff[base..end],
             resonance: &self.resonance[base..end],
+            low_mix: &self.low_mix[base..end],
+            band_mix: &self.band_mix[base..end],
+            high_mix: &self.high_mix[base..end]
         }
     }
-    pub fn params(&self, base: usize, end: usize) -> FiltParamsFxP {
-        FiltParamsFxP {
+    pub fn params(&self, base: usize, end: usize) -> ModFiltParamsFxP {
+        ModFiltParamsFxP {
+            env_mod: &self.env_mod_fxp[base..end],
+            kbd: &self.kbd_fxp[base..end],
             cutoff: &self.cutoff_fxp[base..end],
             resonance: &self.resonance_fxp[base..end],
+            low_mix: &self.low_mix_fxp[base..end],
+            band_mix: &self.band_mix_fxp[base..end],
+            high_mix: &self.high_mix_fxp[base..end]
         }
+    }
+    pub fn env_mod(&self) -> &[ScalarFxP] {
+        self.env_mod_fxp.as_slice()
+    }
+    pub fn env_mod_mut(&mut self) -> &mut [ScalarFxP] {
+        self.env_mod_fxp.as_mut_slice()
+    }
+    pub fn env_mod_float(&self) -> &[f32] {
+        self.env_mod.as_slice()
+    }
+    pub fn kbd(&self) -> &[ScalarFxP] {
+        self.kbd_fxp.as_slice()
+    }
+    pub fn kbd_mut(&mut self) -> &mut [ScalarFxP] {
+        self.kbd_fxp.as_mut_slice()
+    }
+    pub fn kbd_float(&self) -> &[f32] {
+        self.kbd.as_slice()
     }
     pub fn cutoff(&self) -> &[NoteFxP] {
         self.cutoff_fxp.as_slice()
@@ -200,5 +313,32 @@ impl FiltParamBuffer {
     }
     pub fn res_fxp(&self) -> &[f32] {
         self.resonance.as_slice()
+    }
+    pub fn low_mix(&self) -> &[ScalarFxP] {
+        self.low_mix_fxp.as_slice()
+    }
+    pub fn low_mix_mut(&mut self) -> &mut [ScalarFxP] {
+        self.low_mix_fxp.as_mut_slice()
+    }
+    pub fn low_mix_float(&self) -> &[f32] {
+        self.low_mix.as_slice()
+    }
+    pub fn band_mix(&self) -> &[ScalarFxP] {
+        self.band_mix_fxp.as_slice()
+    }
+    pub fn band_mix_mut(&mut self) -> &mut [ScalarFxP] {
+        self.band_mix_fxp.as_mut_slice()
+    }
+    pub fn band_mix_float(&self) -> &[f32] {
+        self.band_mix.as_slice()
+    }
+    pub fn high_mix(&self) -> &[ScalarFxP] {
+        self.high_mix_fxp.as_slice()
+    }
+    pub fn high_mix_mut(&mut self) -> &mut [ScalarFxP] {
+        self.high_mix_fxp.as_mut_slice()
+    }
+    pub fn high_mix_float(&self) -> &[f32] {
+        self.high_mix.as_slice()
     }
 }

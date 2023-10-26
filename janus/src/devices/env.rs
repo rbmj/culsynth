@@ -16,6 +16,16 @@ pub struct EnvParams<'a, Smp> {
     pub release: &'a [Smp]
 }
 
+impl<'a, Smp> EnvParams<'a, Smp> {
+    pub fn len(&self) -> usize {
+        *[
+            self.attack.len(),
+            self.decay.len(),
+            self.sustain.len(),
+            self.release.len()]
+        .iter().min().unwrap()
+    }
+}
 
 pub struct Env<Smp> {
     state : EnvState,
@@ -96,6 +106,17 @@ pub struct EnvParamsFxP<'a> {
     pub release: &'a [EnvParamFxP]
 }
 
+impl<'a> EnvParamsFxP<'a> {
+    pub fn len(&self) -> usize {
+        let l = *[
+                self.attack.len(),
+                self.decay.len(),
+                self.sustain.len(),
+                self.release.len()]
+            .iter().min().unwrap();
+        l
+    }
+}
 
 pub struct EnvFxP {
     state : EnvState,

@@ -7,7 +7,7 @@ pub trait VoiceAllocator: Send {
     fn sample_tick(&mut self);
     fn note_on(&mut self, n: u8, v: u8);
     fn note_off(&mut self, n: u8, v: u8);
-    fn process(&mut self, op: &OscParamBuffer, fp: &FiltParamBuffer, eap: &EnvParamBuffer) -> &[f32];
+    fn process(&mut self, op: &OscParamBuffer, fp: &FiltParamBuffer, efp: &EnvParamBuffer, eap: &EnvParamBuffer) -> &[f32];
     fn is_fixed_point(&self) -> bool;
 }
 
@@ -49,13 +49,14 @@ impl VoiceAllocator for MonoSynthFxP {
     fn note_off(&mut self, _note: u8, _velocity: u8) {
         self.gate = SampleFxP::ZERO;
     }
-    fn process(&mut self, op: &OscParamBuffer, fp: &FiltParamBuffer, eap: &EnvParamBuffer) -> &[f32] {
+    fn process(&mut self, op: &OscParamBuffer, fp: &FiltParamBuffer, efp: &EnvParamBuffer, eap: &EnvParamBuffer) -> &[f32] {
         let mut processed: usize = 0;
         while processed < self.index {
             let thisiter = self.voice.process(&self.notebuf[processed..self.index], 
                 &self.gatebuf[processed..self.index],
                 op.params(processed, self.index),
                 fp.params(processed, self.index),
+                efp.params(processed, self.index),
                 eap.params(processed, self.index));
             for smp in thisiter {
                 self.outbuf[processed] = smp.to_num::<f32>();
