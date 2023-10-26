@@ -3,6 +3,7 @@ use nih_plug::prelude::*;
 use nih_plug_egui::EguiState;
 use std::sync::Arc;
 use fixed::traits::Fixed;
+use std::sync::mpsc::{channel, Sender, Receiver};
 
 use janus::{ScalarFxP, EnvParamFxP, NoteFxP};
 
@@ -21,6 +22,9 @@ pub struct JanusPlugin {
     filt_params: FiltParamBuffer,
     env_amp_params: EnvParamBuffer,
     env_filt_params: EnvParamBuffer,
+
+    tx: Sender<i8>,
+    rx: Receiver<i8>,
 
     voices: Option<Box<dyn VoiceAllocator>>
 }
@@ -95,12 +99,15 @@ pub struct JanusParams {
 
 impl Default for JanusPlugin {
     fn default() -> Self {
+        let (tx, rx) = channel::<i8>();
         Self {
             params: Arc::new(JanusParams::default()),
             osc_params: Default::default(),
             filt_params: Default::default(),
             env_amp_params: Default::default(),
             env_filt_params: Default::default(),
+            tx: tx,
+            rx: rx,
             voices: None
         }
     }
@@ -239,7 +246,7 @@ impl Plugin for JanusPlugin {
     }
 
     fn editor(&mut self, _async_executor: AsyncExecutor<Self>) -> Option<Box<dyn Editor>> {
-        editor::create(self.params.clone())
+        editor::create(self.params.clone(), self.tx.clone())
     }
 
     fn initialize(
@@ -267,6 +274,14 @@ impl Plugin for JanusPlugin {
     ) -> ProcessStatus {
         let voices = &mut self.voices.as_mut().unwrap();
         let mut index = 0;
+        while let Ok(note) = self.rx.try_recv() {
+            if note < 0 {
+                voices.note_off((note - (-128)) as u8, 0);
+            }
+            else {
+                voices.note_on(note as u8, 100);
+            }
+        }
         let mut next_event = context.next_event();
         for (sample_id, _channel_samples) in buffer.iter_samples().enumerate() {
             self.osc_params.shape_mut()[index] =

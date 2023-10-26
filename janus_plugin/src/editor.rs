@@ -2,9 +2,32 @@ use nih_plug_egui::{create_egui_editor, egui, EguiState};
 use nih_plug::prelude::*;
 use egui::Context;
 use egui::widgets;
-use std::sync::Arc;
+use std::sync::{Arc, mpsc::Sender};
+use std::collections::HashSet;
 use crate::JanusParams;
 
+fn key_to_notenum(k: egui::Key) -> Option<i8> {
+    match k {
+        egui::Key::A => Some(janus::midi_const::C4 as i8),
+        egui::Key::S => Some(janus::midi_const::D4 as i8),
+        egui::Key::D => Some(janus::midi_const::E4 as i8),
+        egui::Key::F => Some(janus::midi_const::F4 as i8),
+        egui::Key::G => Some(janus::midi_const::G4 as i8),
+        egui::Key::H => Some(janus::midi_const::A4 as i8),
+        egui::Key::J => Some(janus::midi_const::B4 as i8),
+        egui::Key::K => Some(janus::midi_const::C5 as i8),
+        egui::Key::L => Some(janus::midi_const::D5 as i8),
+
+        egui::Key::W => Some(janus::midi_const::Db4 as i8),
+        egui::Key::E => Some(janus::midi_const::Eb4 as i8),
+        egui::Key::T => Some(janus::midi_const::Gb4 as i8),
+        egui::Key::Y => Some(janus::midi_const::Ab4 as i8),
+        egui::Key::U => Some(janus::midi_const::Bb4 as i8),
+        egui::Key::O => Some(janus::midi_const::Db5 as i8),
+        egui::Key::P => Some(janus::midi_const::Eb5 as i8),
+        _ => None
+    }
+}
 
 // Makes sense to also define this here, makes it a bit easier to keep track of
 pub(crate) fn default_state() -> Arc<EguiState> {
@@ -13,12 +36,16 @@ pub(crate) fn default_state() -> Arc<EguiState> {
 
 struct JanusEditor {
     params: Arc<JanusParams>,
+    channel: Sender<i8>,
+    keys: HashSet<egui::Key>
 }
 
 impl JanusEditor {
-    pub fn new(p: Arc<JanusParams>) -> Self {
+    pub fn new(p: Arc<JanusParams>, c: Sender<i8>) -> Self {
         JanusEditor {
-            params: p
+            params: p,
+            channel: c,
+            keys: Default::default()
         }
     }
     fn param_slider<'a>(setter: &'a ParamSetter, param: &'a IntParam) -> egui::widgets::Slider<'a> {
@@ -42,7 +69,7 @@ impl JanusEditor {
                 }
             })
             .integer()
-            .show_value(false)
+            .show_value(true)
             .suffix(param.unit())
             .custom_parser(move |s| {
                 param.string_to_normalized_value(s).map(|x| range.unnormalize(x) as f64)
@@ -55,6 +82,37 @@ impl JanusEditor {
     }
     pub fn update(&mut self, egui_ctx: &Context, setter: &ParamSetter) {
         egui::CentralPanel::default().show(egui_ctx, |ui| {
+            ui.input(|i| {
+                for evt in i.events.iter() {
+                    if let egui::Event::Key{key, pressed, repeat, ..} = evt {
+                        nih_log!("Key Event");
+                        if *repeat { continue; }
+                        if let Some(mut k) = key_to_notenum(*key) {
+                            if !(*pressed) {
+                                k += -128; //Note off
+                            }
+                            let _ = self.channel.send(k);
+                        }
+                    }
+                }
+            });
+            /*
+            for key in new_keys.iter() {
+                println!("{:?}", key);
+            }
+            for key in self.keys.symmetric_difference(&new_keys) {
+                println!("Key Event");
+                if let Some(mut key_midi) = key_to_notenum(*key) {
+                    if self.keys.contains(key) {
+                        //key must have been released since saw it last time
+                        key_midi += -128; //Note Off!
+                    }
+                    let _ = self.channel.send(key_midi);
+                }
+            }
+            self.keys = new_keys;
+            */
+
             ui.vertical(|ui| {
                 ui.horizontal(|ui| {
                     ui.vertical(|ui| {
@@ -175,10 +233,10 @@ impl JanusEditor {
     }
 }
 
-pub(crate) fn create(params: Arc<JanusParams>) -> Option<Box<dyn Editor>> {
+pub(crate) fn create(params: Arc<JanusParams>, tx: Sender<i8>) -> Option<Box<dyn Editor>> {
     create_egui_editor(
         params.editor_state.clone(),
-        JanusEditor::new(params.clone()),
+        JanusEditor::new(params, tx),
         |_, _| {},
         JanusEditor::update_helper
     )

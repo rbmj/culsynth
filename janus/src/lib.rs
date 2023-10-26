@@ -1,6 +1,8 @@
 pub mod fixedmath;
 pub mod util;
 
+pub mod midi_const;
+
 pub mod devices;
 
 pub mod voice;
