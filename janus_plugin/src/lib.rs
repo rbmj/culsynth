@@ -26,7 +26,8 @@ pub struct JanusPlugin {
     tx: Sender<i8>,
     rx: Receiver<i8>,
 
-    voices: Option<Box<dyn VoiceAllocator>>
+    voices: Option<Box<dyn VoiceAllocator>>,
+    max_buffer_size: usize
 }
 
 #[derive(Params)]
@@ -108,7 +109,8 @@ impl Default for JanusPlugin {
             env_filt_params: Default::default(),
             tx: tx,
             rx: rx,
-            voices: None
+            voices: None,
+            max_buffer_size: 0
         }
     }
 }
@@ -263,6 +265,7 @@ impl Plugin for JanusPlugin {
         self.env_filt_params.allocate(bufsz);
         self.voices = Some(Box::new(MonoSynthFxP::new()));
         self.voices.as_mut().unwrap().initialize(bufsz as usize);
+        self.max_buffer_size = bufsz as usize;
         true
     }
 
@@ -282,6 +285,7 @@ impl Plugin for JanusPlugin {
                 voices.note_on(note as u8, 100);
             }
         }
+        assert!(buffer.samples() <= self.max_buffer_size);
         let mut next_event = context.next_event();
         for (sample_id, _channel_samples) in buffer.iter_samples().enumerate() {
             self.osc_params.shape_mut()[index] =
