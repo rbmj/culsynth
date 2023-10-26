@@ -2,7 +2,7 @@ use janus::{NoteFxP, SampleFxP, VoiceFxP};
 
 use crate::parambuf::{OscParamBuffer, FiltParamBuffer, EnvParamBuffer};
 
-pub trait VoiceAllocator {
+pub trait VoiceAllocator: Send {
     fn initialize(&mut self, sz: usize);
     fn sample_tick(&mut self);
     fn note_on(&mut self, n: u8, v: u8);
@@ -54,9 +54,9 @@ impl VoiceAllocator for MonoSynthFxP {
         while processed < self.index {
             let thisiter = self.voice.process(&self.notebuf[processed..self.index], 
                 &self.gatebuf[processed..self.index],
-                op.params_fxp(processed, self.index),
-                fp.params_fxp(processed, self.index),
-                eap.params_fxp(processed, self.index));
+                op.params(processed, self.index),
+                fp.params(processed, self.index),
+                eap.params(processed, self.index));
             for smp in thisiter {
                 self.outbuf[processed] = smp.to_num::<f32>();
                 processed += 1;
