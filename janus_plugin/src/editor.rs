@@ -3,7 +3,7 @@ use nih_plug::prelude::*;
 use egui::Context;
 use egui::widgets;
 use std::sync::{Arc, mpsc::SyncSender};
-use std::collections::HashSet;
+use piano_keyboard::{KeyboardBuilder, Element};
 use crate::JanusParams;
 
 fn key_to_notenum(k: egui::Key) -> Option<i8> {
@@ -37,7 +37,7 @@ pub(crate) fn default_state() -> Arc<EguiState> {
 struct JanusEditor {
     params: Arc<JanusParams>,
     channel: SyncSender<i8>,
-    keys: HashSet<egui::Key>
+    last_note: Option<i8>
 }
 
 impl JanusEditor {
@@ -45,7 +45,7 @@ impl JanusEditor {
         JanusEditor {
             params: p,
             channel: c,
-            keys: Default::default()
+            last_note: None
         }
     }
     fn param_slider<'a>(setter: &'a ParamSetter, param: &'a IntParam) -> egui::widgets::Slider<'a> {
@@ -69,7 +69,7 @@ impl JanusEditor {
                 }
             })
             .integer()
-            .show_value(true)
+            .show_value(false)
             .suffix(param.unit())
             .custom_parser(move |s| {
                 param.string_to_normalized_value(s).map(|x| range.unnormalize(x) as f64)
@@ -81,7 +81,7 @@ impl JanusEditor {
             })
     }
     pub fn update(&mut self, egui_ctx: &Context, setter: &ParamSetter) {
-        egui::CentralPanel::default().show(egui_ctx, |ui| {
+        egui::TopBottomPanel::bottom("keyboard").show(egui_ctx, |ui| {
             ui.input(|i| {
                 for evt in i.events.iter() {
                     if let egui::Event::Key{key, pressed, repeat, ..} = evt {
@@ -95,6 +95,95 @@ impl JanusEditor {
                     }
                 }
             });
+            let keyboard = KeyboardBuilder::new()
+                .white_black_gap_present(false)
+                .set_width(ui.available_width() as u16)
+                .and_then(|x| x.standard_piano(49))
+                .map(|x| x.build2d());
+            match keyboard {
+                Ok(kbd) => {
+                    let response = ui.allocate_response(egui::vec2(kbd.width as f32, kbd.height as f32),
+                        egui::Sense::click_and_drag());
+                    let dragged = response.dragged();
+                    let cursor = response.rect.min;
+                    for (i, k) in kbd.iter().enumerate() {
+                        match k {
+                            Element::WhiteKey{wide, small, blind} => {
+                                let mut points : Vec<egui::Pos2> = Vec::with_capacity(10);
+                                points.push(egui::pos2(
+                                    cursor.x + small.x as f32,
+                                    cursor.y + small.y as f32));
+                                points.push(egui::pos2(
+                                    cursor.x + (small.x + small.width) as f32,
+                                    cursor.y + small.y as f32));
+                                points.push(egui::pos2(
+                                    cursor.x + (small.x + small.width) as f32,
+                                    cursor.y + (small.y + small.height) as f32));
+                                points.push(egui::pos2(
+                                    cursor.x + (small.x + small.width) as f32,
+                                    cursor.y + (small.y + small.height) as f32));
+                                points.push(egui::pos2(
+                                    cursor.x + (wide.x + wide.width) as f32,
+                                    cursor.y + wide.y as f32));
+                                points.push(egui::pos2(
+                                    cursor.x + (wide.x + wide.width) as f32,
+                                    cursor.y + (wide.y + wide.height) as f32));
+                                points.push(egui::pos2(
+                                    cursor.x + wide.x as f32,
+                                    cursor.y + (wide.y + wide.height) as f32));
+                                points.push(egui::pos2(
+                                    cursor.x + wide.x as f32,
+                                    cursor.y + wide.y as f32));
+                                points.push(egui::pos2(
+                                    cursor.x + small.x as f32,
+                                    cursor.y + (small.y + small.height) as f32));
+                                points.dedup();
+                                ui.painter().add(egui::epaint::PathShape{
+                                    points: points,
+                                    closed: true,
+                                    fill: egui::epaint::Color32::WHITE,
+                                    stroke: egui::epaint::Stroke {
+                                        width: 1.0,
+                                        color: egui::epaint::Color32::GRAY
+                                    }
+                                });
+                            },
+                            Element::BlackKey(r) => {
+                                // painting rects doesn't seem to render properly
+                                // so we'll use a path instead...
+                                // the extra memory allocations hurt my soul but oh well
+                                let mut points : Vec<egui::Pos2> = Vec::with_capacity(4);
+                                points.push(egui::pos2(
+                                    cursor.x + r.x as f32,
+                                    cursor.y + r.y as f32));
+                                points.push(egui::pos2(
+                                    cursor.x + (r.x + r.width) as f32,
+                                    cursor.y + r.y as f32));
+                                points.push(egui::pos2(
+                                    cursor.x + (r.x + r.width) as f32,
+                                    cursor.y + (r.y + r.height) as f32));
+                                points.push(egui::pos2(
+                                    cursor.x + r.x as f32,
+                                    cursor.y + (r.y + r.height) as f32));
+                                ui.painter().add(egui::epaint::PathShape{
+                                    points: points,
+                                    closed: true,
+                                    fill: egui::epaint::Color32::BLACK,
+                                    stroke: egui::epaint::Stroke {
+                                        width: 1.0,
+                                        color: egui::epaint::Color32::GRAY
+                                    }
+                                });
+                            }
+                        }
+                    }
+                }
+                Err(s) => {
+                    nih_log!("{}", s);
+                }
+            }
+        });
+        egui::CentralPanel::default().show(egui_ctx, |ui| {
             ui.vertical(|ui| {
                 ui.horizontal(|ui| {
                     ui.vertical(|ui| {
