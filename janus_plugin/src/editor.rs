@@ -2,7 +2,7 @@ use nih_plug_egui::{create_egui_editor, egui, EguiState};
 use nih_plug::prelude::*;
 use egui::Context;
 use egui::widgets;
-use std::sync::{Arc, mpsc::Sender};
+use std::sync::{Arc, mpsc::SyncSender};
 use std::collections::HashSet;
 use crate::JanusParams;
 
@@ -36,12 +36,12 @@ pub(crate) fn default_state() -> Arc<EguiState> {
 
 struct JanusEditor {
     params: Arc<JanusParams>,
-    channel: Sender<i8>,
+    channel: SyncSender<i8>,
     keys: HashSet<egui::Key>
 }
 
 impl JanusEditor {
-    pub fn new(p: Arc<JanusParams>, c: Sender<i8>) -> Self {
+    pub fn new(p: Arc<JanusParams>, c: SyncSender<i8>) -> Self {
         JanusEditor {
             params: p,
             channel: c,
@@ -85,34 +85,16 @@ impl JanusEditor {
             ui.input(|i| {
                 for evt in i.events.iter() {
                     if let egui::Event::Key{key, pressed, repeat, ..} = evt {
-                        nih_log!("Key Event");
                         if *repeat { continue; }
                         if let Some(mut k) = key_to_notenum(*key) {
                             if !(*pressed) {
                                 k += -128; //Note off
                             }
-                            let _ = self.channel.send(k);
+                            let _ = self.channel.try_send(k);
                         }
                     }
                 }
             });
-            /*
-            for key in new_keys.iter() {
-                println!("{:?}", key);
-            }
-            for key in self.keys.symmetric_difference(&new_keys) {
-                println!("Key Event");
-                if let Some(mut key_midi) = key_to_notenum(*key) {
-                    if self.keys.contains(key) {
-                        //key must have been released since saw it last time
-                        key_midi += -128; //Note Off!
-                    }
-                    let _ = self.channel.send(key_midi);
-                }
-            }
-            self.keys = new_keys;
-            */
-
             ui.vertical(|ui| {
                 ui.horizontal(|ui| {
                     ui.vertical(|ui| {
@@ -233,7 +215,7 @@ impl JanusEditor {
     }
 }
 
-pub(crate) fn create(params: Arc<JanusParams>, tx: Sender<i8>) -> Option<Box<dyn Editor>> {
+pub(crate) fn create(params: Arc<JanusParams>, tx: SyncSender<i8>) -> Option<Box<dyn Editor>> {
     create_egui_editor(
         params.editor_state.clone(),
         JanusEditor::new(params, tx),

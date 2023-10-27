@@ -3,7 +3,7 @@ use nih_plug::prelude::*;
 use nih_plug_egui::EguiState;
 use std::sync::Arc;
 use fixed::traits::Fixed;
-use std::sync::mpsc::{channel, Sender, Receiver};
+use std::sync::mpsc::{sync_channel, SyncSender, Receiver};
 
 use janus::{ScalarFxP, EnvParamFxP, NoteFxP};
 
@@ -23,7 +23,7 @@ pub struct JanusPlugin {
     env_amp_params: EnvParamBuffer,
     env_filt_params: EnvParamBuffer,
 
-    tx: Sender<i8>,
+    tx: SyncSender<i8>,
     rx: Receiver<i8>,
 
     voices: Option<Box<dyn VoiceAllocator>>,
@@ -100,7 +100,7 @@ pub struct JanusParams {
 
 impl Default for JanusPlugin {
     fn default() -> Self {
-        let (tx, rx) = channel::<i8>();
+        let (tx, rx) = sync_channel::<i8>(128);
         Self {
             params: Arc::new(JanusParams::default()),
             osc_params: Default::default(),

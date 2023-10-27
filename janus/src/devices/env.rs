@@ -183,7 +183,7 @@ impl EnvFxP {
             //println!("Env::Process setpoint = {} setpoint_old = {} last = {} delta = {}",
             //    self.setpoint, setpoint_old, self.last, delta);
             self.last += delta;
-            self.outbuf[i] = ScalarFxP::from_num(self.last);
+            self.outbuf[i] = ScalarFxP::saturating_from_num(self.last);
         }
         &self.outbuf[0..numsamples]
     }
