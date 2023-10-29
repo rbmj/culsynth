@@ -1,6 +1,6 @@
 use nih_plug_egui::{create_egui_editor, egui, EguiState};
 use nih_plug::prelude::*;
-use egui::Context;
+use egui::{Context, Shape};
 use egui::widgets;
 use std::sync::{Arc, mpsc::SyncSender};
 use piano_keyboard::{KeyboardBuilder, Element};
@@ -96,7 +96,7 @@ impl JanusEditor {
                 }
             });
             let keyboard = KeyboardBuilder::new()
-                .white_black_gap_present(false)
+                .white_black_gap_present(true) //false
                 .set_width(ui.available_width() as u16)
                 .and_then(|x| x.standard_piano(49))
                 .map(|x| x.build2d());
@@ -104,79 +104,147 @@ impl JanusEditor {
                 Ok(kbd) => {
                     let response = ui.allocate_response(egui::vec2(kbd.width as f32, kbd.height as f32),
                         egui::Sense::click_and_drag());
-                    let dragged = response.dragged();
+                    let pointer = response.interact_pointer_pos();
+                    let mut new_note : Option<i8> = None;
                     let cursor = response.rect.min;
                     for (i, k) in kbd.iter().enumerate() {
                         match k {
                             Element::WhiteKey{wide, small, blind} => {
-                                let mut points : Vec<egui::Pos2> = Vec::with_capacity(10);
-                                points.push(egui::pos2(
-                                    cursor.x + small.x as f32,
-                                    cursor.y + small.y as f32));
-                                points.push(egui::pos2(
-                                    cursor.x + (small.x + small.width) as f32,
-                                    cursor.y + small.y as f32));
-                                points.push(egui::pos2(
-                                    cursor.x + (small.x + small.width) as f32,
-                                    cursor.y + (small.y + small.height) as f32));
-                                points.push(egui::pos2(
-                                    cursor.x + (small.x + small.width) as f32,
-                                    cursor.y + (small.y + small.height) as f32));
-                                points.push(egui::pos2(
-                                    cursor.x + (wide.x + wide.width) as f32,
-                                    cursor.y + wide.y as f32));
-                                points.push(egui::pos2(
-                                    cursor.x + (wide.x + wide.width) as f32,
-                                    cursor.y + (wide.y + wide.height) as f32));
-                                points.push(egui::pos2(
-                                    cursor.x + wide.x as f32,
-                                    cursor.y + (wide.y + wide.height) as f32));
-                                points.push(egui::pos2(
-                                    cursor.x + wide.x as f32,
-                                    cursor.y + wide.y as f32));
-                                points.push(egui::pos2(
-                                    cursor.x + small.x as f32,
-                                    cursor.y + (small.y + small.height) as f32));
-                                points.dedup();
-                                ui.painter().add(egui::epaint::PathShape{
-                                    points: points,
-                                    closed: true,
-                                    fill: egui::epaint::Color32::WHITE,
-                                    stroke: egui::epaint::Stroke {
-                                        width: 1.0,
-                                        color: egui::epaint::Color32::GRAY
-                                    }
+                                //handle if this is a blind key
+                                //we can cheat a little since we know that the small (top) portion and the blind
+                                //portion rectangles will share a vertical edge, so we can treat them as a single
+                                //rectangle.  Don't know why the library doesn't do this...
+                                let r = match blind {
+                                    Some(blind_key) => {
+                                        piano_keyboard::Rectangle {
+                                            x: std::cmp::min(small.x, blind_key.x),
+                                            y: small.y,
+                                            width: small.width + blind_key.width,
+                                            height: small.height
+                                        }
+                                    },
+                                    None => small.clone()
+                                };
+                                //calculate the border path:
+                                let mut points : Vec<egui::Pos2> = vec![
+                                    egui::pos2(
+                                        cursor.x + r.x as f32,
+                                        cursor.y + r.y as f32),
+                                    egui::pos2(
+                                        cursor.x + (r.x + r.width) as f32,
+                                        cursor.y + r.y as f32),
+                                    egui::pos2(
+                                        cursor.x + (r.x + r.width) as f32,
+                                        cursor.y + (r.y + r.height) as f32),
+                                    egui::pos2(
+                                        cursor.x + (wide.x + wide.width) as f32,
+                                        cursor.y + wide.y as f32),
+                                    egui::pos2(
+                                        cursor.x + (wide.x + wide.width) as f32,
+                                        cursor.y + (wide.y + wide.height) as f32),
+                                    egui::pos2(
+                                        cursor.x + wide.x as f32,
+                                        cursor.y + (wide.y + wide.height) as f32),
+                                    egui::pos2(
+                                        cursor.x + wide.x as f32,
+                                        cursor.y + wide.y as f32),
+                                    egui::pos2(
+                                        cursor.x + r.x as f32,
+                                        cursor.y + (r.y + r.height) as f32)
+                                ];
+                                points.dedup(); //is this necessary?
+                                //since the key will not be convex, we must draw the border
+                                //separately from the rectangles making up the key
+                                let border = egui::Shape::closed_line(points, egui::epaint::Stroke {
+                                    width: 1.0,
+                                    color: egui::epaint::Color32::GRAY
                                 });
+                                //rectangles for the top and bottom portion of the key:
+                                let mut top_key = egui::epaint::RectShape{
+                                    rect: egui::Rect{
+                                        min: egui::pos2(cursor.x + r.x as f32, cursor.y + r.y as f32),
+                                        max: egui::pos2(cursor.x + (r.x + r.width) as f32, cursor.y + (r.y + r.height) as f32)
+                                    },
+                                    rounding: egui::epaint::Rounding::none(),
+                                    fill: egui::epaint::Color32::WHITE,
+                                    stroke: egui::epaint::Stroke::NONE
+                                };
+                                let mut bottom_key = egui::epaint::RectShape{
+                                    rect: egui::Rect{
+                                        min: egui::pos2(cursor.x + wide.x as f32, cursor.y + wide.y as f32),
+                                        max: egui::pos2(cursor.x + (wide.x + wide.width) as f32, cursor.y + (wide.y + wide.height) as f32)
+                                    },
+                                    rounding: egui::epaint::Rounding::none(),
+                                    fill: egui::epaint::Color32::WHITE,
+                                    stroke: egui::epaint::Stroke::NONE
+                                };
+                                match pointer {
+                                    None => {},
+                                    Some(pos) => {
+                                        if 
+                                            (
+                                                pos.x > top_key.rect.min.x && pos.x < top_key.rect.max.x &&
+                                                pos.y > top_key.rect.min.y && pos.y < top_key.rect.max.y
+                                            ) || (
+                                                pos.x > bottom_key.rect.min.x && pos.x < bottom_key.rect.max.x &&
+                                                pos.y > bottom_key.rect.min.y && pos.y < bottom_key.rect.max.y
+                                            )
+                                        {
+                                            new_note = Some((kbd.left_white_key + i as u8) as i8);
+                                            top_key.fill = egui::epaint::Color32::GOLD;
+                                            bottom_key.fill = egui::epaint::Color32::GOLD;
+                                        }
+                                    }
+                                }
+                                ui.painter().add(border);
+                                ui.painter().add(top_key);
+                                ui.painter().add(bottom_key);
                             },
                             Element::BlackKey(r) => {
-                                // painting rects doesn't seem to render properly
-                                // so we'll use a path instead...
-                                // the extra memory allocations hurt my soul but oh well
-                                let mut points : Vec<egui::Pos2> = Vec::with_capacity(4);
-                                points.push(egui::pos2(
-                                    cursor.x + r.x as f32,
-                                    cursor.y + r.y as f32));
-                                points.push(egui::pos2(
-                                    cursor.x + (r.x + r.width) as f32,
-                                    cursor.y + r.y as f32));
-                                points.push(egui::pos2(
-                                    cursor.x + (r.x + r.width) as f32,
-                                    cursor.y + (r.y + r.height) as f32));
-                                points.push(egui::pos2(
-                                    cursor.x + r.x as f32,
-                                    cursor.y + (r.y + r.height) as f32));
-                                ui.painter().add(egui::epaint::PathShape{
-                                    points: points,
-                                    closed: true,
+                                let mut key = egui::epaint::RectShape{
+                                    rect: egui::Rect{
+                                        min: egui::pos2(cursor.x + r.x as f32, cursor.y + r.y as f32),
+                                        max: egui::pos2(cursor.x + (r.x + r.width) as f32, cursor.y + (r.y + r.height) as f32)
+                                    },
+                                    rounding: egui::epaint::Rounding::none(),
                                     fill: egui::epaint::Color32::BLACK,
                                     stroke: egui::epaint::Stroke {
                                         width: 1.0,
                                         color: egui::epaint::Color32::GRAY
                                     }
-                                });
+                                };
+                                match pointer {
+                                    None => {},
+                                    Some(pos) => {
+                                        if 
+                                            pos.x > key.rect.min.x && pos.x < key.rect.max.x &&
+                                            pos.y > key.rect.min.y && pos.y < key.rect.max.y
+                                        {
+                                            new_note = Some((kbd.left_white_key + i as u8) as i8);
+                                            key.fill = egui::epaint::Color32::GOLD;
+                                        }
+                                    }
+                                }
+                                ui.painter().add(key);
                             }
                         }
                     }
+                    // now send the MIDI events if required:
+                    if new_note != self.last_note {
+                        match self.last_note {
+                            None => {},
+                            Some(k) => {
+                                let _ = self.channel.try_send(k + (-128));
+                            }
+                        }
+                        match new_note {
+                            None => {},
+                            Some(k) => {
+                                let _ = self.channel.try_send(k);
+                            }
+                        }
+                    }
+                    self.last_note = new_note;
                 }
                 Err(s) => {
                     nih_log!("{}", s);
