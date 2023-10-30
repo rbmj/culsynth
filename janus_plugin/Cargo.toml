@@ -13,7 +13,7 @@ name = "janus-standalone"
 path = "src/main.rs"
 
 [dependencies]
-nih_plug = { git = "https://github.com/rbmj/nih-plug.git", features = ["assert_process_allocs", "standalone", "vst3"] }
+nih_plug = { git = "https://github.com/rbmj/nih-plug.git", features = ["standalone", "vst3"] }
 nih_plug_egui = { git = "https://github.com/rbmj/nih-plug.git" }
 atomic_float = "0.1"
 fixed = "1.24"
