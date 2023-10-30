@@ -281,29 +281,29 @@ impl JanusEditor {
                             ui.vertical(|ui| {
                                 ui.horizontal(|ui| {
                                     ui.label("Shape");
-                                    ui.add(Self::param_slider(setter, &self.params.osc1_shape));
+                                    ui.add(Self::param_slider(setter, &self.params.osc1.shape));
                                 });
                                 //Add widgets for tune, etc.
                             });
                             ui.vertical(|ui| {
                                 ui.add(
-                                    Self::param_slider(setter, &self.params.osc1_sin).vertical(),
+                                    Self::param_slider(setter, &self.params.osc1.sin).vertical(),
                                 );
                                 ui.label("Sin");
                             });
                             ui.vertical(|ui| {
                                 ui.add(
-                                    Self::param_slider(setter, &self.params.osc1_tri).vertical(),
+                                    Self::param_slider(setter, &self.params.osc1.tri).vertical(),
                                 );
                                 ui.label("Tri");
                             });
                             ui.vertical(|ui| {
-                                ui.add(Self::param_slider(setter, &self.params.osc1_sq).vertical());
+                                ui.add(Self::param_slider(setter, &self.params.osc1.sq).vertical());
                                 ui.label("Sq");
                             });
                             ui.vertical(|ui| {
                                 ui.add(
-                                    Self::param_slider(setter, &self.params.osc1_saw).vertical(),
+                                    Self::param_slider(setter, &self.params.osc1.saw).vertical(),
                                 );
                                 ui.label("Saw");
                             });
@@ -316,36 +316,36 @@ impl JanusEditor {
                             ui.vertical(|ui| {
                                 ui.horizontal(|ui| {
                                     ui.label("Cutoff");
-                                    ui.add(Self::param_slider(setter, &self.params.filt_cutoff));
+                                    ui.add(Self::param_slider(setter, &self.params.filt.cutoff));
                                 });
                                 ui.horizontal(|ui| {
                                     ui.label("Resonance");
-                                    ui.add(Self::param_slider(setter, &self.params.filt_res));
+                                    ui.add(Self::param_slider(setter, &self.params.filt.res));
                                 });
                                 ui.horizontal(|ui| {
                                     ui.label("Env Mod");
-                                    ui.add(Self::param_slider(setter, &self.params.filt_env));
+                                    ui.add(Self::param_slider(setter, &self.params.filt.env));
                                 });
                                 ui.horizontal(|ui| {
                                     ui.label("Keyboard");
-                                    ui.add(Self::param_slider(setter, &self.params.filt_kbd));
+                                    ui.add(Self::param_slider(setter, &self.params.filt.kbd));
                                 });
                             });
                             ui.vertical(|ui| {
                                 ui.add(
-                                    Self::param_slider(setter, &self.params.filt_low).vertical(),
+                                    Self::param_slider(setter, &self.params.filt.low).vertical(),
                                 );
                                 ui.label("Low");
                             });
                             ui.vertical(|ui| {
                                 ui.add(
-                                    Self::param_slider(setter, &self.params.filt_band).vertical(),
+                                    Self::param_slider(setter, &self.params.filt.band).vertical(),
                                 );
                                 ui.label("Band");
                             });
                             ui.vertical(|ui| {
                                 ui.add(
-                                    Self::param_slider(setter, &self.params.filt_high).vertical(),
+                                    Self::param_slider(setter, &self.params.filt.high).vertical(),
                                 );
                                 ui.label("High");
                             });
@@ -359,25 +359,25 @@ impl JanusEditor {
                         ui.horizontal(|ui| {
                             ui.vertical(|ui| {
                                 ui.add(
-                                    Self::param_slider(setter, &self.params.env_vcf_a).vertical(),
+                                    Self::param_slider(setter, &self.params.env_vcf.a).vertical(),
                                 );
                                 ui.label("Attack");
                             });
                             ui.vertical(|ui| {
                                 ui.add(
-                                    Self::param_slider(setter, &self.params.env_vcf_d).vertical(),
+                                    Self::param_slider(setter, &self.params.env_vcf.d).vertical(),
                                 );
                                 ui.label("Decay");
                             });
                             ui.vertical(|ui| {
                                 ui.add(
-                                    Self::param_slider(setter, &self.params.env_vcf_s).vertical(),
+                                    Self::param_slider(setter, &self.params.env_vcf.s).vertical(),
                                 );
                                 ui.label("Sustain");
                             });
                             ui.vertical(|ui| {
                                 ui.add(
-                                    Self::param_slider(setter, &self.params.env_vcf_r).vertical(),
+                                    Self::param_slider(setter, &self.params.env_vcf.r).vertical(),
                                 );
                                 ui.label("Release");
                             });
@@ -388,25 +388,25 @@ impl JanusEditor {
                         ui.horizontal(|ui| {
                             ui.vertical(|ui| {
                                 ui.add(
-                                    Self::param_slider(setter, &self.params.env_vca_a).vertical(),
+                                    Self::param_slider(setter, &self.params.env_vca.a).vertical(),
                                 );
                                 ui.label("Attack");
                             });
                             ui.vertical(|ui| {
                                 ui.add(
-                                    Self::param_slider(setter, &self.params.env_vca_d).vertical(),
+                                    Self::param_slider(setter, &self.params.env_vca.d).vertical(),
                                 );
                                 ui.label("Decay");
                             });
                             ui.vertical(|ui| {
                                 ui.add(
-                                    Self::param_slider(setter, &self.params.env_vca_s).vertical(),
+                                    Self::param_slider(setter, &self.params.env_vca.s).vertical(),
                                 );
                                 ui.label("Sustain");
                             });
                             ui.vertical(|ui| {
                                 ui.add(
-                                    Self::param_slider(setter, &self.params.env_vca_r).vertical(),
+                                    Self::param_slider(setter, &self.params.env_vca.r).vertical(),
                                 );
                                 ui.label("Release");
                             });

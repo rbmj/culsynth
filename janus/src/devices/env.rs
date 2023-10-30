@@ -165,27 +165,29 @@ impl EnvFxP {
             } else if self.state == EnvState::Attack && self.last > Self::ATTACK_THRESHOLD {
                 self.state = EnvState::Decay;
             }
-            let rise = if self.state == EnvState::Attack {
-                attack[i]
-            } else if self.state == EnvState::Decay {
-                self.setpoint = std::cmp::max(
-                    fixedmath::I3F29::from_num(std::cmp::min(sustain[i], Self::SIGNAL_MAX)),
-                    Self::SIGNAL_MIN,
-                );
-                decay[i]
-            } else {
-                release[i]
-            };
+            let rise =
+                if self.state == EnvState::Attack {
+                    attack[i]
+                } else if self.state == EnvState::Decay {
+                    self.setpoint = std::cmp::max(
+                        fixedmath::I3F29::from_num(
+                            std::cmp::min(sustain[i], Self::SIGNAL_MAX)
+                        ),
+                        Self::SIGNAL_MIN,
+                    );
+                    decay[i]
+                } else {
+                    release[i]
+                };
             // This is equivalen to saying rise time = 4 time constants...
             let sr = fixedmath::U16F0::from_bits(SAMPLE_RATE >> 1);
             let k = rise.wide_mul(sr);
             let (gain, shift) = fixedmath::one_over_one_plus(k);
-            let pro = fixedmath::I2F14::from_num(
+            // Need saturating here to avoid panic if A == 0 && S == 0:
+            let pro = fixedmath::I2F14::saturating_from_num(
                 setpoint_old + self.setpoint - self.last.unwrapped_shl(1),
             );
             let delta = pro.wide_mul_unsigned(gain).unwrapped_shr(shift);
-            //println!("Env::Process setpoint = {} setpoint_old = {} last = {} delta = {}",
-            //    self.setpoint, setpoint_old, self.last, delta);
             self.last += delta;
             self.outbuf[i] = ScalarFxP::saturating_from_num(self.last);
         }
