@@ -7,18 +7,18 @@ pub struct Osc<Smp> {
     sqbuf: BufferT<Smp>,
     tribuf: BufferT<Smp>,
     sawbuf: BufferT<Smp>,
-    phase: Smp
+    phase: Smp,
 }
 
 pub struct OscOutput<'a, Smp> {
     pub sin: &'a [Smp],
     pub sq: &'a [Smp],
     pub tri: &'a [Smp],
-    pub saw: &'a [Smp]
+    pub saw: &'a [Smp],
 }
 
 pub struct OscParams<'a, Smp> {
-    pub shape: &'a [Smp]
+    pub shape: &'a [Smp],
 }
 
 impl<'a, Smp> OscParams<'a, Smp> {
@@ -34,7 +34,7 @@ impl<Smp: Float> Osc<Smp> {
             sqbuf: [Smp::zero(); STATIC_BUFFER_SIZE],
             tribuf: [Smp::zero(); STATIC_BUFFER_SIZE],
             sawbuf: [Smp::zero(); STATIC_BUFFER_SIZE],
-            phase: Smp::zero()
+            phase: Smp::zero(),
         }
     }
     pub fn process(&mut self, note: &[Smp], params: OscParams<Smp>) -> OscOutput<Smp> {
@@ -50,26 +50,27 @@ impl<Smp: Float> Osc<Smp> {
             self.sawbuf[i] = frac_2phase_pi / (Smp::one() + Smp::one());
             if self.phase < Smp::ZERO {
                 self.sqbuf[i] = Smp::one().neg();
-                if self.phase < Smp::FRAC_PI_2().neg() {  // phase in [-pi, pi/2)
+                if self.phase < Smp::FRAC_PI_2().neg() {
+                    // phase in [-pi, pi/2)
                     // sin(x) = -cos(x+pi/2)
                     // TODO: Use fast approximation?
                     self.sinbuf[i] = (self.phase + Smp::FRAC_PI_2()).cos().neg();
                     // Subtract (1+1) because traits :eyeroll:
                     self.tribuf[i] = frac_2phase_pi.neg() - Smp::TWO;
-                }
-                else {  // phase in [-pi/2, 0)
+                } else {
+                    // phase in [-pi/2, 0)
                     self.sinbuf[i] = self.phase.sin();
                     //triangle
                     self.tribuf[i] = frac_2phase_pi;
                 }
-            }
-            else {
+            } else {
                 self.sqbuf[i] = Smp::one();
-                if self.phase < Smp::FRAC_PI_2() { // phase in [0, pi/2)
+                if self.phase < Smp::FRAC_PI_2() {
+                    // phase in [0, pi/2)
                     self.sinbuf[i] = self.phase.sin();
                     self.tribuf[i] = frac_2phase_pi;
-                }
-                else { // phase in [pi/2, pi)
+                } else {
+                    // phase in [pi/2, pi)
                     // sin(x) = cos(x-pi/2)
                     self.sinbuf[i] = (self.phase - Smp::FRAC_PI_2()).cos();
                     self.tribuf[i] = Smp::TWO - frac_2phase_pi;
@@ -77,13 +78,16 @@ impl<Smp: Float> Osc<Smp> {
             }
             let sample_rate = Smp::from(SAMPLE_RATE).unwrap();
             //calculate the next phase
-            let phase_per_sample = midi_note_to_frequency(note[i])*Smp::TAU()/sample_rate;
+            let phase_per_sample = midi_note_to_frequency(note[i]) * Smp::TAU() / sample_rate;
             let shape_clip = Smp::from(0.9375).unwrap();
-            let shp = if shape[i] < shape_clip { shape[i] } else { shape_clip };
+            let shp = if shape[i] < shape_clip {
+                shape[i]
+            } else {
+                shape_clip
+            };
             let phase_per_smp_adj = if self.phase < Smp::zero() {
                 phase_per_sample * (Smp::ONE / (Smp::ONE + shp))
-            }
-            else {
+            } else {
                 phase_per_sample * (Smp::ONE / (Smp::ONE - shp))
             };
             self.phase = self.phase + phase_per_smp_adj;
@@ -95,8 +99,8 @@ impl<Smp: Float> Osc<Smp> {
             sin: &self.sinbuf[0..numsamples],
             tri: &self.tribuf[0..numsamples],
             sq: &self.sqbuf[0..numsamples],
-            saw: &self.sawbuf[0..numsamples]
-        }    
+            saw: &self.sawbuf[0..numsamples],
+        }
     }
 }
 
@@ -110,11 +114,11 @@ pub struct OscOutputFxP<'a> {
     pub sin: &'a [SampleFxP],
     pub sq: &'a [SampleFxP],
     pub tri: &'a [SampleFxP],
-    pub saw: &'a [SampleFxP]
+    pub saw: &'a [SampleFxP],
 }
 
 pub struct OscParamsFxP<'a> {
-    pub shape: &'a [ScalarFxP]
+    pub shape: &'a [ScalarFxP],
 }
 
 impl<'a> OscParamsFxP<'a> {
@@ -128,7 +132,7 @@ pub struct OscFxP {
     sqbuf: BufferT<SampleFxP>,
     tribuf: BufferT<SampleFxP>,
     sawbuf: BufferT<SampleFxP>,
-    phase: PhaseFxP
+    phase: PhaseFxP,
 }
 
 impl OscFxP {
@@ -138,57 +142,60 @@ impl OscFxP {
             sqbuf: [SampleFxP::ZERO; STATIC_BUFFER_SIZE],
             tribuf: [SampleFxP::ZERO; STATIC_BUFFER_SIZE],
             sawbuf: [SampleFxP::ZERO; STATIC_BUFFER_SIZE],
-            phase: PhaseFxP::ZERO
+            phase: PhaseFxP::ZERO,
         }
     }
     pub fn process(&mut self, note: &[NoteFxP], params: OscParamsFxP) -> OscOutputFxP {
         let shape = params.shape;
         let input_len = std::cmp::min(note.len(), shape.len());
         let numsamples = std::cmp::min(input_len, STATIC_BUFFER_SIZE);
-        const FRAC_2_PI : ScalarFxP = ScalarFxP::lit("0x0.a2fa");
+        const FRAC_2_PI: ScalarFxP = ScalarFxP::lit("0x0.a2fa");
         for i in 0..numsamples {
             //generate waveforms (piecewise defined)
-            let frac_2phase_pi = SampleFxP::from_num(SampleFxP::from_num(
-                self.phase).wide_mul_unsigned(FRAC_2_PI));
+            let frac_2phase_pi =
+                SampleFxP::from_num(SampleFxP::from_num(self.phase).wide_mul_unsigned(FRAC_2_PI));
             //Sawtooth wave does not have to be piecewise-defined
             self.sawbuf[i] = frac_2phase_pi.unwrapped_shr(1);
             //All other functions are piecewise-defined:
             if self.phase < 0 {
                 self.sqbuf[i] = SampleFxP::NEG_ONE;
-                if self.phase < PhaseFxP::FRAC_PI_2.unwrapped_neg() {  // phase in [-pi, pi/2)
+                if self.phase < PhaseFxP::FRAC_PI_2.unwrapped_neg() {
+                    // phase in [-pi, pi/2)
                     // Use the identity sin(x) = -cos(x+pi/2) since our taylor series
                     // approximations are centered about zero and this will be more accurate
-                    self.sinbuf[i] = fixedmath::cos_fixed(
-                        SampleFxP::from_num(self.phase + PhaseFxP::FRAC_PI_2))
-                        .unwrapped_neg();
+                    self.sinbuf[i] =
+                        fixedmath::cos_fixed(SampleFxP::from_num(self.phase + PhaseFxP::FRAC_PI_2))
+                            .unwrapped_neg();
                     self.tribuf[i] = frac_2phase_pi.unwrapped_neg() - SampleFxP::lit("2");
-                }
-                else {  // phase in [-pi/2, 0)
+                } else {
+                    // phase in [-pi/2, 0)
                     self.sinbuf[i] = fixedmath::sin_fixed(SampleFxP::from_num(self.phase));
                     self.tribuf[i] = frac_2phase_pi;
                 }
-            }
-            else {
+            } else {
                 self.sqbuf[i] = SampleFxP::ONE;
-                if self.phase < PhaseFxP::FRAC_PI_2 { // phase in [0, pi/2)
+                if self.phase < PhaseFxP::FRAC_PI_2 {
+                    // phase in [0, pi/2)
                     self.sinbuf[i] = fixedmath::sin_fixed(SampleFxP::from_num(self.phase));
                     self.tribuf[i] = frac_2phase_pi;
-                }
-                else { // phase in [pi/2, pi)
+                } else {
+                    // phase in [pi/2, pi)
                     // sin(x) = cos(x-pi/2)
-                    self.sinbuf[i] = fixedmath::cos_fixed(SampleFxP::from_num(self.phase - PhaseFxP::FRAC_PI_2));
+                    self.sinbuf[i] =
+                        fixedmath::cos_fixed(SampleFxP::from_num(self.phase - PhaseFxP::FRAC_PI_2));
                     self.tribuf[i] = SampleFxP::lit("2") - frac_2phase_pi;
                 }
             }
             //calculate the next phase
-            let phase_per_sample = fixedmath::U4F28::from_num(fixedmath::midi_note_to_frequency(note[i])
-                .wide_mul(FRAC_4096_2PI_SR)
-                .unwrapped_shr(12));
+            let phase_per_sample = fixedmath::U4F28::from_num(
+                fixedmath::midi_note_to_frequency(note[i])
+                    .wide_mul(FRAC_4096_2PI_SR)
+                    .unwrapped_shr(12),
+            );
             let phase_per_smp_adj = PhaseFxP::from_num(if self.phase < PhaseFxP::ZERO {
                 let (x, s) = fixedmath::one_over_one_plus_highacc(clip_shape(shape[i]));
                 fixedmath::scale_fixedfloat(phase_per_sample, x).unwrapped_shr(s)
-            }
-            else {
+            } else {
                 fixedmath::scale_fixedfloat(phase_per_sample, one_over_one_minus_x(shape[i]))
             });
             //FIXME:  when shape is close to 1, tuning becomes inaccurate due to the incorrect phase
@@ -202,8 +209,8 @@ impl OscFxP {
             sin: &self.sinbuf[0..numsamples],
             tri: &self.tribuf[0..numsamples],
             sq: &self.sqbuf[0..numsamples],
-            saw: &self.sawbuf[0..numsamples]
-        }    
+            saw: &self.sawbuf[0..numsamples],
+        }
     }
 }
 
@@ -217,8 +224,7 @@ fn clip_shape(x: ScalarFxP) -> ScalarFxP {
     const CLIP_MAX: ScalarFxP = ScalarFxP::lit("0x0.F");
     if x > CLIP_MAX {
         CLIP_MAX
-    }
-    else {
+    } else {
         x
     }
 }
@@ -236,68 +242,250 @@ fn one_over_one_minus_x(x: ScalarFxP) -> USampleFxP {
     //     print('USampleFxP::lit("' + val[:3] + '.' + val[3:] + '"), ', end='')
     //     if i % 4 == 3:
     //         print('')
-    const LOOKUP_TABLE : [USampleFxP; 0xF2] = [
-        USampleFxP::lit("0x1.000"), USampleFxP::lit("0x1.010"), USampleFxP::lit("0x1.020"), USampleFxP::lit("0x1.030"),
-        USampleFxP::lit("0x1.041"), USampleFxP::lit("0x1.051"), USampleFxP::lit("0x1.062"), USampleFxP::lit("0x1.073"),
-        USampleFxP::lit("0x1.084"), USampleFxP::lit("0x1.095"), USampleFxP::lit("0x1.0a6"), USampleFxP::lit("0x1.0b7"),
-        USampleFxP::lit("0x1.0c9"), USampleFxP::lit("0x1.0db"), USampleFxP::lit("0x1.0ec"), USampleFxP::lit("0x1.0fe"),
-        USampleFxP::lit("0x1.111"), USampleFxP::lit("0x1.123"), USampleFxP::lit("0x1.135"), USampleFxP::lit("0x1.148"),
-        USampleFxP::lit("0x1.15b"), USampleFxP::lit("0x1.16e"), USampleFxP::lit("0x1.181"), USampleFxP::lit("0x1.194"),
-        USampleFxP::lit("0x1.1a7"), USampleFxP::lit("0x1.1bb"), USampleFxP::lit("0x1.1cf"), USampleFxP::lit("0x1.1e2"),
-        USampleFxP::lit("0x1.1f7"), USampleFxP::lit("0x1.20b"), USampleFxP::lit("0x1.21f"), USampleFxP::lit("0x1.234"),
-        USampleFxP::lit("0x1.249"), USampleFxP::lit("0x1.25e"), USampleFxP::lit("0x1.273"), USampleFxP::lit("0x1.288"),
-        USampleFxP::lit("0x1.29e"), USampleFxP::lit("0x1.2b4"), USampleFxP::lit("0x1.2c9"), USampleFxP::lit("0x1.2e0"),
-        USampleFxP::lit("0x1.2f6"), USampleFxP::lit("0x1.30d"), USampleFxP::lit("0x1.323"), USampleFxP::lit("0x1.33a"),
-        USampleFxP::lit("0x1.352"), USampleFxP::lit("0x1.369"), USampleFxP::lit("0x1.381"), USampleFxP::lit("0x1.399"),
-        USampleFxP::lit("0x1.3b1"), USampleFxP::lit("0x1.3c9"), USampleFxP::lit("0x1.3e2"), USampleFxP::lit("0x1.3fb"),
-        USampleFxP::lit("0x1.414"), USampleFxP::lit("0x1.42d"), USampleFxP::lit("0x1.446"), USampleFxP::lit("0x1.460"),
-        USampleFxP::lit("0x1.47a"), USampleFxP::lit("0x1.495"), USampleFxP::lit("0x1.4af"), USampleFxP::lit("0x1.4ca"),
-        USampleFxP::lit("0x1.4e5"), USampleFxP::lit("0x1.501"), USampleFxP::lit("0x1.51d"), USampleFxP::lit("0x1.539"),
-        USampleFxP::lit("0x1.555"), USampleFxP::lit("0x1.571"), USampleFxP::lit("0x1.58e"), USampleFxP::lit("0x1.5ac"),
-        USampleFxP::lit("0x1.5c9"), USampleFxP::lit("0x1.5e7"), USampleFxP::lit("0x1.605"), USampleFxP::lit("0x1.623"),
-        USampleFxP::lit("0x1.642"), USampleFxP::lit("0x1.661"), USampleFxP::lit("0x1.681"), USampleFxP::lit("0x1.6a1"),
-        USampleFxP::lit("0x1.6c1"), USampleFxP::lit("0x1.6e1"), USampleFxP::lit("0x1.702"), USampleFxP::lit("0x1.724"),
-        USampleFxP::lit("0x1.745"), USampleFxP::lit("0x1.767"), USampleFxP::lit("0x1.78a"), USampleFxP::lit("0x1.7ad"),
-        USampleFxP::lit("0x1.7d0"), USampleFxP::lit("0x1.7f4"), USampleFxP::lit("0x1.818"), USampleFxP::lit("0x1.83c"),
-        USampleFxP::lit("0x1.861"), USampleFxP::lit("0x1.886"), USampleFxP::lit("0x1.8ac"), USampleFxP::lit("0x1.8d3"),
-        USampleFxP::lit("0x1.8f9"), USampleFxP::lit("0x1.920"), USampleFxP::lit("0x1.948"), USampleFxP::lit("0x1.970"),
-        USampleFxP::lit("0x1.999"), USampleFxP::lit("0x1.9c2"), USampleFxP::lit("0x1.9ec"), USampleFxP::lit("0x1.a16"),
-        USampleFxP::lit("0x1.a41"), USampleFxP::lit("0x1.a6d"), USampleFxP::lit("0x1.a98"), USampleFxP::lit("0x1.ac5"),
-        USampleFxP::lit("0x1.af2"), USampleFxP::lit("0x1.b20"), USampleFxP::lit("0x1.b4e"), USampleFxP::lit("0x1.b7d"),
-        USampleFxP::lit("0x1.bac"), USampleFxP::lit("0x1.bdd"), USampleFxP::lit("0x1.c0e"), USampleFxP::lit("0x1.c3f"),
-        USampleFxP::lit("0x1.c71"), USampleFxP::lit("0x1.ca4"), USampleFxP::lit("0x1.cd8"), USampleFxP::lit("0x1.d0c"),
-        USampleFxP::lit("0x1.d41"), USampleFxP::lit("0x1.d77"), USampleFxP::lit("0x1.dae"), USampleFxP::lit("0x1.de5"),
-        USampleFxP::lit("0x1.e1e"), USampleFxP::lit("0x1.e57"), USampleFxP::lit("0x1.e91"), USampleFxP::lit("0x1.ecc"),
-        USampleFxP::lit("0x1.f07"), USampleFxP::lit("0x1.f44"), USampleFxP::lit("0x1.f81"), USampleFxP::lit("0x1.fc0"),
-        USampleFxP::lit("0x2.000"), USampleFxP::lit("0x2.040"), USampleFxP::lit("0x2.082"), USampleFxP::lit("0x2.0c4"),
-        USampleFxP::lit("0x2.108"), USampleFxP::lit("0x2.14d"), USampleFxP::lit("0x2.192"), USampleFxP::lit("0x2.1d9"),
-        USampleFxP::lit("0x2.222"), USampleFxP::lit("0x2.26b"), USampleFxP::lit("0x2.2b6"), USampleFxP::lit("0x2.302"),
-        USampleFxP::lit("0x2.34f"), USampleFxP::lit("0x2.39e"), USampleFxP::lit("0x2.3ee"), USampleFxP::lit("0x2.43f"),
-        USampleFxP::lit("0x2.492"), USampleFxP::lit("0x2.4e6"), USampleFxP::lit("0x2.53c"), USampleFxP::lit("0x2.593"),
-        USampleFxP::lit("0x2.5ed"), USampleFxP::lit("0x2.647"), USampleFxP::lit("0x2.6a4"), USampleFxP::lit("0x2.702"),
-        USampleFxP::lit("0x2.762"), USampleFxP::lit("0x2.7c4"), USampleFxP::lit("0x2.828"), USampleFxP::lit("0x2.88d"),
-        USampleFxP::lit("0x2.8f5"), USampleFxP::lit("0x2.95f"), USampleFxP::lit("0x2.9cb"), USampleFxP::lit("0x2.a3a"),
-        USampleFxP::lit("0x2.aaa"), USampleFxP::lit("0x2.b1d"), USampleFxP::lit("0x2.b93"), USampleFxP::lit("0x2.c0b"),
-        USampleFxP::lit("0x2.c85"), USampleFxP::lit("0x2.d02"), USampleFxP::lit("0x2.d82"), USampleFxP::lit("0x2.e05"),
-        USampleFxP::lit("0x2.e8b"), USampleFxP::lit("0x2.f14"), USampleFxP::lit("0x2.fa0"), USampleFxP::lit("0x3.030"),
-        USampleFxP::lit("0x3.0c3"), USampleFxP::lit("0x3.159"), USampleFxP::lit("0x3.1f3"), USampleFxP::lit("0x3.291"),
-        USampleFxP::lit("0x3.333"), USampleFxP::lit("0x3.3d9"), USampleFxP::lit("0x3.483"), USampleFxP::lit("0x3.531"),
-        USampleFxP::lit("0x3.5e5"), USampleFxP::lit("0x3.69d"), USampleFxP::lit("0x3.759"), USampleFxP::lit("0x3.81c"),
-        USampleFxP::lit("0x3.8e3"), USampleFxP::lit("0x3.9b0"), USampleFxP::lit("0x3.a83"), USampleFxP::lit("0x3.b5c"),
-        USampleFxP::lit("0x3.c3c"), USampleFxP::lit("0x3.d22"), USampleFxP::lit("0x3.e0f"), USampleFxP::lit("0x3.f03"),
-        USampleFxP::lit("0x4.000"), USampleFxP::lit("0x4.104"), USampleFxP::lit("0x4.210"), USampleFxP::lit("0x4.325"),
-        USampleFxP::lit("0x4.444"), USampleFxP::lit("0x4.56c"), USampleFxP::lit("0x4.69e"), USampleFxP::lit("0x4.7dc"),
-        USampleFxP::lit("0x4.924"), USampleFxP::lit("0x4.a79"), USampleFxP::lit("0x4.bda"), USampleFxP::lit("0x4.d48"),
-        USampleFxP::lit("0x4.ec4"), USampleFxP::lit("0x5.050"), USampleFxP::lit("0x5.1eb"), USampleFxP::lit("0x5.397"),
-        USampleFxP::lit("0x5.555"), USampleFxP::lit("0x5.726"), USampleFxP::lit("0x5.90b"), USampleFxP::lit("0x5.b05"),
-        USampleFxP::lit("0x5.d17"), USampleFxP::lit("0x5.f41"), USampleFxP::lit("0x6.186"), USampleFxP::lit("0x6.3e7"),
-        USampleFxP::lit("0x6.666"), USampleFxP::lit("0x6.906"), USampleFxP::lit("0x6.bca"), USampleFxP::lit("0x6.eb3"),
-        USampleFxP::lit("0x7.1c7"), USampleFxP::lit("0x7.507"), USampleFxP::lit("0x7.878"), USampleFxP::lit("0x7.c1f"),
-        USampleFxP::lit("0x8.000"), USampleFxP::lit("0x8.421"), USampleFxP::lit("0x8.888"), USampleFxP::lit("0x8.d3d"),
-        USampleFxP::lit("0x9.249"), USampleFxP::lit("0x9.7b4"), USampleFxP::lit("0x9.d89"), USampleFxP::lit("0xa.3d7"),
-        USampleFxP::lit("0xa.aaa"), USampleFxP::lit("0xb.216"), USampleFxP::lit("0xb.a2e"), USampleFxP::lit("0xc.30c"),
-        USampleFxP::lit("0xc.ccc"), USampleFxP::lit("0xd.794"), USampleFxP::lit("0xe.38e"), USampleFxP::lit("0xf.0f0"),
-        USampleFxP::lit("0xf.fff"), USampleFxP::lit("0xf.fff")]; //throw 2x maxs at the end to avoid out-of-bounds on CLIP_MAX
+    const LOOKUP_TABLE: [USampleFxP; 0xF2] = [
+        USampleFxP::lit("0x1.000"),
+        USampleFxP::lit("0x1.010"),
+        USampleFxP::lit("0x1.020"),
+        USampleFxP::lit("0x1.030"),
+        USampleFxP::lit("0x1.041"),
+        USampleFxP::lit("0x1.051"),
+        USampleFxP::lit("0x1.062"),
+        USampleFxP::lit("0x1.073"),
+        USampleFxP::lit("0x1.084"),
+        USampleFxP::lit("0x1.095"),
+        USampleFxP::lit("0x1.0a6"),
+        USampleFxP::lit("0x1.0b7"),
+        USampleFxP::lit("0x1.0c9"),
+        USampleFxP::lit("0x1.0db"),
+        USampleFxP::lit("0x1.0ec"),
+        USampleFxP::lit("0x1.0fe"),
+        USampleFxP::lit("0x1.111"),
+        USampleFxP::lit("0x1.123"),
+        USampleFxP::lit("0x1.135"),
+        USampleFxP::lit("0x1.148"),
+        USampleFxP::lit("0x1.15b"),
+        USampleFxP::lit("0x1.16e"),
+        USampleFxP::lit("0x1.181"),
+        USampleFxP::lit("0x1.194"),
+        USampleFxP::lit("0x1.1a7"),
+        USampleFxP::lit("0x1.1bb"),
+        USampleFxP::lit("0x1.1cf"),
+        USampleFxP::lit("0x1.1e2"),
+        USampleFxP::lit("0x1.1f7"),
+        USampleFxP::lit("0x1.20b"),
+        USampleFxP::lit("0x1.21f"),
+        USampleFxP::lit("0x1.234"),
+        USampleFxP::lit("0x1.249"),
+        USampleFxP::lit("0x1.25e"),
+        USampleFxP::lit("0x1.273"),
+        USampleFxP::lit("0x1.288"),
+        USampleFxP::lit("0x1.29e"),
+        USampleFxP::lit("0x1.2b4"),
+        USampleFxP::lit("0x1.2c9"),
+        USampleFxP::lit("0x1.2e0"),
+        USampleFxP::lit("0x1.2f6"),
+        USampleFxP::lit("0x1.30d"),
+        USampleFxP::lit("0x1.323"),
+        USampleFxP::lit("0x1.33a"),
+        USampleFxP::lit("0x1.352"),
+        USampleFxP::lit("0x1.369"),
+        USampleFxP::lit("0x1.381"),
+        USampleFxP::lit("0x1.399"),
+        USampleFxP::lit("0x1.3b1"),
+        USampleFxP::lit("0x1.3c9"),
+        USampleFxP::lit("0x1.3e2"),
+        USampleFxP::lit("0x1.3fb"),
+        USampleFxP::lit("0x1.414"),
+        USampleFxP::lit("0x1.42d"),
+        USampleFxP::lit("0x1.446"),
+        USampleFxP::lit("0x1.460"),
+        USampleFxP::lit("0x1.47a"),
+        USampleFxP::lit("0x1.495"),
+        USampleFxP::lit("0x1.4af"),
+        USampleFxP::lit("0x1.4ca"),
+        USampleFxP::lit("0x1.4e5"),
+        USampleFxP::lit("0x1.501"),
+        USampleFxP::lit("0x1.51d"),
+        USampleFxP::lit("0x1.539"),
+        USampleFxP::lit("0x1.555"),
+        USampleFxP::lit("0x1.571"),
+        USampleFxP::lit("0x1.58e"),
+        USampleFxP::lit("0x1.5ac"),
+        USampleFxP::lit("0x1.5c9"),
+        USampleFxP::lit("0x1.5e7"),
+        USampleFxP::lit("0x1.605"),
+        USampleFxP::lit("0x1.623"),
+        USampleFxP::lit("0x1.642"),
+        USampleFxP::lit("0x1.661"),
+        USampleFxP::lit("0x1.681"),
+        USampleFxP::lit("0x1.6a1"),
+        USampleFxP::lit("0x1.6c1"),
+        USampleFxP::lit("0x1.6e1"),
+        USampleFxP::lit("0x1.702"),
+        USampleFxP::lit("0x1.724"),
+        USampleFxP::lit("0x1.745"),
+        USampleFxP::lit("0x1.767"),
+        USampleFxP::lit("0x1.78a"),
+        USampleFxP::lit("0x1.7ad"),
+        USampleFxP::lit("0x1.7d0"),
+        USampleFxP::lit("0x1.7f4"),
+        USampleFxP::lit("0x1.818"),
+        USampleFxP::lit("0x1.83c"),
+        USampleFxP::lit("0x1.861"),
+        USampleFxP::lit("0x1.886"),
+        USampleFxP::lit("0x1.8ac"),
+        USampleFxP::lit("0x1.8d3"),
+        USampleFxP::lit("0x1.8f9"),
+        USampleFxP::lit("0x1.920"),
+        USampleFxP::lit("0x1.948"),
+        USampleFxP::lit("0x1.970"),
+        USampleFxP::lit("0x1.999"),
+        USampleFxP::lit("0x1.9c2"),
+        USampleFxP::lit("0x1.9ec"),
+        USampleFxP::lit("0x1.a16"),
+        USampleFxP::lit("0x1.a41"),
+        USampleFxP::lit("0x1.a6d"),
+        USampleFxP::lit("0x1.a98"),
+        USampleFxP::lit("0x1.ac5"),
+        USampleFxP::lit("0x1.af2"),
+        USampleFxP::lit("0x1.b20"),
+        USampleFxP::lit("0x1.b4e"),
+        USampleFxP::lit("0x1.b7d"),
+        USampleFxP::lit("0x1.bac"),
+        USampleFxP::lit("0x1.bdd"),
+        USampleFxP::lit("0x1.c0e"),
+        USampleFxP::lit("0x1.c3f"),
+        USampleFxP::lit("0x1.c71"),
+        USampleFxP::lit("0x1.ca4"),
+        USampleFxP::lit("0x1.cd8"),
+        USampleFxP::lit("0x1.d0c"),
+        USampleFxP::lit("0x1.d41"),
+        USampleFxP::lit("0x1.d77"),
+        USampleFxP::lit("0x1.dae"),
+        USampleFxP::lit("0x1.de5"),
+        USampleFxP::lit("0x1.e1e"),
+        USampleFxP::lit("0x1.e57"),
+        USampleFxP::lit("0x1.e91"),
+        USampleFxP::lit("0x1.ecc"),
+        USampleFxP::lit("0x1.f07"),
+        USampleFxP::lit("0x1.f44"),
+        USampleFxP::lit("0x1.f81"),
+        USampleFxP::lit("0x1.fc0"),
+        USampleFxP::lit("0x2.000"),
+        USampleFxP::lit("0x2.040"),
+        USampleFxP::lit("0x2.082"),
+        USampleFxP::lit("0x2.0c4"),
+        USampleFxP::lit("0x2.108"),
+        USampleFxP::lit("0x2.14d"),
+        USampleFxP::lit("0x2.192"),
+        USampleFxP::lit("0x2.1d9"),
+        USampleFxP::lit("0x2.222"),
+        USampleFxP::lit("0x2.26b"),
+        USampleFxP::lit("0x2.2b6"),
+        USampleFxP::lit("0x2.302"),
+        USampleFxP::lit("0x2.34f"),
+        USampleFxP::lit("0x2.39e"),
+        USampleFxP::lit("0x2.3ee"),
+        USampleFxP::lit("0x2.43f"),
+        USampleFxP::lit("0x2.492"),
+        USampleFxP::lit("0x2.4e6"),
+        USampleFxP::lit("0x2.53c"),
+        USampleFxP::lit("0x2.593"),
+        USampleFxP::lit("0x2.5ed"),
+        USampleFxP::lit("0x2.647"),
+        USampleFxP::lit("0x2.6a4"),
+        USampleFxP::lit("0x2.702"),
+        USampleFxP::lit("0x2.762"),
+        USampleFxP::lit("0x2.7c4"),
+        USampleFxP::lit("0x2.828"),
+        USampleFxP::lit("0x2.88d"),
+        USampleFxP::lit("0x2.8f5"),
+        USampleFxP::lit("0x2.95f"),
+        USampleFxP::lit("0x2.9cb"),
+        USampleFxP::lit("0x2.a3a"),
+        USampleFxP::lit("0x2.aaa"),
+        USampleFxP::lit("0x2.b1d"),
+        USampleFxP::lit("0x2.b93"),
+        USampleFxP::lit("0x2.c0b"),
+        USampleFxP::lit("0x2.c85"),
+        USampleFxP::lit("0x2.d02"),
+        USampleFxP::lit("0x2.d82"),
+        USampleFxP::lit("0x2.e05"),
+        USampleFxP::lit("0x2.e8b"),
+        USampleFxP::lit("0x2.f14"),
+        USampleFxP::lit("0x2.fa0"),
+        USampleFxP::lit("0x3.030"),
+        USampleFxP::lit("0x3.0c3"),
+        USampleFxP::lit("0x3.159"),
+        USampleFxP::lit("0x3.1f3"),
+        USampleFxP::lit("0x3.291"),
+        USampleFxP::lit("0x3.333"),
+        USampleFxP::lit("0x3.3d9"),
+        USampleFxP::lit("0x3.483"),
+        USampleFxP::lit("0x3.531"),
+        USampleFxP::lit("0x3.5e5"),
+        USampleFxP::lit("0x3.69d"),
+        USampleFxP::lit("0x3.759"),
+        USampleFxP::lit("0x3.81c"),
+        USampleFxP::lit("0x3.8e3"),
+        USampleFxP::lit("0x3.9b0"),
+        USampleFxP::lit("0x3.a83"),
+        USampleFxP::lit("0x3.b5c"),
+        USampleFxP::lit("0x3.c3c"),
+        USampleFxP::lit("0x3.d22"),
+        USampleFxP::lit("0x3.e0f"),
+        USampleFxP::lit("0x3.f03"),
+        USampleFxP::lit("0x4.000"),
+        USampleFxP::lit("0x4.104"),
+        USampleFxP::lit("0x4.210"),
+        USampleFxP::lit("0x4.325"),
+        USampleFxP::lit("0x4.444"),
+        USampleFxP::lit("0x4.56c"),
+        USampleFxP::lit("0x4.69e"),
+        USampleFxP::lit("0x4.7dc"),
+        USampleFxP::lit("0x4.924"),
+        USampleFxP::lit("0x4.a79"),
+        USampleFxP::lit("0x4.bda"),
+        USampleFxP::lit("0x4.d48"),
+        USampleFxP::lit("0x4.ec4"),
+        USampleFxP::lit("0x5.050"),
+        USampleFxP::lit("0x5.1eb"),
+        USampleFxP::lit("0x5.397"),
+        USampleFxP::lit("0x5.555"),
+        USampleFxP::lit("0x5.726"),
+        USampleFxP::lit("0x5.90b"),
+        USampleFxP::lit("0x5.b05"),
+        USampleFxP::lit("0x5.d17"),
+        USampleFxP::lit("0x5.f41"),
+        USampleFxP::lit("0x6.186"),
+        USampleFxP::lit("0x6.3e7"),
+        USampleFxP::lit("0x6.666"),
+        USampleFxP::lit("0x6.906"),
+        USampleFxP::lit("0x6.bca"),
+        USampleFxP::lit("0x6.eb3"),
+        USampleFxP::lit("0x7.1c7"),
+        USampleFxP::lit("0x7.507"),
+        USampleFxP::lit("0x7.878"),
+        USampleFxP::lit("0x7.c1f"),
+        USampleFxP::lit("0x8.000"),
+        USampleFxP::lit("0x8.421"),
+        USampleFxP::lit("0x8.888"),
+        USampleFxP::lit("0x8.d3d"),
+        USampleFxP::lit("0x9.249"),
+        USampleFxP::lit("0x9.7b4"),
+        USampleFxP::lit("0x9.d89"),
+        USampleFxP::lit("0xa.3d7"),
+        USampleFxP::lit("0xa.aaa"),
+        USampleFxP::lit("0xb.216"),
+        USampleFxP::lit("0xb.a2e"),
+        USampleFxP::lit("0xc.30c"),
+        USampleFxP::lit("0xc.ccc"),
+        USampleFxP::lit("0xd.794"),
+        USampleFxP::lit("0xe.38e"),
+        USampleFxP::lit("0xf.0f0"),
+        USampleFxP::lit("0xf.fff"),
+        USampleFxP::lit("0xf.fff"),
+    ]; //throw 2x maxs at the end to avoid out-of-bounds on CLIP_MAX
     let index = x_bits >> 8;
     let lookup_val = LOOKUP_TABLE[index as usize];
     let interp = (LOOKUP_TABLE[index as usize + 1] - lookup_val)
@@ -323,8 +511,8 @@ mod test {
             let xf_neg = 1f32 / (1f32 - xf);
             let error_pos = (x_pos.to_num::<f32>() / xf_pos) - 1f32;
             let error_neg = (x_neg.to_num::<f32>() / xf_neg) - 1f32;
-            rms_error_pos += error_pos*error_pos;
-            rms_error_neg += error_neg*error_neg;
+            rms_error_pos += error_pos * error_pos;
+            rms_error_neg += error_neg * error_neg;
         }
         rms_error_pos = (rms_error_pos / 1024f32).sqrt();
         rms_error_neg = (rms_error_neg / 1024f32).sqrt();
@@ -333,7 +521,7 @@ mod test {
     }
     #[test]
     fn shape_mod_nopanic() {
-        for i in 0..(1<<16) {
+        for i in 0..(1 << 16) {
             let x = ScalarFxP::from_bits(i as u16);
             let (_pos, _) = fixedmath::one_over_one_plus_highacc(x);
             let _neg = one_over_one_minus_x(x);
@@ -366,7 +554,7 @@ mod bindings {
         tri: *mut *const i16,
         sq: *mut *const i16,
         saw: *mut *const i16,
-        offset: u32
+        offset: u32,
     ) -> i32 {
         if p.is_null()
             || note.is_null()
@@ -379,10 +567,14 @@ mod bindings {
         }
         unsafe {
             let note_s = std::slice::from_raw_parts(
-                note.offset(offset as isize).cast::<NoteFxP>(), samples as usize);
+                note.offset(offset as isize).cast::<NoteFxP>(),
+                samples as usize,
+            );
             let shape_s = std::slice::from_raw_parts(
-                shape.offset(offset as isize).cast::<fixedmath::U0F16>(), samples as usize);
-            let params = OscParamsFxP{ shape: shape_s };
+                shape.offset(offset as isize).cast::<fixedmath::U0F16>(),
+                samples as usize,
+            );
+            let params = OscParamsFxP { shape: shape_s };
             let out = p.as_mut().unwrap().process(note_s, params);
             *sin = out.sin.as_ptr().cast();
             *tri = out.tri.as_ptr().cast();
@@ -414,7 +606,7 @@ mod bindings {
         tri: *mut *const f32,
         sq: *mut *const f32,
         saw: *mut *const f32,
-        offset: u32
+        offset: u32,
     ) -> i32 {
         if p.is_null()
             || note.is_null()
@@ -427,10 +619,9 @@ mod bindings {
             return -1;
         }
         unsafe {
-            let note_s = std::slice::from_raw_parts(
-                note.offset(offset as isize), samples as usize);
-            let shape_s = std::slice::from_raw_parts(
-                shape.offset(offset as isize), samples as usize);
+            let note_s = std::slice::from_raw_parts(note.offset(offset as isize), samples as usize);
+            let shape_s =
+                std::slice::from_raw_parts(shape.offset(offset as isize), samples as usize);
             let params = OscParams::<f32> { shape: shape_s };
             let out = p.as_mut().unwrap().process(note_s, params);
             *sin = out.sin.as_ptr().cast();

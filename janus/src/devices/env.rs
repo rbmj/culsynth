@@ -6,14 +6,14 @@ use super::EnvParamFxP;
 enum EnvState {
     Release,
     Attack,
-    Decay
+    Decay,
 }
 
 pub struct EnvParams<'a, Smp> {
     pub attack: &'a [Smp],
     pub decay: &'a [Smp],
     pub sustain: &'a [Smp],
-    pub release: &'a [Smp]
+    pub release: &'a [Smp],
 }
 
 impl<'a, Smp> EnvParams<'a, Smp> {
@@ -22,16 +22,19 @@ impl<'a, Smp> EnvParams<'a, Smp> {
             self.attack.len(),
             self.decay.len(),
             self.sustain.len(),
-            self.release.len()]
-        .iter().min().unwrap()
+            self.release.len(),
+        ]
+        .iter()
+        .min()
+        .unwrap()
     }
 }
 
 pub struct Env<Smp> {
-    state : EnvState,
-    outbuf : BufferT<Smp>,
-    setpoint : Smp,
-    last : Smp
+    state: EnvState,
+    outbuf: BufferT<Smp>,
+    setpoint: Smp,
+    last: Smp,
 }
 
 impl<Smp: Float> Env<Smp> {
@@ -45,7 +48,7 @@ impl<Smp: Float> Env<Smp> {
             state: EnvState::Release,
             outbuf: [Smp::ZERO; STATIC_BUFFER_SIZE],
             setpoint: Self::SIGNAL_MIN,
-            last: Self::SIGNAL_MIN
+            last: Self::SIGNAL_MIN,
         }
     }
     pub fn process(&mut self, gate: &[Smp], params: EnvParams<Smp>) -> &[Smp] {
@@ -55,30 +58,28 @@ impl<Smp: Float> Env<Smp> {
         let release = params.release;
         let numsamples = std::cmp::min(
             std::cmp::min(
-                    std::cmp::min(attack.len(), decay.len()),
-                    std::cmp::min(sustain.len(), release.len())),
-            std::cmp::min(STATIC_BUFFER_SIZE, gate.len()));
+                std::cmp::min(attack.len(), decay.len()),
+                std::cmp::min(sustain.len(), release.len()),
+            ),
+            std::cmp::min(STATIC_BUFFER_SIZE, gate.len()),
+        );
         let setpoint_old = self.setpoint;
         for i in 0..numsamples {
             if gate[i] <= Self::GATE_THRESHOLD {
                 self.state = EnvState::Release;
                 self.setpoint = Self::SIGNAL_MIN;
-            }
-            else if self.state == EnvState::Release {
+            } else if self.state == EnvState::Release {
                 self.state = EnvState::Attack;
                 self.setpoint = Self::SIGNAL_MAX;
-            }
-            else if self.state == EnvState::Attack && self.last > Self::ATTACK_THRESHOLD {
+            } else if self.state == EnvState::Attack && self.last > Self::ATTACK_THRESHOLD {
                 self.state = EnvState::Decay;
             }
             let rise = if self.state == EnvState::Attack {
                 attack[i]
-            }
-            else if self.state == EnvState::Decay {
+            } else if self.state == EnvState::Decay {
                 self.setpoint = sustain[i];
                 decay[i]
-            }
-            else {
+            } else {
                 release[i]
             };
             // This is equivalen to saying rise time = 4 time constants...
@@ -103,26 +104,29 @@ pub struct EnvParamsFxP<'a> {
     pub attack: &'a [EnvParamFxP],
     pub decay: &'a [EnvParamFxP],
     pub sustain: &'a [ScalarFxP],
-    pub release: &'a [EnvParamFxP]
+    pub release: &'a [EnvParamFxP],
 }
 
 impl<'a> EnvParamsFxP<'a> {
     pub fn len(&self) -> usize {
         let l = *[
-                self.attack.len(),
-                self.decay.len(),
-                self.sustain.len(),
-                self.release.len()]
-            .iter().min().unwrap();
+            self.attack.len(),
+            self.decay.len(),
+            self.sustain.len(),
+            self.release.len(),
+        ]
+        .iter()
+        .min()
+        .unwrap();
         l
     }
 }
 
 pub struct EnvFxP {
-    state : EnvState,
-    outbuf : BufferT<ScalarFxP>,
-    setpoint : fixedmath::I3F29,
-    last : fixedmath::I3F29
+    state: EnvState,
+    outbuf: BufferT<ScalarFxP>,
+    setpoint: fixedmath::I3F29,
+    last: fixedmath::I3F29,
 }
 
 impl EnvFxP {
@@ -135,7 +139,7 @@ impl EnvFxP {
             state: EnvState::Release,
             outbuf: [ScalarFxP::ZERO; STATIC_BUFFER_SIZE],
             setpoint: Self::SIGNAL_MIN,
-            last: Self::SIGNAL_MIN
+            last: Self::SIGNAL_MIN,
         }
     }
     pub fn process(&mut self, gate: &[SampleFxP], params: EnvParamsFxP) -> &[ScalarFxP] {
@@ -145,32 +149,31 @@ impl EnvFxP {
         let release = params.release;
         let numsamples = std::cmp::min(
             std::cmp::min(
-                    std::cmp::min(attack.len(), decay.len()),
-                    std::cmp::min(sustain.len(), release.len())),
-            std::cmp::min(STATIC_BUFFER_SIZE, gate.len()));
+                std::cmp::min(attack.len(), decay.len()),
+                std::cmp::min(sustain.len(), release.len()),
+            ),
+            std::cmp::min(STATIC_BUFFER_SIZE, gate.len()),
+        );
         let setpoint_old = self.setpoint;
         for i in 0..numsamples {
             if gate[i] <= Self::GATE_THRESHOLD {
                 self.state = EnvState::Release;
                 self.setpoint = Self::SIGNAL_MIN;
-            }
-            else if self.state == EnvState::Release {
+            } else if self.state == EnvState::Release {
                 self.state = EnvState::Attack;
                 self.setpoint = fixedmath::I3F29::from_num(Self::SIGNAL_MAX);
-            }
-            else if self.state == EnvState::Attack && self.last > Self::ATTACK_THRESHOLD {
+            } else if self.state == EnvState::Attack && self.last > Self::ATTACK_THRESHOLD {
                 self.state = EnvState::Decay;
             }
             let rise = if self.state == EnvState::Attack {
                 attack[i]
-            }
-            else if self.state == EnvState::Decay {
-                self.setpoint = std::cmp::max(fixedmath::I3F29::from_num(
-                    std::cmp::min(sustain[i], Self::SIGNAL_MAX)),
-                    Self::SIGNAL_MIN);
+            } else if self.state == EnvState::Decay {
+                self.setpoint = std::cmp::max(
+                    fixedmath::I3F29::from_num(std::cmp::min(sustain[i], Self::SIGNAL_MAX)),
+                    Self::SIGNAL_MIN,
+                );
                 decay[i]
-            }
-            else {
+            } else {
                 release[i]
             };
             // This is equivalen to saying rise time = 4 time constants...
@@ -178,7 +181,8 @@ impl EnvFxP {
             let k = rise.wide_mul(sr);
             let (gain, shift) = fixedmath::one_over_one_plus(k);
             let pro = fixedmath::I2F14::from_num(
-                setpoint_old + self.setpoint - self.last.unwrapped_shl(1));
+                setpoint_old + self.setpoint - self.last.unwrapped_shl(1),
+            );
             let delta = pro.wide_mul_unsigned(gain).unwrapped_shr(shift);
             //println!("Env::Process setpoint = {} setpoint_old = {} last = {} delta = {}",
             //    self.setpoint, setpoint_old, self.last, delta);
@@ -220,7 +224,7 @@ mod bindings {
         sustain: *const u16,
         release: *const u16,
         signal: *mut *const u16,
-        offset: u32
+        offset: u32,
     ) -> i32 {
         if p.is_null()
             || gate.is_null()
@@ -234,23 +238,37 @@ mod bindings {
         }
         unsafe {
             let g = std::slice::from_raw_parts(
-                gate.offset(offset as isize).cast::<SampleFxP>(), samples as usize);
+                gate.offset(offset as isize).cast::<SampleFxP>(),
+                samples as usize,
+            );
             let a = std::slice::from_raw_parts(
-                attack.offset(offset as isize).cast::<EnvParamFxP>(), samples as usize);
+                attack.offset(offset as isize).cast::<EnvParamFxP>(),
+                samples as usize,
+            );
             let d = std::slice::from_raw_parts(
-                decay.offset(offset as isize).cast::<EnvParamFxP>(), samples as usize);
+                decay.offset(offset as isize).cast::<EnvParamFxP>(),
+                samples as usize,
+            );
             let s = std::slice::from_raw_parts(
-                sustain.offset(offset as isize).cast::<ScalarFxP>(), samples as usize);
+                sustain.offset(offset as isize).cast::<ScalarFxP>(),
+                samples as usize,
+            );
             let r = std::slice::from_raw_parts(
-                release.offset(offset as isize).cast::<EnvParamFxP>(), samples as usize);
-            let params = EnvParamsFxP { attack: a, decay: d, sustain: s, release: r };
+                release.offset(offset as isize).cast::<EnvParamFxP>(),
+                samples as usize,
+            );
+            let params = EnvParamsFxP {
+                attack: a,
+                decay: d,
+                sustain: s,
+                release: r,
+            };
             let out = p.as_mut().unwrap().process(g, params);
             *signal = out.as_ptr().cast();
             out.len() as i32
         }
     }
 
-    
     #[no_mangle]
     pub extern "C" fn janus_env_f32_new() -> *mut Env<f32> {
         Box::into_raw(Box::new(Env::new()))
@@ -273,7 +291,7 @@ mod bindings {
         sustain: *const f32,
         release: *const f32,
         signal: *mut *const f32,
-        offset: u32
+        offset: u32,
     ) -> i32 {
         if p.is_null()
             || gate.is_null()
@@ -286,17 +304,17 @@ mod bindings {
             return -1;
         }
         unsafe {
-            let g = std::slice::from_raw_parts(
-                gate.offset(offset as isize), samples as usize);
-            let a = std::slice::from_raw_parts(
-                attack.offset(offset as isize), samples as usize);
-            let d = std::slice::from_raw_parts(
-                decay.offset(offset as isize), samples as usize);
-            let s = std::slice::from_raw_parts(
-                sustain.offset(offset as isize), samples as usize);
-            let r = std::slice::from_raw_parts(
-                release.offset(offset as isize), samples as usize);
-            let params = EnvParams::<f32> { attack: a, decay: d, sustain: s, release: r };
+            let g = std::slice::from_raw_parts(gate.offset(offset as isize), samples as usize);
+            let a = std::slice::from_raw_parts(attack.offset(offset as isize), samples as usize);
+            let d = std::slice::from_raw_parts(decay.offset(offset as isize), samples as usize);
+            let s = std::slice::from_raw_parts(sustain.offset(offset as isize), samples as usize);
+            let r = std::slice::from_raw_parts(release.offset(offset as isize), samples as usize);
+            let params = EnvParams::<f32> {
+                attack: a,
+                decay: d,
+                sustain: s,
+                release: r,
+            };
             let out = p.as_mut().unwrap().process(g, params);
             *signal = out.as_ptr().cast();
             out.len() as i32

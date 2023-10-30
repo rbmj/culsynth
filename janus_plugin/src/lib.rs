@@ -1,19 +1,19 @@
 //use atomic_float::AtomicF32;
+use fixed::traits::Fixed;
 use nih_plug::prelude::*;
 use nih_plug_egui::EguiState;
+use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
 use std::sync::Arc;
-use fixed::traits::Fixed;
-use std::sync::mpsc::{sync_channel, SyncSender, Receiver};
 
-use janus::{ScalarFxP, EnvParamFxP, NoteFxP};
+use janus::{EnvParamFxP, NoteFxP, ScalarFxP};
 
 mod editor;
 
 pub mod parambuf;
-use parambuf::{EnvParamBuffer, OscParamBuffer, FiltParamBuffer};
+use parambuf::{EnvParamBuffer, FiltParamBuffer, OscParamBuffer};
 
 mod voicealloc;
-use voicealloc::{VoiceAllocator, MonoSynthFxP};
+use voicealloc::{MonoSynthFxP, VoiceAllocator};
 
 pub struct JanusPlugin {
     params: Arc<JanusParams>,
@@ -27,7 +27,7 @@ pub struct JanusPlugin {
     rx: Receiver<i8>,
 
     voices: Option<Box<dyn VoiceAllocator>>,
-    max_buffer_size: usize
+    max_buffer_size: usize,
 }
 
 #[derive(Params)]
@@ -110,25 +110,26 @@ impl Default for JanusPlugin {
             tx: tx,
             rx: rx,
             voices: None,
-            max_buffer_size: 0
+            max_buffer_size: 0,
         }
     }
 }
 
 fn fixed_v2s<F: Fixed>(x: i32) -> String
-    where i32: TryFrom<F::Bits>
+where
+    i32: TryFrom<F::Bits>,
 {
     F::from_bits(F::Bits::try_from(x).unwrap_or_default()).to_string()
 }
 
-fn fixed_s2v<F: Fixed>(s: &str) -> Option<i32> 
-    where F::Bits: Into<i32>
+fn fixed_s2v<F: Fixed>(s: &str) -> Option<i32>
+where
+    F::Bits: Into<i32>,
 {
     F::from_str(s).map(|x| x.to_bits().into()).ok()
 }
 
-fn fixed_v2s_percent(x: i32) -> String 
-{
+fn fixed_v2s_percent(x: i32) -> String {
     let percent = ScalarFxP::from_bits(x as u16).to_num::<f32>() * 100f32;
     format!("{}", percent)
 }
@@ -147,39 +148,57 @@ fn fixed_v2s_freq(x: i32) -> String {
 fn fixed_s2v_freq(s: &str) -> Option<i32> {
     s.trim_end_matches(&[' ', 'H', 'h', 'Z', 'z'])
         .parse::<f32>()
-        .map(|x| NoteFxP::saturating_from_num(
-            ((x / 440f32).log2() * 12f32) + 69f32).to_bits() as i32)
+        .map(|x| {
+            NoteFxP::saturating_from_num(((x / 440f32).log2() * 12f32) + 69f32).to_bits() as i32
+        })
         .ok()
 }
 
 fn new_fixed_param<F: Fixed>(name: impl Into<String>, default: F) -> IntParam
-    where F::Bits: Into<i32>
+where
+    F::Bits: Into<i32>,
 {
-    IntParam::new(name, default.to_bits().into(),
-            IntRange::Linear { min: F::MIN.to_bits().into(), max: F::MAX.to_bits().into() })
-        .with_smoother(SmoothingStyle::Linear(50.0))
-        .with_value_to_string(Arc::new(fixed_v2s::<F>))
-        .with_string_to_value(Arc::new(fixed_s2v::<F>))
+    IntParam::new(
+        name,
+        default.to_bits().into(),
+        IntRange::Linear {
+            min: F::MIN.to_bits().into(),
+            max: F::MAX.to_bits().into(),
+        },
+    )
+    .with_smoother(SmoothingStyle::Linear(50.0))
+    .with_value_to_string(Arc::new(fixed_v2s::<F>))
+    .with_string_to_value(Arc::new(fixed_s2v::<F>))
 }
 
-fn new_fixed_param_percent(name: impl Into<String>, default: ScalarFxP) -> IntParam
-{
-    IntParam::new(name, default.to_bits().into(),
-            IntRange::Linear { min: ScalarFxP::MIN.to_bits().into(), max: ScalarFxP::MAX.to_bits().into() })
-        .with_smoother(SmoothingStyle::Linear(50.0))
-        .with_value_to_string(Arc::new(fixed_v2s_percent))
-        .with_string_to_value(Arc::new(fixed_s2v_percent))
-        .with_unit(" %")
+fn new_fixed_param_percent(name: impl Into<String>, default: ScalarFxP) -> IntParam {
+    IntParam::new(
+        name,
+        default.to_bits().into(),
+        IntRange::Linear {
+            min: ScalarFxP::MIN.to_bits().into(),
+            max: ScalarFxP::MAX.to_bits().into(),
+        },
+    )
+    .with_smoother(SmoothingStyle::Linear(50.0))
+    .with_value_to_string(Arc::new(fixed_v2s_percent))
+    .with_string_to_value(Arc::new(fixed_s2v_percent))
+    .with_unit(" %")
 }
 
-fn new_fixed_param_freq(name: impl Into<String>, default: NoteFxP) -> IntParam
-{
-    IntParam::new(name, default.to_bits().into(),
-            IntRange::Linear { min: NoteFxP::MIN.to_bits().into(), max: NoteFxP::MAX.to_bits().into() })
-        .with_smoother(SmoothingStyle::Linear(50.0))
-        .with_value_to_string(Arc::new(fixed_v2s_freq))
-        .with_string_to_value(Arc::new(fixed_s2v_freq))
-        .with_unit(" Hz")
+fn new_fixed_param_freq(name: impl Into<String>, default: NoteFxP) -> IntParam {
+    IntParam::new(
+        name,
+        default.to_bits().into(),
+        IntRange::Linear {
+            min: NoteFxP::MIN.to_bits().into(),
+            max: NoteFxP::MAX.to_bits().into(),
+        },
+    )
+    .with_smoother(SmoothingStyle::Linear(50.0))
+    .with_value_to_string(Arc::new(fixed_v2s_freq))
+    .with_string_to_value(Arc::new(fixed_s2v_freq))
+    .with_unit(" Hz")
 }
 
 impl Default for JanusParams {
@@ -280,8 +299,7 @@ impl Plugin for JanusPlugin {
         while let Ok(note) = self.rx.try_recv() {
             if note < 0 {
                 voices.note_off((note - (-128)) as u8, 0);
-            }
-            else {
+            } else {
                 voices.note_on(note as u8, 100);
             }
         }
@@ -298,7 +316,7 @@ impl Plugin for JanusPlugin {
                 ScalarFxP::from_bits(self.params.osc1_saw.smoothed.next() as u16);
             self.osc_params.tri_mut()[index] =
                 ScalarFxP::from_bits(self.params.osc1_tri.smoothed.next() as u16);
-            
+
             self.filt_params.env_mod_mut()[index] =
                 ScalarFxP::from_bits(self.params.filt_env.smoothed.next() as u16);
             self.filt_params.kbd_mut()[index] =
@@ -339,10 +357,10 @@ impl Plugin for JanusPlugin {
                 }
                 match event {
                     NoteEvent::NoteOn { note, velocity, .. } => {
-                        voices.note_on(note, (velocity*127f32) as u8);
+                        voices.note_on(note, (velocity * 127f32) as u8);
                     }
                     NoteEvent::NoteOff { note, velocity, .. } => {
-                        voices.note_off(note, (velocity*127f32) as u8);
+                        voices.note_off(note, (velocity * 127f32) as u8);
                     }
                     _ => (),
                 }
@@ -357,7 +375,12 @@ impl Plugin for JanusPlugin {
             self.env_amp_params.conv_float();
             self.env_filt_params.conv_float();
         }
-        let output = voices.process(&self.osc_params, &self.filt_params, &self.env_filt_params, &self.env_amp_params);
+        let output = voices.process(
+            &self.osc_params,
+            &self.filt_params,
+            &self.env_filt_params,
+            &self.env_amp_params,
+        );
         index = 0;
         for channel_samples in buffer.iter_samples() {
             for smp in channel_samples {
@@ -388,8 +411,7 @@ impl ClapPlugin for JanusPlugin {
 
 impl Vst3Plugin for JanusPlugin {
     const VST3_CLASS_ID: [u8; 16] = *b"JanusSynthesizer";
-    const VST3_SUBCATEGORIES: &'static [Vst3SubCategory] =
-        &[Vst3SubCategory::Synth];
+    const VST3_SUBCATEGORIES: &'static [Vst3SubCategory] = &[Vst3SubCategory::Synth];
 }
 
 nih_export_clap!(JanusPlugin);

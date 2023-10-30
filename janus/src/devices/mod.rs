@@ -1,20 +1,20 @@
-pub mod osc;
+pub mod amp;
 pub mod env;
 pub mod filt;
-pub mod amp;
-pub mod modfilt;
 pub mod mixosc;
+pub mod modfilt;
+pub mod osc;
 
-use super::{fixedmath, SampleFxP, USampleFxP, NoteFxP, ScalarFxP, EnvParamFxP};
+use super::{fixedmath, EnvParamFxP, NoteFxP, SampleFxP, ScalarFxP, USampleFxP};
 
-use super::STATIC_BUFFER_SIZE;
 use super::BufferT;
+use super::STATIC_BUFFER_SIZE;
 
 //TODO: Support multiple sample rates
-const SAMPLE_RATE : u16 = 44100;
-const FRAC_4096_2PI_SR : fixedmath::U0F32 = fixedmath::U0F32::lit("0x0.9565925d");
+const SAMPLE_RATE: u16 = 44100;
+const FRAC_4096_2PI_SR: fixedmath::U0F32 = fixedmath::U0F32::lit("0x0.9565925d");
 
-pub trait Float : num_traits::Float + num_traits::FloatConst {
+pub trait Float: num_traits::Float + num_traits::FloatConst {
     const ZERO: Self;
     const ONE: Self;
     const TWO: Self;
@@ -54,9 +54,9 @@ fn midi_note_to_frequency<T: Float>(note: T) -> T {
     c440 * ((note - c69) / c12).exp2()
 }
 
-pub use osc::{Osc, OscParams, OscOutput, OscFxP, OscParamsFxP, OscOutputFxP};
-pub use env::{Env, EnvParams, EnvFxP, EnvParamsFxP};
-pub use filt::{Filt, FiltOutput, FiltParams, FiltFxP, FiltOutputFxP, FiltParamsFxP};
 pub use amp::{Amp, AmpFxP};
-pub use modfilt::{ModFilt, ModFiltParams, ModFiltFxP, ModFiltParamsFxP};
-pub use mixosc::{MixOsc, MixOscParams, MixOscFxP, MixOscParamsFxP};
+pub use env::{Env, EnvFxP, EnvParams, EnvParamsFxP};
+pub use filt::{Filt, FiltFxP, FiltOutput, FiltOutputFxP, FiltParams, FiltParamsFxP};
+pub use mixosc::{MixOsc, MixOscFxP, MixOscParams, MixOscParamsFxP};
+pub use modfilt::{ModFilt, ModFiltFxP, ModFiltParams, ModFiltParamsFxP};
+pub use osc::{Osc, OscFxP, OscOutput, OscOutputFxP, OscParams, OscParamsFxP};

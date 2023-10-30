@@ -1,7 +1,7 @@
 use super::*;
 
 pub struct Amp<Smp> {
-    outbuf : BufferT<Smp>,
+    outbuf: BufferT<Smp>,
 }
 
 impl<Smp: Float> Amp<Smp> {
@@ -10,28 +10,23 @@ impl<Smp: Float> Amp<Smp> {
             outbuf: [Smp::ZERO; STATIC_BUFFER_SIZE],
         }
     }
-    pub fn process(&mut self,
-        signal: &[Smp],
-        gain: &[Smp]
-    ) -> &[Smp] {
-        let numsamples = std::cmp::min(
-            std::cmp::min(signal.len(), gain.len()),
-            STATIC_BUFFER_SIZE);
+    pub fn process(&mut self, signal: &[Smp], gain: &[Smp]) -> &[Smp] {
+        let numsamples = std::cmp::min(std::cmp::min(signal.len(), gain.len()), STATIC_BUFFER_SIZE);
         for i in 0..numsamples {
-            self.outbuf[i] = signal[i]*gain[i];
+            self.outbuf[i] = signal[i] * gain[i];
         }
         &self.outbuf[0..numsamples]
     }
 }
 
-impl <Smp: Float> Default for Amp<Smp> {
+impl<Smp: Float> Default for Amp<Smp> {
     fn default() -> Self {
         Self::new()
     }
 }
 
 pub struct AmpFxP {
-    outbuf : BufferT<SampleFxP>,
+    outbuf: BufferT<SampleFxP>,
 }
 
 impl AmpFxP {
@@ -40,13 +35,8 @@ impl AmpFxP {
             outbuf: [SampleFxP::ZERO; STATIC_BUFFER_SIZE],
         }
     }
-    pub fn process(&mut self,
-        signal: &[SampleFxP],
-        gain: &[SampleFxP],
-    ) -> &[SampleFxP] {
-        let numsamples = std::cmp::min(
-            std::cmp::min(signal.len(), gain.len()),
-            STATIC_BUFFER_SIZE);
+    pub fn process(&mut self, signal: &[SampleFxP], gain: &[SampleFxP]) -> &[SampleFxP] {
+        let numsamples = std::cmp::min(std::cmp::min(signal.len(), gain.len()), STATIC_BUFFER_SIZE);
         for i in 0..numsamples {
             self.outbuf[i] = signal[i].saturating_mul(gain[i]);
         }
@@ -82,27 +72,26 @@ mod bindings {
         signal: *const i16,
         gain: *const i16,
         out: *mut *const u16,
-        offset: u32
+        offset: u32,
     ) -> i32 {
-        if p.is_null()
-            || signal.is_null()
-            || gain.is_null()
-            || out.is_null()
-        {
+        if p.is_null() || signal.is_null() || gain.is_null() || out.is_null() {
             return -1;
         }
         unsafe {
             let s = std::slice::from_raw_parts(
-                signal.offset(offset as isize).cast::<SampleFxP>(), samples as usize);
+                signal.offset(offset as isize).cast::<SampleFxP>(),
+                samples as usize,
+            );
             let g = std::slice::from_raw_parts(
-                gain.offset(offset as isize).cast::<SampleFxP>(), samples as usize);
+                gain.offset(offset as isize).cast::<SampleFxP>(),
+                samples as usize,
+            );
             let out_slice = p.as_mut().unwrap().process(s, g);
             *out = out_slice.as_ptr().cast();
             out_slice.len() as i32
         }
     }
 
-    
     #[no_mangle]
     pub extern "C" fn janus_amp_f32_new() -> *mut Amp<f32> {
         Box::into_raw(Box::new(Amp::new()))
@@ -122,20 +111,14 @@ mod bindings {
         signal: *const f32,
         gain: *const f32,
         out: *mut *const f32,
-        offset: u32
+        offset: u32,
     ) -> i32 {
-        if p.is_null()
-            || signal.is_null()
-            || gain.is_null()
-            || out.is_null()
-        {
+        if p.is_null() || signal.is_null() || gain.is_null() || out.is_null() {
             return -1;
         }
         unsafe {
-            let s = std::slice::from_raw_parts(
-                signal.offset(offset as isize), samples as usize);
-            let g = std::slice::from_raw_parts(
-                gain.offset(offset as isize), samples as usize);
+            let s = std::slice::from_raw_parts(signal.offset(offset as isize), samples as usize);
+            let g = std::slice::from_raw_parts(gain.offset(offset as isize), samples as usize);
             let out_slice = p.as_mut().unwrap().process(s, g);
             *out = out_slice.as_ptr().cast();
             out_slice.len() as i32

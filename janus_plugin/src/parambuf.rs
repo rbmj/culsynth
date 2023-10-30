@@ -1,5 +1,7 @@
-use janus::{EnvParamFxP, ScalarFxP, NoteFxP};
-use janus::devices::{EnvParams, EnvParamsFxP, MixOscParams, MixOscParamsFxP, ModFiltParams, ModFiltParamsFxP};
+use janus::devices::{
+    EnvParams, EnvParamsFxP, MixOscParams, MixOscParamsFxP, ModFiltParams, ModFiltParamsFxP,
+};
+use janus::{EnvParamFxP, NoteFxP, ScalarFxP};
 
 #[derive(Default)]
 pub struct EnvParamBuffer {
@@ -10,7 +12,7 @@ pub struct EnvParamBuffer {
     attack_fxp: Vec<EnvParamFxP>,
     decay_fxp: Vec<EnvParamFxP>,
     sustain_fxp: Vec<ScalarFxP>,
-    release_fxp: Vec<EnvParamFxP>
+    release_fxp: Vec<EnvParamFxP>,
 }
 
 impl EnvParamBuffer {
@@ -24,10 +26,19 @@ impl EnvParamBuffer {
         if self.len() >= sz as usize {
             return;
         }
-        for buf in [&mut self.attack, &mut self.decay, &mut self.sustain, &mut self.release] {
+        for buf in [
+            &mut self.attack,
+            &mut self.decay,
+            &mut self.sustain,
+            &mut self.release,
+        ] {
             buf.resize(sz as usize, 0f32);
         }
-        for buf in [&mut self.attack_fxp, &mut self.decay_fxp, &mut self.release_fxp] {
+        for buf in [
+            &mut self.attack_fxp,
+            &mut self.decay_fxp,
+            &mut self.release_fxp,
+        ] {
             buf.resize(sz as usize, EnvParamFxP::ZERO);
         }
         self.sustain_fxp.resize(sz as usize, ScalarFxP::ZERO);
@@ -45,7 +56,7 @@ impl EnvParamBuffer {
             attack: &self.attack[base..end],
             decay: &self.decay[base..end],
             sustain: &self.sustain[base..end],
-            release: &self.release[base..end]
+            release: &self.release[base..end],
         }
     }
     pub fn params(&self, base: usize, end: usize) -> EnvParamsFxP {
@@ -53,7 +64,7 @@ impl EnvParamBuffer {
             attack: &self.attack_fxp[base..end],
             decay: &self.decay_fxp[base..end],
             sustain: &self.sustain_fxp[base..end],
-            release: &self.release_fxp[base..end]
+            release: &self.release_fxp[base..end],
         }
     }
     pub fn a(&self) -> &[EnvParamFxP] {
@@ -105,7 +116,7 @@ pub struct OscParamBuffer {
     sin_fxp: Vec<ScalarFxP>,
     sq_fxp: Vec<ScalarFxP>,
     tri_fxp: Vec<ScalarFxP>,
-    saw_fxp: Vec<ScalarFxP>
+    saw_fxp: Vec<ScalarFxP>,
 }
 
 impl OscParamBuffer {
@@ -145,7 +156,7 @@ impl OscParamBuffer {
             sin: &self.sin[base..end],
             sq: &self.sq[base..end],
             tri: &self.tri[base..end],
-            saw: &self.saw[base..end]
+            saw: &self.saw[base..end],
         }
     }
     pub fn params(&self, base: usize, end: usize) -> MixOscParamsFxP {
@@ -154,7 +165,7 @@ impl OscParamBuffer {
             sin: &self.sin_fxp[base..end],
             sq: &self.sq_fxp[base..end],
             tri: &self.tri_fxp[base..end],
-            saw: &self.saw_fxp[base..end]
+            saw: &self.saw_fxp[base..end],
         }
     }
     pub fn shape(&self) -> &[ScalarFxP] {
@@ -219,7 +230,7 @@ pub struct FiltParamBuffer {
     resonance_fxp: Vec<ScalarFxP>,
     low_mix_fxp: Vec<ScalarFxP>,
     band_mix_fxp: Vec<ScalarFxP>,
-    high_mix_fxp: Vec<ScalarFxP>
+    high_mix_fxp: Vec<ScalarFxP>,
 }
 
 impl FiltParamBuffer {
@@ -233,15 +244,26 @@ impl FiltParamBuffer {
         if self.len() >= sz as usize {
             return;
         }
-        for buf in [&mut self.env_mod, &mut self.kbd, &mut self.cutoff, &mut self.resonance,
-            &mut self.low_mix, &mut self.band_mix, &mut self.high_mix]
-        {
+        for buf in [
+            &mut self.env_mod,
+            &mut self.kbd,
+            &mut self.cutoff,
+            &mut self.resonance,
+            &mut self.low_mix,
+            &mut self.band_mix,
+            &mut self.high_mix,
+        ] {
             buf.resize(sz as usize, 0f32);
         }
         self.cutoff_fxp.resize(sz as usize, NoteFxP::ZERO);
-        for buf in [&mut self.env_mod_fxp, &mut self.kbd_fxp, &mut self.resonance_fxp,
-            &mut self.low_mix_fxp, &mut self.band_mix_fxp, &mut self.high_mix_fxp]
-        {
+        for buf in [
+            &mut self.env_mod_fxp,
+            &mut self.kbd_fxp,
+            &mut self.resonance_fxp,
+            &mut self.low_mix_fxp,
+            &mut self.band_mix_fxp,
+            &mut self.high_mix_fxp,
+        ] {
             buf.resize(sz as usize, ScalarFxP::ZERO);
         }
     }
@@ -264,7 +286,7 @@ impl FiltParamBuffer {
             resonance: &self.resonance[base..end],
             low_mix: &self.low_mix[base..end],
             band_mix: &self.band_mix[base..end],
-            high_mix: &self.high_mix[base..end]
+            high_mix: &self.high_mix[base..end],
         }
     }
     pub fn params(&self, base: usize, end: usize) -> ModFiltParamsFxP {
@@ -275,7 +297,7 @@ impl FiltParamBuffer {
             resonance: &self.resonance_fxp[base..end],
             low_mix: &self.low_mix_fxp[base..end],
             band_mix: &self.band_mix_fxp[base..end],
-            high_mix: &self.high_mix_fxp[base..end]
+            high_mix: &self.high_mix_fxp[base..end],
         }
     }
     pub fn env_mod(&self) -> &[ScalarFxP] {
