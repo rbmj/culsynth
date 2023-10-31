@@ -16,7 +16,7 @@
 //! system, but does require some duplication of code throughout the crate.
 
 mod fixedmath;
-pub mod util;
+mod util;
 
 /// This module contains `u8` constants for MIDI note numbers, using standard
 /// musical notation.  For example, `midi_const::Db4` is the note a semitone
@@ -41,4 +41,8 @@ pub use fixedmath::Note as NoteFxP;
 pub use fixedmath::Sample as SampleFxP;
 pub use fixedmath::Scalar as ScalarFxP;
 pub use fixedmath::USample as USampleFxP;
-pub use fixedmath::U3F13 as EnvParamFxP;
+/// An envelope rise/fall time parameter, represented in seconds as an unsigned
+/// 16 bit fixed point number with 13 fractional bits and 3 integral bits.  This
+/// yields a range of 0 to 8 seconds - though as implemented this timing is not
+/// precisely accurate (see [devices::EnvParamsFxP])
+pub type EnvParamFxP = fixedmath::U3F13;

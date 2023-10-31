@@ -1,3 +1,6 @@
+//! This module contains a struct composing various devices together as a
+//! single voice unit for a basic subtractive synthesizer.
+
 use super::{BufferT, STATIC_BUFFER_SIZE};
 use super::{NoteFxP, SampleFxP};
 use crate::devices::*;
