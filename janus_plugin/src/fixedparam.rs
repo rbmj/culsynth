@@ -31,7 +31,7 @@ fn fixed_s2v_percent(s: &str) -> Option<i32> {
 }
 
 fn fixed_v2s_freq(x: i32) -> String {
-    janus::fixedmath::midi_note_to_frequency(NoteFxP::from_bits(x as u16)).to_string()
+    janus::midi_note_to_frequency(NoteFxP::from_bits(x as u16)).to_string()
 }
 
 fn fixed_s2v_freq(s: &str) -> Option<i32> {
@@ -43,6 +43,10 @@ fn fixed_s2v_freq(s: &str) -> Option<i32> {
         .ok()
 }
 
+/// Helper function to create a new `nih_plug::IntParam` for a fixed point number
+/// 
+/// The integer value will be the raw fixed point representation (i.e. 0 -> 2^16 - 1),
+/// but the string representation in the DAW/GUI will be the logical value.
 pub fn new_fixed_param<F: Fixed>(name: impl Into<String>, default: F) -> IntParam
 where
     F::Bits: Into<i32>,
@@ -60,6 +64,8 @@ where
     .with_string_to_value(Arc::new(fixed_s2v::<F>))
 }
 
+/// Helper function to create a new `nih_plug::IntParam` for a [`ScalarFxP`]
+/// as a percentage (maps the fixed point number to 0% to 100%)
 pub fn new_fixed_param_percent(name: impl Into<String>, default: ScalarFxP) -> IntParam {
     IntParam::new(
         name,
@@ -75,6 +81,8 @@ pub fn new_fixed_param_percent(name: impl Into<String>, default: ScalarFxP) -> I
     .with_unit(" %")
 }
 
+/// Helper function to create a new `nih_plug::IntParam` for a [`NoteFxP`]
+/// as a frequency (maps the fixed point number to the MIDI tuning range in Hz)
 pub fn new_fixed_param_freq(name: impl Into<String>, default: NoteFxP) -> IntParam {
     IntParam::new(
         name,

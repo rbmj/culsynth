@@ -1,14 +1,39 @@
+//! Fixed-Point math functions used internally by the synthesizer.
+//! 
+//! As a quick aside - all of these functions prioritize
+//! speed over accuracy.  Don't use for scientific calculations...
+//! you have been warned!
+
 use core::ops::Add;
-use fixed::traits::ToFixed;
 use fixed::types::extra::{IsLessOrEqual, LeEqU16, LeEqU32, True, Unsigned, U16, U31};
 pub use fixed::types::*;
 use fixed::{FixedU16, FixedU32};
 
-pub type Sample = I4F12; // Provides 3 bits (9dB) of headroom
-pub type USample = U4F12; // (Unsigned)
-pub type Note = U7F9; // 7 bits for note # plus 9 bits for bends
+/// A fixed point number representing a sample or otherwise generic piece of data
+/// within the synthesizer.  These are 16 bit signed fixed point numbers with 12
+/// fractional bits.  Put another way, our reference (0dB) level is set at an
+/// amplitude of 2^12, and we have 3 bits (9dB) of headroom before clipping,
+/// since we lose a bit for the sign bit.
+pub type Sample = I4F12;
+/// A unsigned data type with the same number of fractional bits as a sample.
+/// Usually used for internal processing to steal an extra bit of precision when
+/// we know a value cannot be negative.
+pub type USample = U4F12;
+/// A unsigned 16 bit fixed point number representing a note/pitch, with 7 integral
+/// bits and 9 fractional.  The integral bits correspond to the MIDI note numbers,
+/// i.e. a value of 69.0 represents A440 and tuning is 12 tone equal temprament.
+/// 
+/// 9 fractional bits provides a resolution of about 0.2 cents, but most of the
+/// functions in this library will only be accurate to about 0.5-1 cent.
+pub type Note = U7F9;
+/// A unsigned 32 bit fixed point number representing a frequency in Hz.
+/// This uses 14 integral bits and 18 fractional bits
 pub type Frequency = U14F18; // 14 bits will hold the highest MIDI freq
-pub type Scalar = U0F16; // A number in [0, 1) for multiplication
+/// A unsigned 16 bit fixed point number in the interval `[0, 1)`.  Used primarily
+/// for "scaling" signals in amplitude, hence the (admittedly not great but useful)
+/// name assigned.  Note that 0xFFFF is slightly less than 1.0, so we will lose
+/// a (very) small amount of signal when maxed out.
+pub type Scalar = U0F16;
 
 //for the following constants, we'll use as many bits as we can fit
 //in a couple cases, that means we'll buy a extra place shifting right
@@ -24,9 +49,12 @@ const SMALL_ANGLE_LESS: Sample = Sample::lit("0x0.1");
 const FRAC_4LN2_3: Scalar = Scalar::lit("0x0.ec98");
 // Frequency of E4 ~= 329.63 Hz
 const FREQ_E4: Frequency = Frequency::lit("329.627557");
-// 256 / [the freq above]
-const FRAC_256_FREQ_E4: U8F24 = U8F24::lit("0x0.c6d17e");
 
+/// Take a 32 bit fixed point number A and a 16 bit fixed point number B, and return
+/// a 32 bit fixed point number representing the product of those two numbers with
+/// the same number of integral bits as A.  This uses some very, very basic software
+/// floating point logic internally to avoid a widening multiply.  Will result in
+/// some loss of precision if A has more than 16 significant digits
 pub fn scale_fixedfloat<FracA, FracB>(a: FixedU32<FracA>, b: FixedU16<FracB>) -> FixedU32<FracA>
 where
     FracA: Unsigned + LeEqU32,
@@ -44,10 +72,6 @@ where
     FixedU32::<FracA>::from_bits(res.to_bits())
 }
 
-// As a quick aside - all of these functions prioritize
-// speed over accuracy.  Don't use for scientific calculations...
-// you have been warned!
-
 fn one_over_one_plus_helper<Frac>(n: FixedU32<Frac>) -> (U1F31, u32)
 where
     Frac: Unsigned + IsLessOrEqual<U31, Output = True> + LeEqU32,
@@ -64,6 +88,21 @@ where
     (x_shifted, nbits - shift)
 }
 
+/// Calculate 1/(1+x) for a 32 bit fixed point number and return the result as
+/// a tuple representing a sixteen bit number in scientific notation - the first
+/// element is a sixteen bit fixed point number with 1 integral bit, and the
+/// second element represents the negative of the exponent (base 2).
+/// 
+/// Internally, this uses a quadratic taylor series expansion about 2^-x for the
+/// closest value of 2^-x on a logarithmic basis.
+/// 
+/// # Examples
+/// 
+/// ```no_run
+/// let x = U16F16::ONE;
+/// let (y, exp) = one_over_one_plus(x); // 1 / (1 + 1) == 1 / 2
+/// assert!(y.unwrapped_shr(exp) == U16F16::lit("0.5"));
+/// ```
 pub fn one_over_one_plus<Frac>(x: FixedU32<Frac>) -> (U1F15, u32)
 where
     Frac: Unsigned + IsLessOrEqual<U31, Output = True> + LeEqU32,
@@ -78,6 +117,10 @@ where
     )
 }
 
+/// Perform the same calculation as [one_over_one_plus], but with a 16 bit
+/// fixed point number as the input, and use a quartic taylor series instead
+/// of a quadratic one.  This is significantly more accurate at the cost of an
+/// extra two 32-bit multiplies.
 pub fn one_over_one_plus_highacc(x: U0F16) -> (U1F15, u32) {
     let (x_shifted, shift) = one_over_one_plus_helper(U16F16::from_num(x));
     const FIVE_NAR: U3F13 = U3F13::lit("5");
@@ -90,6 +133,13 @@ pub fn one_over_one_plus_highacc(x: U0F16) -> (U1F15, u32) {
     (U1F15::from_num(FIVE - p3), shift)
 }
 
+/// Fixed point sin(x), using a 7th order taylor series approximation about
+/// x == 0.  This is fairly accurate from -pi to pi.
+/// 
+/// # Panics
+/// 
+/// This function may panic due to fixed-point overflow if given an input ouside
+/// of the range -pi to pi, though it has been tested to be safe up to +/- 3.2
 pub fn sin_fixed(x: Sample) -> Sample {
     //small angle approximation.  Faster and removes 0 as an edge case
     if x.abs() < SMALL_ANGLE_LESS {
@@ -116,6 +166,13 @@ pub fn sin_fixed(x: Sample) -> Sample {
     Sample::from_num(x.wide_mul(a_nested))
 }
 
+/// Fixed point cos(x), using a sixth order taylor series approximation about
+/// x == 0.  This is fairly accurate from -pi/2 to pi/2.
+/// 
+/// # Panics
+/// 
+/// This function may panic due to fixed point overflow if given a number outside
+/// of the range -pi to pi, though it has been tested out to 3.2.
 pub fn cos_fixed(x: Sample) -> Sample {
     let x2 = USample::from_num(x.wide_mul(x));
     //small angle approximation.  Faster and removes 0 as an edge case
@@ -134,6 +191,10 @@ pub fn cos_fixed(x: Sample) -> Sample {
     Sample::ONE - Sample::from_num(a_mult_b_nested)
 }
 
+/// A very rough approximation of tan(x) using a quadratic taylor series expansion.
+/// Used primarily in filter gain prewarping, where it's accurate enough for angles
+/// representing lower frequencies where precise tuning is more important.  Will be
+/// somewhat inaccurate at frequencies above about half the Nyquist frequency.
 pub fn tan_fixed(x: U0F16) -> U1F15 {
     let x2 = x.wide_mul(x);
     let x2_over3 = U0F16::from_num(x2).wide_mul(FRAC_2_3).unwrapped_shr(1);
@@ -141,7 +202,7 @@ pub fn tan_fixed(x: U0F16) -> U1F15 {
     U1F15::from_num(res_over_x.wide_mul(x))
 }
 
-// calculate e^x in the range [-0.5, 0.5) using an order 4 Taylor series
+/// calculate e^x in the range [-0.5, 0.5) using an order 4 Taylor series
 fn exp_fixed_small(x: I0F16) -> U2F14 {
     // e^x ~= 1 + x + x^2/2! + x^3/3! + x^4/4!
     //     ~= 1 + x * { 1 + x/2 * [ 1 + x/3 * ( 1 + x/4 )]}
@@ -159,6 +220,9 @@ fn exp_fixed_small(x: I0F16) -> U2F14 {
     U2F14::from_num(x.wide_mul(I3F13::from_num(a_nested)) + I3F29::ONE)
 }
 
+/// Calculate e^x of a 16 bit signed fixed point number with 13 fractional bits
+/// (that is to say, between -4 and 4), and return it as a unsigned 32 bit
+/// number with 24 fractional bits.
 pub fn exp_fixed(x: I3F13) -> U8F24 {
     // going to use the fact that our input domain is limited to [-4, 4)
     // to calculate e^x as the product e^(int(x))*e^(frac(x)), then since
@@ -212,7 +276,7 @@ fn note_to_value(note: Note) -> I3F13 {
     I3F13::from_num(note_signed.unwrapped_shr(4))
 }
 
-// Convert a MIDI note number to a frequency in Hz
+/// Convert a MIDI note number to a frequency in Hz
 pub fn midi_note_to_frequency(note: Note) -> Frequency {
     // f = f0 * e^(note/12)
     let note_xform = note_to_value(note);
@@ -224,21 +288,9 @@ pub fn midi_note_to_frequency(note: Note) -> Frequency {
     FREQ_E4 * U14F18::from_num(exp_fixed(power))
 }
 
-// Convert a MIDI note number to a period in seconds
-pub fn midi_note_to_period(note: Note) -> U0F32 {
-    let note_xform = note_to_value(note);
-    //same logic as midi_note_to_frequency, but we the negative exponent this time
-    let power = I3F13::from_num(note_xform.wide_mul_unsigned(FRAC_4LN2_3));
-    //this will be the period times 256 (note numerator of the constant)
-    let x = FRAC_256_FREQ_E4 * exp_fixed(power.unwrapped_neg());
-    //now we just need to divide by 256 without losing precision
-    //this should be optimized to a no-op
-    U32F32::from_num(x).unwrapped_shr(8).to_fixed()
-    //note there will be minimum 3 leading zeros since midi note 0 is ~8.2Hz
-}
-
 #[cfg(test)]
 mod tests {
+    use fixed::traits::ToFixed;
     use super::super::util::calculate_cents;
     use super::*;
     //test for correctness of constants
@@ -313,12 +365,8 @@ mod tests {
         for i in 0..=127 {
             let pitch = 440.0 * f32::powf(2.0, ((i - 69) as f32) / 12.0);
             let pitch_fixed = midi_note_to_frequency(i.to_fixed()).to_num::<f32>();
-            let period = 1.0 / pitch;
-            let period_fixed = midi_note_to_period(i.to_fixed()).to_num::<f32>();
             let error = calculate_cents(pitch, pitch_fixed);
             assert!(error < 1.0); //less than one cent per note
-            let period_error = calculate_cents(period, period_fixed);
-            assert!(period_error < 1.0);
         }
     }
 }

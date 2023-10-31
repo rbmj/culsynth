@@ -1,9 +1,11 @@
-pub mod amp;
-pub mod env;
-pub mod filt;
-pub mod mixosc;
-pub mod modfilt;
-pub mod osc;
+//! This module contains definitions of several different DSP primitives.
+
+mod amp;
+mod env;
+mod filt;
+mod mixosc;
+mod modfilt;
+mod osc;
 
 use super::{fixedmath, EnvParamFxP, NoteFxP, SampleFxP, ScalarFxP, USampleFxP};
 
@@ -14,6 +16,8 @@ use super::STATIC_BUFFER_SIZE;
 const SAMPLE_RATE: u16 = 44100;
 const FRAC_4096_2PI_SR: fixedmath::U0F32 = fixedmath::U0F32::lit("0x0.9565925d");
 
+/// Types must implement this trait to instantiate any of the generic devices
+/// in this module.  Implementations are provided for `f32` and `f64`.
 pub trait Float: num_traits::Float + num_traits::FloatConst {
     const ZERO: Self;
     const ONE: Self;
@@ -47,6 +51,7 @@ impl Float for f64 {
     const NOTE_MAX: f64 = 127.0f64 * (0xFFFF as f64 / 0x10000 as f64);
 }
 
+/// Converts a MIDI note number to a frequency
 fn midi_note_to_frequency<T: Float>(note: T) -> T {
     let c69 = T::from(69).unwrap();
     let c12 = T::from(12).unwrap();

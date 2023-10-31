@@ -7,6 +7,7 @@ use piano_keyboard::Rectangle as PianoRectangle;
 use piano_keyboard::{Element, Keyboard2d, KeyboardBuilder};
 use std::sync::{mpsc::SyncSender, Arc};
 
+/// Map a keyboard key to a MIDI note number, or `None` if unmapped.
 fn key_to_notenum(k: egui::Key) -> Option<i8> {
     match k {
         egui::Key::A => Some(janus::midi_const::C4 as i8),
@@ -35,6 +36,7 @@ pub(crate) fn default_state() -> Arc<EguiState> {
     EguiState::from_size(1000, 600)
 }
 
+/// Struct to hold the global state information for the plugin editor (GUI).
 struct JanusEditor {
     params: Arc<JanusParams>,
     channel: SyncSender<i8>,
@@ -78,6 +80,7 @@ impl JanusEditor {
             param.normalized_value_to_string(range2.normalize(f as i32), false)
             })
     }
+    /// Helper function to handle keyboard input
     fn handle_kbd_input(&mut self, ui: &egui::Ui) {
         ui.input(|i| {
             for evt in i.events.iter() {
@@ -93,6 +96,8 @@ impl JanusEditor {
             }
         });
     }
+    /// Internal helper function to generate the egui shape for the border of the key
+    /// (for stroke) and two rects for the body of the key (for fill and mouse pointer)
     fn draw_white_key(
         cursor: &egui::Pos2,
         small: &PianoRectangle,
@@ -172,9 +177,13 @@ impl JanusEditor {
         };
         (border, [top_key, bottom_key])
     }
+    /// Returns true if `point`` is within (exclusive of borders) `rect`
     fn point_in_rect(point: &egui::Pos2, rect: &egui::epaint::Rect) -> bool {
         point.x > rect.min.x && point.x < rect.max.x && point.y > rect.min.y && point.y < rect.max.y
     }
+    /// Draw the keyboard built into `kbd` on `ui`, returning either:
+    ///  - the MIDI note number for the key the mouse is on if clicked/dragged
+    ///  - `None` if the user has not clicked or the mouse is not on a key
     fn draw_kbd(kbd: Keyboard2d, ui: &mut egui::Ui) -> Option<i8> {
         let response = ui.allocate_response(
             egui::vec2(kbd.width as f32, kbd.height as f32),
@@ -234,11 +243,13 @@ impl JanusEditor {
         }
         new_note
     }
+    /// Draw the bottom keyboard panel and handle keyboard/mouse input so the user
+    /// can interact with the plugin without sending it MIDI
     fn draw_kbd_panel(&mut self, egui_ctx: &Context) {
         egui::TopBottomPanel::bottom("keyboard").show(egui_ctx, |ui| {
             self.handle_kbd_input(ui);
             let keyboard = KeyboardBuilder::new()
-                .white_black_gap_present(true) //false
+                .white_black_gap_present(false)
                 .set_width(ui.available_width() as u16)
                 .and_then(|x| x.standard_piano(49))
                 .map(|x| x.build2d());
@@ -270,6 +281,7 @@ impl JanusEditor {
             }
         });
     }
+    /// Draw the editor panel
     pub fn update(&mut self, egui_ctx: &Context, setter: &ParamSetter) {
         self.draw_kbd_panel(egui_ctx);
         egui::CentralPanel::default().show(egui_ctx, |ui| {
@@ -416,6 +428,7 @@ impl JanusEditor {
             });
         });
     }
+    /// Helper function to be passed as a callback to `create_egui_editor`
     pub fn update_helper(egui_ctx: &Context, setter: &ParamSetter, state: &mut Self) {
         state.update(egui_ctx, setter)
     }

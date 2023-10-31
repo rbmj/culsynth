@@ -2,6 +2,9 @@ use super::{BufferT, STATIC_BUFFER_SIZE};
 use super::{NoteFxP, SampleFxP};
 use crate::devices::*;
 
+/// This struct encapsulates a single voice unit, containing a single oscillator,
+/// a single VCF (with modulation inputs and mixing of low/band/high pass outputs),
+/// a VCA, and two envelopes (one for the VCA and one for the VCF).
 pub struct VoiceFxP {
     osc: MixOscFxP,
     filt: ModFiltFxP,
@@ -13,6 +16,7 @@ pub struct VoiceFxP {
 }
 
 impl VoiceFxP {
+    /// Constructor
     pub fn new() -> Self {
         Self {
             osc: MixOscFxP::new(),
@@ -23,6 +27,14 @@ impl VoiceFxP {
             vcabuf: [SampleFxP::ZERO; STATIC_BUFFER_SIZE],
         }
     }
+    /// Process the note/gate inputs, passing the parameters to the relevant
+    /// components of the voice unit, and return a reference to an internal
+    /// buffer containing the output sample data.
+    /// 
+    /// Note: The output slice from this function may be shorter than the
+    /// input slices.  Callers must check the number of returned samples and
+    /// copy them into their own output buffers before calling this function
+    /// again to process the remainder of the data.
     pub fn process(
         &mut self,
         note: &[NoteFxP],

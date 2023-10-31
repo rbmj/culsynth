@@ -2,6 +2,7 @@ use super::*;
 
 use super::EnvParamFxP;
 
+/// Internal tag representing the current state of the envelope
 #[derive(Eq, PartialEq)]
 enum EnvState {
     Release,
@@ -9,14 +10,28 @@ enum EnvState {
     Decay,
 }
 
+/// A wrapper struct for passing parameters into the floating-point envelope
+/// generator (see [Env]).  Note that the time parameters are not
+/// strictly time-accurate - the goal here is to give more of a qualitative feel
+/// for the range of the parameters than allow for precise timing.  If precise
+/// timing is desired, the data displayed to the user can be refined on the UI
+/// side.
+/// 
+/// TODO:  Determine formula for converting to a precise rise/fall time
 pub struct EnvParams<'a, Smp> {
+    /// The attack (rise to peak) time of the envelope, in seconds.
     pub attack: &'a [Smp],
+    /// The decay (fall from peak to steady state) time of the envelope, in seconds.
     pub decay: &'a [Smp],
+    /// The sustain level of the envelops, as a number between 0 and 1.
     pub sustain: &'a [Smp],
+    /// The release time of the envelope, in seconds.
     pub release: &'a [Smp],
 }
 
 impl<'a, Smp> EnvParams<'a, Smp> {
+    /// The length of this parameter pack, defined as the shortest length
+    /// among all the constituent slices.
     pub fn len(&self) -> usize {
         *[
             self.attack.len(),
@@ -30,6 +45,8 @@ impl<'a, Smp> EnvParams<'a, Smp> {
     }
 }
 
+/// A floating-point ADSR envelope generator.  See [EnvParams] for the definitions
+/// of the parameters
 pub struct Env<Smp> {
     state: EnvState,
     outbuf: BufferT<Smp>,
@@ -43,6 +60,7 @@ impl<Smp: Float> Env<Smp> {
     const ATTACK_THRESHOLD: Smp = Smp::POINT_NINE_EIGHT;
     const SIGNAL_MAX: Smp = Smp::ONE;
     const SIGNAL_MIN: Smp = Smp::ZERO;
+    /// Constructor
     pub fn new() -> Self {
         Self {
             state: EnvState::Release,
@@ -51,6 +69,13 @@ impl<Smp: Float> Env<Smp> {
             last: Self::SIGNAL_MIN,
         }
     }
+    /// Process the gate input and return an envelope signal according to the ADSR
+    /// parameters passed into the function.
+    /// 
+    /// Note: The output slice from this function may be shorter than the
+    /// input slices.  Callers must check the number of returned samples and
+    /// copy them into their own output buffers before calling this function
+    /// again to process the remainder of the data.
     pub fn process(&mut self, gate: &[Smp], params: EnvParams<Smp>) -> &[Smp] {
         let attack = params.attack;
         let decay = params.decay;
@@ -100,14 +125,34 @@ impl<Smp: Float> Default for Env<Smp> {
     }
 }
 
+/// A wrapper struct for passing parameters into the fixed-point envelope
+/// generator (see [EnvFxP]).  Note that the time parameters are not
+/// strictly time-accurate - the goal here is to give more of a qualitative feel
+/// for the range of the parameters than allow for precise timing.  If precise
+/// timing is desired, the data displayed to the user can be refined on the UI
+/// side.
+/// 
+/// TODO:  Determine formula for converting to a precise rise/fall time
 pub struct EnvParamsFxP<'a> {
+    /// The attack (rise) time of the envelope, in seconds, as a fixed point number
+    /// (see [EnvParamFxP]).
     pub attack: &'a [EnvParamFxP],
+    /// The decay (fall from peak to steady state) time of the envelope, in seconds,
+    /// as a fixed point number (see [EnvParamFxP]).
     pub decay: &'a [EnvParamFxP],
+    /// The steady state sustain level of the envelope, as a fixed point number
+    /// between zero and one.  Note that while zero is included in this interval
+    /// one is not - so there will technically be a very, very small loss in signal
+    /// associated with the envelope (approximately 0.00013dB... I'm not worried)
     pub sustain: &'a [ScalarFxP],
+    /// The release (fall from steady state to zero) time of the envelope, in seconds,
+    /// as a fixed point number (see [EnvParamFxP]).
     pub release: &'a [EnvParamFxP],
 }
 
 impl<'a> EnvParamsFxP<'a> {
+    /// The length of this parameter pack, defined as the shortest length
+    /// among all the constituent slices.
     pub fn len(&self) -> usize {
         let l = *[
             self.attack.len(),
@@ -122,6 +167,8 @@ impl<'a> EnvParamsFxP<'a> {
     }
 }
 
+/// A fixed point ADSR envelope generator.  See [EnvParamsFxP] for the fixed point
+/// definitions of the parameters.
 pub struct EnvFxP {
     state: EnvState,
     outbuf: BufferT<ScalarFxP>,
@@ -134,6 +181,7 @@ impl EnvFxP {
     const ATTACK_THRESHOLD: ScalarFxP = ScalarFxP::lit("0.98");
     const SIGNAL_MAX: ScalarFxP = ScalarFxP::lit("0x0.FFFC");
     const SIGNAL_MIN: fixedmath::I3F29 = fixedmath::I3F29::lit("0x0.0004");
+    /// Constructor
     pub fn new() -> Self {
         Self {
             state: EnvState::Release,
@@ -142,6 +190,13 @@ impl EnvFxP {
             last: Self::SIGNAL_MIN,
         }
     }
+    /// Process the gate input and return an envelope signal according to the ADSR
+    /// parameters passed into the function.
+    /// 
+    /// Note: The output slice from this function may be shorter than the
+    /// input slices.  Callers must check the number of returned samples and
+    /// copy them into their own output buffers before calling this function
+    /// again to process the remainder of the data.
     pub fn process(&mut self, gate: &[SampleFxP], params: EnvParamsFxP) -> &[ScalarFxP] {
         let attack = params.attack;
         let decay = params.decay;

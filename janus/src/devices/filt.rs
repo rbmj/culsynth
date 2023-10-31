@@ -1,22 +1,33 @@
 use super::*;
 
+/// The output of a [Filt], consisting of low-, band-, and high-pass signals
 pub struct FiltOutput<'a, Smp> {
+    /// Low-Pass
     pub low: &'a [Smp],
+    /// Band-Pass
     pub band: &'a [Smp],
+    /// High-Pass
     pub high: &'a [Smp],
 }
 
+/// Parameters for a [Filt]
 pub struct FiltParams<'a, Smp> {
+    /// The cutoff frequency, expressed as a MIDI note number
     pub cutoff: &'a [Smp],
+    /// The resonance, expressed as a value between zero and one
     pub resonance: &'a [Smp],
 }
 
 impl<'a, Smp> FiltParams<'a, Smp> {
+    /// The length of the input parameters, defined as the length of the shortest
+    /// input slice.
     pub fn len(&self) -> usize {
         std::cmp::min(self.cutoff.len(), self.resonance.len())
     }
 }
 
+/// A 2-pole, floating-point state variable filter, with low, band, and high
+/// pass signal outputs.
 pub struct Filt<Smp> {
     low: BufferT<Smp>,
     band: BufferT<Smp>,
@@ -26,6 +37,7 @@ pub struct Filt<Smp> {
 }
 
 impl<Smp: Float> Filt<Smp> {
+    /// Constructor
     pub fn new() -> Self {
         Self {
             low: [Smp::ZERO; STATIC_BUFFER_SIZE],
@@ -36,10 +48,17 @@ impl<Smp: Float> Filt<Smp> {
             band_z: Smp::ZERO,
         }
     }
+    /// Helper function to prewarp the gain of the analog equivalent filter:
     fn prewarped_gain(f: Smp) -> Smp {
         let f_c = midi_note_to_frequency(f);
         Smp::tan(Smp::PI() * f_c / Smp::from(SAMPLE_RATE).unwrap())
     }
+    /// Run the filter on the provided input and parameters.
+    /// 
+    /// Note: The output slice from this function may be shorter than the
+    /// input slices.  Callers must check the number of returned samples and
+    /// copy them into their own output buffers before calling this function
+    /// again to process the remainder of the data.
     pub fn process(&mut self, input: &[Smp], params: FiltParams<Smp>) -> FiltOutput<Smp> {
         let cutoff = params.cutoff;
         let resonance = params.resonance;
@@ -77,23 +96,34 @@ impl<Smp: Float> Default for Filt<Smp> {
     }
 }
 
+/// The output of a [FiltFxP], consisting of low-, band-, and high-pass signals.
 pub struct FiltOutputFxP<'a> {
+    /// Low-Pass
     pub low: &'a [SampleFxP],
+    /// Band-Pass
     pub band: &'a [SampleFxP],
+    /// High-Pass
     pub high: &'a [SampleFxP],
 }
 
+/// Parameters for a [FiltFxP]
 pub struct FiltParamsFxP<'a> {
+    /// The cutoff frequency of the filter, expressed as a fixed-point MIDI
+    /// note number (see [NoteFxP])
     pub cutoff: &'a [NoteFxP],
+    /// The resonance of the filter, expressed as a number in `[0, 1)`
     pub resonance: &'a [ScalarFxP],
 }
 
 impl<'a> FiltParamsFxP<'a> {
+    /// The length of the parameters, defined as the length of the shortest slice.
     pub fn len(&self) -> usize {
         std::cmp::min(self.cutoff.len(), self.resonance.len())
     }
 }
 
+/// A 2-pole, fixed-point, state variable filter with low, band, and high pass
+/// output signals.
 pub struct FiltFxP {
     low: BufferT<SampleFxP>,
     band: BufferT<SampleFxP>,
@@ -104,6 +134,7 @@ pub struct FiltFxP {
 
 impl FiltFxP {
     const RES_MAX: ScalarFxP = ScalarFxP::lit("0x0.F000");
+    /// Constructor
     pub fn new() -> Self {
         Self {
             low: [SampleFxP::ZERO; STATIC_BUFFER_SIZE],
@@ -113,6 +144,9 @@ impl FiltFxP {
             band_z: fixedmath::I12F20::ZERO,
         }
     }
+    /// A helper function to calculate the prewarped gain of the equivalent analog circuit.
+    /// Note that the use of [fixedmath::tan_fixed] will cause this to be fairly inaccurate
+    /// at high frequencies (approximately half Nyquist, or 11kHz at 44.1kHz sample rate)
     fn prewarped_gain(n: NoteFxP) -> fixedmath::U1F15 {
         let f_c = fixedmath::U14F2::from_num(fixedmath::midi_note_to_frequency(n));
         let omega_d = ScalarFxP::from_num(
@@ -121,6 +155,12 @@ impl FiltFxP {
         );
         fixedmath::tan_fixed(omega_d)
     }
+    /// Run the filter on the provided input and parameters.
+    /// 
+    /// Note: The output slice from this function may be shorter than the
+    /// input slices.  Callers must check the number of returned samples and
+    /// copy them into their own output buffers before calling this function
+    /// again to process the remainder of the data.
     pub fn process(&mut self, input: &[SampleFxP], params: FiltParamsFxP) -> FiltOutputFxP {
         let cutoff = params.cutoff;
         let resonance = params.resonance;

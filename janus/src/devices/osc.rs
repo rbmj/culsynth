@@ -2,6 +2,7 @@ use super::*;
 
 type PhaseFxP = fixedmath::I4F28;
 
+/// A floating point Oscillator providing Sine, Square, Sawtooth, and Triangle outputs.
 pub struct Osc<Smp> {
     sinbuf: BufferT<Smp>,
     sqbuf: BufferT<Smp>,
@@ -10,24 +11,37 @@ pub struct Osc<Smp> {
     phase: Smp,
 }
 
+/// A struct wrapping the various output signals of an [Osc].  All signals
+/// are in phase with each other.
 pub struct OscOutput<'a, Smp> {
+    /// Sine Wave
     pub sin: &'a [Smp],
+    /// Square Wave
     pub sq: &'a [Smp],
+    /// Triangle Wave
     pub tri: &'a [Smp],
+    /// Sawtooth Wave
     pub saw: &'a [Smp],
 }
 
+/// A wrapper struct for passing parameters into the floating-point [Osc].
+/// 
+/// Currently there is only one parameter, but it is wrapped for API consistency
 pub struct OscParams<'a, Smp> {
     pub shape: &'a [Smp],
 }
 
 impl<'a, Smp> OscParams<'a, Smp> {
+    /// The length of the input parameters.
+    /// 
+    /// As shape is the only parameter, this is the same as `.shape.len()`
     pub fn len(&self) -> usize {
         self.shape.len()
     }
 }
 
 impl<Smp: Float> Osc<Smp> {
+    /// Constructor
     pub fn new() -> Self {
         Self {
             sinbuf: [Smp::zero(); STATIC_BUFFER_SIZE],
@@ -37,6 +51,14 @@ impl<Smp: Float> Osc<Smp> {
             phase: Smp::zero(),
         }
     }
+    /// Run the oscillator, using the given note signal and parameters.
+    /// 
+    /// `note` is formatted as a MIDI note number (floating point allowed for bends, etc.)
+    /// 
+    /// Note: The output slices from this function may be shorter than the
+    /// input slices.  Callers must check the number of returned samples and
+    /// copy them into their own output buffers before calling this function
+    /// again to process the remainder of the data.
     pub fn process(&mut self, note: &[Smp], params: OscParams<Smp>) -> OscOutput<Smp> {
         let shape = params.shape;
         let input_len = std::cmp::min(note.len(), shape.len());
@@ -110,13 +132,22 @@ impl<Smp: Float> Default for Osc<Smp> {
     }
 }
 
+/// A struct wrapping the output of a fixed point oscillator (see [OscFxP])
+/// 
+/// All signals are in phase with each other.
 pub struct OscOutputFxP<'a> {
+    /// Sine wave output
     pub sin: &'a [SampleFxP],
+    /// Square wave output
     pub sq: &'a [SampleFxP],
+    /// Triangle wave output
     pub tri: &'a [SampleFxP],
+    /// Sawtooth wave output
     pub saw: &'a [SampleFxP],
 }
 
+/// A wrapper struct for passing parameters to an [OscFxP].  Currently there
+/// is only one parameter, but it is wrapped for API consistency.
 pub struct OscParamsFxP<'a> {
     pub shape: &'a [ScalarFxP],
 }
@@ -127,6 +158,7 @@ impl<'a> OscParamsFxP<'a> {
     }
 }
 
+/// A fixed-point oscillator providing sine, square, triangle, and sawtooth waves.
 pub struct OscFxP {
     sinbuf: BufferT<SampleFxP>,
     sqbuf: BufferT<SampleFxP>,
@@ -136,6 +168,7 @@ pub struct OscFxP {
 }
 
 impl OscFxP {
+    /// Constructor
     pub fn new() -> OscFxP {
         OscFxP {
             sinbuf: [SampleFxP::ZERO; STATIC_BUFFER_SIZE],
@@ -145,6 +178,14 @@ impl OscFxP {
             phase: PhaseFxP::ZERO,
         }
     }
+    /// Generate waves based on the `note` control signal and parameters.
+    /// 
+    /// See the definition of [NoteFxP] for further information.
+    /// 
+    /// Note: The output slice from this function may be shorter than the
+    /// input slices.  Callers must check the number of returned samples and
+    /// copy them into their own output buffers before calling this function
+    /// again to process the remainder of the data.
     pub fn process(&mut self, note: &[NoteFxP], params: OscParamsFxP) -> OscOutputFxP {
         let shape = params.shape;
         let input_len = std::cmp::min(note.len(), shape.len());
