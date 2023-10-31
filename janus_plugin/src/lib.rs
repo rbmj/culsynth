@@ -255,49 +255,10 @@ impl Plugin for JanusPlugin {
         assert!(buffer.samples() <= self.max_buffer_size);
         let mut next_event = context.next_event();
         for (sample_id, _channel_samples) in buffer.iter_samples().enumerate() {
-            self.osc_params.shape_mut()[index] =
-                ScalarFxP::from_bits(self.params.osc1.shape.smoothed.next() as u16);
-            self.osc_params.sin_mut()[index] =
-                ScalarFxP::from_bits(self.params.osc1.sin.smoothed.next() as u16);
-            self.osc_params.sq_mut()[index] =
-                ScalarFxP::from_bits(self.params.osc1.sq.smoothed.next() as u16);
-            self.osc_params.saw_mut()[index] =
-                ScalarFxP::from_bits(self.params.osc1.saw.smoothed.next() as u16);
-            self.osc_params.tri_mut()[index] =
-                ScalarFxP::from_bits(self.params.osc1.tri.smoothed.next() as u16);
-
-            self.filt_params.env_mod_mut()[index] =
-                ScalarFxP::from_bits(self.params.filt.env.smoothed.next() as u16);
-            self.filt_params.kbd_mut()[index] =
-                ScalarFxP::from_bits(self.params.filt.kbd.smoothed.next() as u16);
-            self.filt_params.cutoff_mut()[index] =
-                NoteFxP::from_bits(self.params.filt.cutoff.smoothed.next() as u16);
-            self.filt_params.res_mut()[index] =
-                ScalarFxP::from_bits(self.params.filt.res.smoothed.next() as u16);
-            self.filt_params.low_mix_mut()[index] =
-                ScalarFxP::from_bits(self.params.filt.low.smoothed.next() as u16);
-            self.filt_params.band_mix_mut()[index] =
-                ScalarFxP::from_bits(self.params.filt.band.smoothed.next() as u16);
-            self.filt_params.high_mix_mut()[index] =
-                ScalarFxP::from_bits(self.params.filt.high.smoothed.next() as u16);
-
-            self.env_amp_params.a_mut()[index] =
-                EnvParamFxP::from_bits(self.params.env_vca.a.smoothed.next() as u16);
-            self.env_amp_params.d_mut()[index] =
-                EnvParamFxP::from_bits(self.params.env_vca.d.smoothed.next() as u16);
-            self.env_amp_params.s_mut()[index] =
-                ScalarFxP::from_bits(self.params.env_vca.s.smoothed.next() as u16);
-            self.env_amp_params.r_mut()[index] =
-                EnvParamFxP::from_bits(self.params.env_vca.r.smoothed.next() as u16);
-
-            self.env_filt_params.a_mut()[index] =
-                EnvParamFxP::from_bits(self.params.env_vcf.a.smoothed.next() as u16);
-            self.env_filt_params.d_mut()[index] =
-                EnvParamFxP::from_bits(self.params.env_vcf.d.smoothed.next() as u16);
-            self.env_filt_params.s_mut()[index] =
-                ScalarFxP::from_bits(self.params.env_vcf.s.smoothed.next() as u16);
-            self.env_filt_params.r_mut()[index] =
-                EnvParamFxP::from_bits(self.params.env_vcf.r.smoothed.next() as u16);
+            self.osc_params.update_index(index, &self.params.osc1);
+            self.filt_params.update_index(index, &self.params.filt);
+            self.env_amp_params.update_index(index, &self.params.env_vca);
+            self.env_filt_params.update_index(index, &self.params.env_vcf);
 
             // Process MIDI events:
             while let Some(event) = next_event {

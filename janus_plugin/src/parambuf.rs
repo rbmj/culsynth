@@ -3,6 +3,8 @@ use janus::devices::{
 };
 use janus::{EnvParamFxP, NoteFxP, ScalarFxP};
 
+use super::{EnvPluginParams, FiltPluginParams, OscPluginParams};
+
 #[derive(Default)]
 pub struct EnvParamBuffer {
     attack: Vec<f32>,
@@ -102,6 +104,12 @@ impl EnvParamBuffer {
     }
     pub fn r_float(&self) -> &[f32] {
         self.release.as_slice()
+    }
+    pub fn update_index(&mut self, idx: usize, p: &EnvPluginParams) {
+        self.attack_fxp[idx] = EnvParamFxP::from_bits(p.a.smoothed.next() as u16);
+        self.decay_fxp[idx] = EnvParamFxP::from_bits(p.d.smoothed.next() as u16);
+        self.sustain_fxp[idx] = ScalarFxP::from_bits(p.s.smoothed.next() as u16);
+        self.release_fxp[idx] = EnvParamFxP::from_bits(p.r.smoothed.next() as u16);
     }
 }
 
@@ -212,6 +220,13 @@ impl OscParamBuffer {
     }
     pub fn saw_float(&self) -> &[f32] {
         self.saw.as_slice()
+    }
+    pub fn update_index(&mut self, idx: usize, p: &OscPluginParams) {
+        self.shape_fxp[idx] = ScalarFxP::from_bits(p.shape.smoothed.next() as u16);
+        self.sin_fxp[idx] = ScalarFxP::from_bits(p.sin.smoothed.next() as u16);
+        self.sq_fxp[idx] = ScalarFxP::from_bits(p.sq.smoothed.next() as u16);
+        self.tri_fxp[idx] = ScalarFxP::from_bits(p.tri.smoothed.next() as u16);
+        self.saw_fxp[idx] = ScalarFxP::from_bits(p.saw.smoothed.next() as u16);
     }
 }
 
@@ -362,5 +377,14 @@ impl FiltParamBuffer {
     }
     pub fn high_mix_float(&self) -> &[f32] {
         self.high_mix.as_slice()
+    }
+    pub fn update_index(&mut self, idx: usize, p: &FiltPluginParams) {
+        self.env_mod_fxp[idx] = ScalarFxP::from_bits(p.env.smoothed.next() as u16);
+        self.kbd_fxp[idx] = ScalarFxP::from_bits(p.kbd.smoothed.next() as u16);
+        self.cutoff_fxp[idx] = NoteFxP::from_bits(p.cutoff.smoothed.next() as u16);
+        self.resonance_fxp[idx] = ScalarFxP::from_bits(p.res.smoothed.next() as u16);
+        self.low_mix_fxp[idx] = ScalarFxP::from_bits(p.low.smoothed.next() as u16);
+        self.band_mix_fxp[idx] = ScalarFxP::from_bits(p.band.smoothed.next() as u16);
+        self.high_mix_fxp[idx] = ScalarFxP::from_bits(p.high.smoothed.next() as u16);
     }
 }
