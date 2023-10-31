@@ -112,9 +112,28 @@ impl<Smp: Float> Osc<Smp> {
             } else {
                 phase_per_sample * (Smp::ONE / (Smp::ONE - shp))
             };
-            self.phase = self.phase + phase_per_smp_adj;
+            let old_phase = self.phase;
+            self.phase = old_phase + phase_per_smp_adj;
+            // make sure we calculate the correct new phase on transitions for assymmetric waves:
+            // check if we've crossed from negative to positive phase
+            if old_phase < Smp::ZERO && self.phase > Smp::ZERO && shp != Smp::ZERO
+            {
+                // need to multiply residual phase i.e. (phase - 0) by (1+k)/(1-k)
+                // where k is the shape, so no work required if shape is 0
+                self.phase = self.phase * (Smp::ONE + shp) / (Smp::ONE + shp);
+            }
+            // Check if we've crossed from positive phase back to negative:
             if self.phase >= Smp::PI() {
-                self.phase = self.phase - Smp::TAU();
+                // if we're a symmetric wave this is as simple as just subtract 2pi
+                if shp == Smp::ZERO {
+                    self.phase = self.phase - Smp::TAU();
+                } else {
+                    // if assymmetric we have to multiply residual phase i.e. phase - pi
+                    // by (1-k)/(1+k) where k is the shape:
+                    let delta = (self.phase - Smp::PI()) * (Smp::ONE - shp) / (Smp::ONE + shp);
+                    // add new change in phase to our baseline, -pi:
+                    self.phase = delta - Smp::PI();
+                }
             }
         }
         OscOutput {
@@ -239,11 +258,48 @@ impl OscFxP {
             } else {
                 fixedmath::scale_fixedfloat(phase_per_sample, one_over_one_minus_x(shape[i]))
             });
-            //FIXME:  when shape is close to 1, tuning becomes inaccurate due to the incorrect phase
-            //calculation at the transition between the two halfs of the waveform
+            let old_phase = self.phase;
             self.phase += phase_per_smp_adj;
+            // check if we've crossed from negative to positive phase
+            if 
+                old_phase < PhaseFxP::ZERO
+                && self.phase > PhaseFxP::ZERO
+                && shape[i] != ScalarFxP::ZERO
+            {
+                // need to multiply residual phase i.e. (phase - 0) by (1+k)/(1-k)
+                // where k is the shape, so no work required if shape is 0
+                let scaled = fixedmath::scale_fixedfloat(
+                    fixedmath::U4F28::from_num(self.phase), 
+                    one_over_one_minus_x(shape[i])
+                );
+                let one_plus_shape = fixedmath::U1F15::from_num(clip_shape(shape[i]))
+                    + fixedmath::U1F15::ONE;
+                self.phase = PhaseFxP::from_num(
+                    fixedmath::scale_fixedfloat(scaled, one_plus_shape)
+                );
+            }
+            // Check if we've crossed from positive phase back to negative:
             if self.phase >= PhaseFxP::PI {
-                self.phase -= PhaseFxP::TAU;
+                // if we're a symmetric wave this is as simple as just subtract 2pi
+                if shape[i] == ScalarFxP::ZERO {
+                    self.phase -= PhaseFxP::TAU;
+                } else {
+                    // if assymmetric we have to multiply residual phase i.e. phase - pi
+                    // by (1-k)/(1+k) where k is the shape:
+                    let one_minus_shape = (ScalarFxP::MAX - clip_shape(shape[i]))
+                        + ScalarFxP::DELTA;
+                    // scaled = residual_phase * (1-k)
+                    let scaled = fixedmath::scale_fixedfloat(
+                        fixedmath::U4F28::from_num(self.phase - PhaseFxP::PI),
+                        one_minus_shape,
+                    );
+                    // new change in phase = scaled * 1/(1 + k)
+                    let (x, s) = fixedmath::one_over_one_plus_highacc(clip_shape(shape[i]));
+                    let delta = fixedmath::scale_fixedfloat(scaled, x)
+                        .unwrapped_shr(s);
+                    // add new change in phase to our baseline, -pi:
+                    self.phase = PhaseFxP::from_num(delta) - PhaseFxP::PI;
+                }
             }
         }
         OscOutputFxP {
