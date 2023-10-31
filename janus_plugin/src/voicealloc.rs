@@ -2,8 +2,8 @@
 //! and having it "decide" how to handle the notes based on the polyphony mode,
 //! selected logic form (fixed, float32, float64), etc.
 
-use janus::{NoteFxP, SampleFxP, VoiceFxP};
 use crate::parambuf::{EnvParamBuffer, FiltParamBuffer, OscParamBuffer};
+use janus::{NoteFxP, SampleFxP, VoiceFxP};
 
 /// This trait is the main abstraction for this module - the plugin may send it
 /// note on/off events and it will assign those events to voices, stealing if

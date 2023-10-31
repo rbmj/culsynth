@@ -1,8 +1,8 @@
+use super::{EnvPluginParams, FiltPluginParams, OscPluginParams};
 use janus::devices::{
     EnvParams, EnvParamsFxP, MixOscParams, MixOscParamsFxP, ModFiltParams, ModFiltParamsFxP,
 };
 use janus::{EnvParamFxP, NoteFxP, ScalarFxP};
-use super::{EnvPluginParams, FiltPluginParams, OscPluginParams};
 
 #[derive(Default)]
 pub struct EnvParamBuffer {

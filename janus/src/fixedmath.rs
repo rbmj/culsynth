@@ -291,9 +291,9 @@ pub fn midi_note_to_frequency(note: Note) -> Frequency {
 
 #[cfg(test)]
 mod tests {
-    use fixed::traits::ToFixed;
     use super::super::util::calculate_cents;
     use super::*;
+    use fixed::traits::ToFixed;
     //test for correctness of constants
     #[test]
     fn const_fraction_correctness() {

@@ -60,25 +60,25 @@ impl JanusEditor {
             _ => std::unreachable!(),
         };
         widgets::Slider::from_get_set(min as f64..=max as f64, |new_value| match new_value {
-                    Some(value) => {
-                        setter.begin_set_parameter(param);
-                        setter.set_parameter(param, value as i32);
-                        setter.end_set_parameter(param);
-                        value
-                    }
+            Some(value) => {
+                setter.begin_set_parameter(param);
+                setter.set_parameter(param, value as i32);
+                setter.end_set_parameter(param);
+                value
+            }
             None => param.value() as f64,
-            })
-            .integer()
-            .show_value(false)
-            .suffix(param.unit())
-            .custom_parser(move |s| {
+        })
+        .integer()
+        .show_value(false)
+        .suffix(param.unit())
+        .custom_parser(move |s| {
             param
                 .string_to_normalized_value(s)
                 .map(|x| range.unnormalize(x) as f64)
-            })
-            .custom_formatter(move |f, _| {
+        })
+        .custom_formatter(move |f, _| {
             param.normalized_value_to_string(range2.normalize(f as i32), false)
-            })
+        })
     }
     /// Helper function to handle keyboard input
     fn handle_kbd_input(&mut self, ui: &egui::Ui) {
@@ -110,9 +110,9 @@ impl JanusEditor {
         //rectangle.  Don't know why the library doesn't do this for you...
         let r = match blind {
             Some(blind_key) => PianoRectangle {
-                    x: std::cmp::min(small.x, blind_key.x),
-                    y: small.y,
-                    width: small.width + blind_key.width,
+                x: std::cmp::min(small.x, blind_key.x),
+                y: small.y,
+                width: small.width + blind_key.width,
                 height: small.height,
             },
             None => small.clone(),
@@ -146,7 +146,7 @@ impl JanusEditor {
         let border = egui::Shape::closed_line(
             points,
             egui::epaint::Stroke {
-            width: 1.0,
+                width: 1.0,
                 color: egui::epaint::Color32::GRAY,
             },
         );
