@@ -2,7 +2,7 @@
 //! and having it "decide" how to handle the notes based on the polyphony mode,
 //! selected logic form (fixed, float32, float64), etc.
 
-use crate::parambuf::{EnvParamBuffer, FiltParamBuffer, OscParamBuffer};
+use crate::parambuf::{EnvParamBuffer, FiltParamBuffer, OscParamBuffer, RingModParamBuffer};
 use janus::{NoteFxP, SampleFxP, VoiceFxP};
 
 /// This trait is the main abstraction for this module - the plugin may send it
@@ -30,7 +30,9 @@ pub trait VoiceAllocator: Send {
     /// to the beginning of the buffer (see [VoiceAllocator::sample_tick]).
     fn process(
         &mut self,
-        op: &OscParamBuffer,
+        o1p: &OscParamBuffer,
+        o2p: &OscParamBuffer,
+        rp: &RingModParamBuffer,
         fp: &FiltParamBuffer,
         efp: &EnvParamBuffer,
         eap: &EnvParamBuffer,
@@ -82,20 +84,24 @@ impl VoiceAllocator for MonoSynthFxP {
     }
     fn process(
         &mut self,
-        op: &OscParamBuffer,
-        fp: &FiltParamBuffer,
-        efp: &EnvParamBuffer,
-        eap: &EnvParamBuffer,
+        osc1_p: &OscParamBuffer,
+        osc2_p: &OscParamBuffer,
+        ring_p: &RingModParamBuffer,
+        filt_p: &FiltParamBuffer,
+        filt_env_p: &EnvParamBuffer,
+        amp_env_p: &EnvParamBuffer,
     ) -> &[f32] {
         let mut processed: usize = 0;
         while processed < self.index {
             let thisiter = self.voice.process(
                 &self.notebuf[processed..self.index],
                 &self.gatebuf[processed..self.index],
-                op.params(processed, self.index),
-                fp.params(processed, self.index),
-                efp.params(processed, self.index),
-                eap.params(processed, self.index),
+                osc1_p.params(processed, self.index),
+                osc2_p.params(processed, self.index),
+                ring_p.params(processed, self.index),
+                filt_p.params(processed, self.index),
+                filt_env_p.params(processed, self.index),
+                amp_env_p.params(processed, self.index),
             );
             for smp in thisiter {
                 self.outbuf[processed] = smp.to_num::<f32>();

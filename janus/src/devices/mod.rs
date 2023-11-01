@@ -5,6 +5,7 @@ mod env;
 mod filt;
 mod mixosc;
 mod modfilt;
+mod ringmod;
 mod osc;
 
 use super::{fixedmath, EnvParamFxP, NoteFxP, SampleFxP, ScalarFxP, USampleFxP};
@@ -64,4 +65,5 @@ pub use env::{Env, EnvFxP, EnvParams, EnvParamsFxP};
 pub use filt::{Filt, FiltFxP, FiltOutput, FiltOutputFxP, FiltParams, FiltParamsFxP};
 pub use mixosc::{MixOsc, MixOscFxP, MixOscParams, MixOscParamsFxP};
 pub use modfilt::{ModFilt, ModFiltFxP, ModFiltParams, ModFiltParamsFxP};
+pub use ringmod::{RingMod, RingModFxP, RingModParams, RingModParamsFxP};
 pub use osc::{Osc, OscFxP, OscOutput, OscOutputFxP, OscParams, OscParamsFxP};

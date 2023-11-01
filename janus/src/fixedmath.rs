@@ -7,7 +7,7 @@
 use core::ops::Add;
 use fixed::types::extra::{IsLessOrEqual, LeEqU16, LeEqU32, True, Unsigned, U16, U31};
 pub use fixed::types::*;
-use fixed::{FixedU16, FixedU32};
+use fixed::{FixedI16, FixedI32, FixedU16, FixedU32};
 
 /// A fixed point number representing a sample or otherwise generic piece of data
 /// within the synthesizer.  These are 16 bit signed fixed point numbers with 12
@@ -70,6 +70,31 @@ where
         prod.unwrapped_shl(bbits - shift)
     };
     FixedU32::<FracA>::from_bits(res.to_bits())
+}
+
+/// Widen the given 16 bit fixed point number to a 32 bit fixed point number
+pub fn widen_i<Frac>(a: FixedI16<Frac>) -> FixedI32<Frac>
+where Frac: Unsigned + LeEqU16 + LeEqU32
+{
+    FixedI32::<Frac>::from_num(a)
+}
+
+/// Apply a scaling factor to a fixed point number (unsigned)
+pub fn apply_scalar_u<Frac>(a: FixedU16<Frac>, b: Scalar) -> FixedU16<Frac>
+where
+    Frac: Unsigned + LeEqU16 + Add<U16>,
+    <Frac as Add<U16>>::Output: LeEqU32,
+{
+    FixedU16::<Frac>::from_num(a.wide_mul(b))
+}
+
+/// Apply a scaling factor to a fixed point number (signed)
+pub fn apply_scalar_i<Frac>(a: FixedI16<Frac>, b: Scalar) -> FixedI16<Frac>
+where
+    Frac: Unsigned + LeEqU16 + Add<U16>,
+    <Frac as Add<U16>>::Output: LeEqU32,
+{
+    FixedI16::<Frac>::from_num(a.wide_mul_unsigned(b))
 }
 
 fn one_over_one_plus_helper<Frac>(n: FixedU32<Frac>) -> (U1F31, u32)

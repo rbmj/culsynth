@@ -1,6 +1,7 @@
-use super::{EnvPluginParams, FiltPluginParams, OscPluginParams};
+use super::{EnvPluginParams, FiltPluginParams, OscPluginParams, RingModPluginParams};
 use janus::devices::{
     EnvParams, EnvParamsFxP, MixOscParams, MixOscParamsFxP, ModFiltParams, ModFiltParamsFxP,
+    RingModParams, RingModParamsFxP,
 };
 use janus::{EnvParamFxP, NoteFxP, ScalarFxP};
 
@@ -109,6 +110,97 @@ impl EnvParamBuffer {
         self.decay_fxp[idx] = EnvParamFxP::from_bits(p.d.smoothed.next() as u16);
         self.sustain_fxp[idx] = ScalarFxP::from_bits(p.s.smoothed.next() as u16);
         self.release_fxp[idx] = EnvParamFxP::from_bits(p.r.smoothed.next() as u16);
+    }
+}
+
+#[derive(Default)]
+pub struct RingModParamBuffer {
+    mix_a: Vec<f32>,
+    mix_b: Vec<f32>,
+    mix_mod: Vec<f32>,
+    mix_a_fxp: Vec<ScalarFxP>,
+    mix_b_fxp: Vec<ScalarFxP>,
+    mix_mod_fxp: Vec<ScalarFxP>,
+}
+
+impl RingModParamBuffer {
+    pub fn new() -> Self {
+        Self::default()
+    }
+    pub fn len(&self) -> usize {
+        self.mix_a.len()
+    }
+    pub fn allocate(&mut self, sz: u32) {
+        if self.len() >= sz as usize {
+            return;
+        }
+        for buf in [
+            &mut self.mix_a,
+            &mut self.mix_b,
+            &mut self.mix_mod,
+        ] {
+            buf.resize(sz as usize, 0f32);
+        }
+        for buf in [
+            &mut self.mix_a_fxp,
+            &mut self.mix_b_fxp,
+            &mut self.mix_mod_fxp,
+        ] {
+            buf.resize(sz as usize, ScalarFxP::ZERO);
+        }
+    }
+    pub fn conv_float(&mut self) {
+        for i in 0..self.len() {
+            self.mix_a[i] = self.mix_a_fxp[i].to_num();
+            self.mix_b[i] = self.mix_b_fxp[i].to_num();
+            self.mix_mod[i] = self.mix_mod_fxp[i].to_num();
+        }
+    }
+    pub fn params_float(&self, base: usize, end: usize) -> RingModParams<f32> {
+        RingModParams {
+            mix_a: &self.mix_a[base..end],
+            mix_b: &self.mix_b[base..end],
+            mix_out: &self.mix_mod[base..end],
+        }
+    }
+    pub fn params(&self, base: usize, end: usize) -> RingModParamsFxP {
+        RingModParamsFxP {
+            mix_a: &self.mix_a_fxp[base..end],
+            mix_b: &self.mix_b_fxp[base..end],
+            mix_out: &self.mix_mod_fxp[base..end],
+        }
+    }
+    pub fn mix_a(&self) -> &[ScalarFxP] {
+        self.mix_a_fxp.as_slice()
+    }
+    pub fn mix_a_mut(&mut self) -> &mut [ScalarFxP] {
+        self.mix_a_fxp.as_mut_slice()
+    }
+    pub fn mix_a_float(&self) -> &[f32] {
+        self.mix_a.as_slice()
+    }
+    pub fn mix_b(&self) -> &[ScalarFxP] {
+        self.mix_b_fxp.as_slice()
+    }
+    pub fn mix_b_mut(&mut self) -> &mut [ScalarFxP] {
+        self.mix_b_fxp.as_mut_slice()
+    }
+    pub fn mix_b_float(&self) -> &[f32] {
+        self.mix_b.as_slice()
+    }
+    pub fn mix_mod(&self) -> &[ScalarFxP] {
+        self.mix_mod_fxp.as_slice()
+    }
+    pub fn mix_mod_mut(&mut self) -> &mut [ScalarFxP] {
+        self.mix_mod_fxp.as_mut_slice()
+    }
+    pub fn mix_mod_float(&self) -> &[f32] {
+        self.mix_mod.as_slice()
+    }
+    pub fn update_index(&mut self, idx: usize, p: &RingModPluginParams) {
+        self.mix_a_fxp[idx] = ScalarFxP::from_bits(p.mix_a.smoothed.next() as u16);
+        self.mix_b_fxp[idx] = ScalarFxP::from_bits(p.mix_b.smoothed.next() as u16);
+        self.mix_mod_fxp[idx] = ScalarFxP::from_bits(p.mix_mod.smoothed.next() as u16);
     }
 }
 

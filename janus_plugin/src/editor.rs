@@ -1,4 +1,4 @@
-use crate::JanusParams;
+use crate::{JanusParams, EnvPluginParams, FiltPluginParams, OscPluginParams, RingModPluginParams};
 use egui::widgets;
 use egui::Context;
 use nih_plug::prelude::*;
@@ -6,6 +6,125 @@ use nih_plug_egui::{create_egui_editor, egui, EguiState};
 use piano_keyboard::Rectangle as PianoRectangle;
 use piano_keyboard::{Element, Keyboard2d, KeyboardBuilder};
 use std::sync::{mpsc::SyncSender, Arc};
+
+fn param_slider<'a>(setter: &'a ParamSetter, param: &'a IntParam) -> egui::widgets::Slider<'a> {
+    let range = param.range();
+    let range2 = range; //need a copy to move into the other closure...
+    let (min, max) = match range {
+        IntRange::Linear { min: x, max: y } => (x, y),
+        IntRange::Reversed(IntRange::Linear { min: x, max: y }) => (*x, *y),
+        _ => std::unreachable!(),
+    };
+    widgets::Slider::from_get_set(min as f64..=max as f64, |new_value| match new_value {
+        Some(value) => {
+            setter.begin_set_parameter(param);
+            setter.set_parameter(param, value as i32);
+            setter.end_set_parameter(param);
+            value
+        }
+        None => param.value() as f64,
+    })
+    .integer()
+    .show_value(false)
+    .suffix(param.unit())
+    .custom_parser(move |s| {
+        param
+            .string_to_normalized_value(s)
+            .map(|x| range.unnormalize(x) as f64)
+    })
+    .custom_formatter(move |f, _| {
+        param.normalized_value_to_string(range2.normalize(f as i32), false)
+    })
+}
+
+trait PluginWidget {
+    fn draw_on(&self, ui: &mut egui::Ui, setter: &ParamSetter, label: &str);
+}
+
+impl PluginWidget for OscPluginParams {
+    fn draw_on(&self, ui: &mut egui::Ui, setter: &ParamSetter, label: &str) {
+        ui.vertical(|ui| {
+            ui.label(label);
+            egui::Grid::new(label).show(ui, |ui| {
+                ui.add(param_slider(setter, &self.shape).vertical());
+                //ui.add(param_slider(setter, &self.tune))
+                ui.add(param_slider(setter, &self.sin).vertical());
+                ui.add(param_slider(setter, &self.tri).vertical());
+                ui.add(param_slider(setter, &self.sq).vertical());
+                ui.add(param_slider(setter, &self.saw).vertical());
+                ui.end_row();
+                ui.label("Shape");
+                //ui.label("Tune")
+                ui.label("Sine");
+                ui.label("Tri");
+                ui.label("Square");
+                ui.label("Saw");
+            });
+        });
+    }
+}
+
+impl PluginWidget for RingModPluginParams {
+    fn draw_on(&self, ui: &mut egui::Ui, setter: &ParamSetter, label: &str) {
+        ui.vertical(|ui| {
+            ui.label(label);
+            egui::Grid::new(label).show(ui, |ui| {
+                ui.add(param_slider(setter, &self.mix_a).vertical());
+                ui.add(param_slider(setter, &self.mix_b).vertical());
+                ui.add(param_slider(setter, &self.mix_mod).vertical());
+                ui.end_row();
+                ui.label("Osc 1");
+                ui.label("Osc 2");
+                ui.label("Ring");
+                
+            });
+        });
+    }
+}
+
+impl PluginWidget for FiltPluginParams {
+    fn draw_on(&self, ui: &mut egui::Ui, setter: &ParamSetter, label: &str) {
+        ui.vertical(|ui| {
+            ui.label(label);
+            egui::Grid::new(label).show(ui, |ui| {
+                ui.add(param_slider(setter, &self.cutoff).vertical());
+                ui.add(param_slider(setter, &self.res).vertical());
+                ui.add(param_slider(setter, &self.kbd).vertical());
+                ui.add(param_slider(setter, &self.env).vertical());
+                ui.add(param_slider(setter, &self.low).vertical());
+                ui.add(param_slider(setter, &self.band).vertical());
+                ui.add(param_slider(setter, &self.high).vertical());
+                ui.end_row();
+                ui.label("Cut");
+                ui.label("Res");
+                ui.label("Kbd");
+                ui.label("Env");
+                ui.label("Low");
+                ui.label("Band");
+                ui.label("High");
+            });
+        });
+    }
+}
+
+impl PluginWidget for EnvPluginParams {
+    fn draw_on(&self, ui: &mut egui::Ui, setter: &ParamSetter, label: &str) {
+        ui.vertical(|ui| {
+            ui.label(label);
+            egui::Grid::new(label).show(ui, |ui| {
+                ui.add(param_slider(setter, &self.a).vertical());
+                ui.add(param_slider(setter, &self.d).vertical());
+                ui.add(param_slider(setter, &self.s).vertical());
+                ui.add(param_slider(setter, &self.r).vertical());
+                ui.end_row();
+                ui.label("A");
+                ui.label("D");
+                ui.label("S");
+                ui.label("R");
+            });
+        });
+    }
+}
 
 /// Map a keyboard key to a MIDI note number, or `None` if unmapped.
 fn key_to_notenum(k: egui::Key) -> Option<i8> {
@@ -50,35 +169,6 @@ impl JanusEditor {
             channel: c,
             last_note: None,
         }
-    }
-    fn param_slider<'a>(setter: &'a ParamSetter, param: &'a IntParam) -> egui::widgets::Slider<'a> {
-        let range = param.range();
-        let range2 = range; //need a copy to move into the other closure...
-        let (min, max) = match range {
-            IntRange::Linear { min: x, max: y } => (x, y),
-            IntRange::Reversed(IntRange::Linear { min: x, max: y }) => (*x, *y),
-            _ => std::unreachable!(),
-        };
-        widgets::Slider::from_get_set(min as f64..=max as f64, |new_value| match new_value {
-            Some(value) => {
-                setter.begin_set_parameter(param);
-                setter.set_parameter(param, value as i32);
-                setter.end_set_parameter(param);
-                value
-            }
-            None => param.value() as f64,
-        })
-        .integer()
-        .show_value(false)
-        .suffix(param.unit())
-        .custom_parser(move |s| {
-            param
-                .string_to_normalized_value(s)
-                .map(|x| range.unnormalize(x) as f64)
-        })
-        .custom_formatter(move |f, _| {
-            param.normalized_value_to_string(range2.normalize(f as i32), false)
-        })
     }
     /// Helper function to handle keyboard input
     fn handle_kbd_input(&mut self, ui: &egui::Ui) {
@@ -287,143 +377,18 @@ impl JanusEditor {
         egui::CentralPanel::default().show(egui_ctx, |ui| {
             ui.vertical(|ui| {
                 ui.horizontal(|ui| {
-                    ui.vertical(|ui| {
-                        ui.label("Oscillator 1");
-                        ui.horizontal(|ui| {
-                            ui.vertical(|ui| {
-                                ui.horizontal(|ui| {
-                                    ui.label("Shape");
-                                    ui.add(Self::param_slider(setter, &self.params.osc1.shape));
-                                });
-                                //Add widgets for tune, etc.
-                            });
-                            ui.vertical(|ui| {
-                                ui.add(
-                                    Self::param_slider(setter, &self.params.osc1.sin).vertical(),
-                                );
-                                ui.label("Sin");
-                            });
-                            ui.vertical(|ui| {
-                                ui.add(
-                                    Self::param_slider(setter, &self.params.osc1.tri).vertical(),
-                                );
-                                ui.label("Tri");
-                            });
-                            ui.vertical(|ui| {
-                                ui.add(Self::param_slider(setter, &self.params.osc1.sq).vertical());
-                                ui.label("Sq");
-                            });
-                            ui.vertical(|ui| {
-                                ui.add(
-                                    Self::param_slider(setter, &self.params.osc1.saw).vertical(),
-                                );
-                                ui.label("Saw");
-                            });
-                        });
-                    });
+                    self.params.osc1.draw_on(ui, setter, "Oscillator 1");
                     ui.separator();
-                    ui.vertical(|ui| {
-                        ui.label("Filter 1 (SVF)");
-                        ui.horizontal(|ui| {
-                            ui.vertical(|ui| {
-                                ui.horizontal(|ui| {
-                                    ui.label("Cutoff");
-                                    ui.add(Self::param_slider(setter, &self.params.filt.cutoff));
-                                });
-                                ui.horizontal(|ui| {
-                                    ui.label("Resonance");
-                                    ui.add(Self::param_slider(setter, &self.params.filt.res));
-                                });
-                                ui.horizontal(|ui| {
-                                    ui.label("Env Mod");
-                                    ui.add(Self::param_slider(setter, &self.params.filt.env));
-                                });
-                                ui.horizontal(|ui| {
-                                    ui.label("Keyboard");
-                                    ui.add(Self::param_slider(setter, &self.params.filt.kbd));
-                                });
-                            });
-                            ui.vertical(|ui| {
-                                ui.add(
-                                    Self::param_slider(setter, &self.params.filt.low).vertical(),
-                                );
-                                ui.label("Low");
-                            });
-                            ui.vertical(|ui| {
-                                ui.add(
-                                    Self::param_slider(setter, &self.params.filt.band).vertical(),
-                                );
-                                ui.label("Band");
-                            });
-                            ui.vertical(|ui| {
-                                ui.add(
-                                    Self::param_slider(setter, &self.params.filt.high).vertical(),
-                                );
-                                ui.label("High");
-                            });
-                        });
-                    });
+                    self.params.osc2.draw_on(ui, setter, "Oscillator 2");
+                    ui.separator();
+                    self.params.ringmod.draw_on(ui, setter, "Mixer/Ring Modulator");
+                    ui.separator();
+                    self.params.filt.draw_on(ui, setter, "Filter");
                 });
-                ui.separator();
                 ui.horizontal(|ui| {
-                    ui.vertical(|ui| {
-                        ui.label("Envelope 1 (VCF)");
-                        ui.horizontal(|ui| {
-                            ui.vertical(|ui| {
-                                ui.add(
-                                    Self::param_slider(setter, &self.params.env_vcf.a).vertical(),
-                                );
-                                ui.label("Attack");
-                            });
-                            ui.vertical(|ui| {
-                                ui.add(
-                                    Self::param_slider(setter, &self.params.env_vcf.d).vertical(),
-                                );
-                                ui.label("Decay");
-                            });
-                            ui.vertical(|ui| {
-                                ui.add(
-                                    Self::param_slider(setter, &self.params.env_vcf.s).vertical(),
-                                );
-                                ui.label("Sustain");
-                            });
-                            ui.vertical(|ui| {
-                                ui.add(
-                                    Self::param_slider(setter, &self.params.env_vcf.r).vertical(),
-                                );
-                                ui.label("Release");
-                            });
-                        });
-                    });
-                    ui.vertical(|ui| {
-                        ui.label("Envelope 2 (VCA)");
-                        ui.horizontal(|ui| {
-                            ui.vertical(|ui| {
-                                ui.add(
-                                    Self::param_slider(setter, &self.params.env_vca.a).vertical(),
-                                );
-                                ui.label("Attack");
-                            });
-                            ui.vertical(|ui| {
-                                ui.add(
-                                    Self::param_slider(setter, &self.params.env_vca.d).vertical(),
-                                );
-                                ui.label("Decay");
-                            });
-                            ui.vertical(|ui| {
-                                ui.add(
-                                    Self::param_slider(setter, &self.params.env_vca.s).vertical(),
-                                );
-                                ui.label("Sustain");
-                            });
-                            ui.vertical(|ui| {
-                                ui.add(
-                                    Self::param_slider(setter, &self.params.env_vca.r).vertical(),
-                                );
-                                ui.label("Release");
-                            });
-                        });
-                    });
+                    self.params.env_vca.draw_on(ui, setter, "VCA Envelope");
+                    ui.separator();
+                    self.params.env_vcf.draw_on(ui, setter, "Filter Envelope");
                 });
             });
         });

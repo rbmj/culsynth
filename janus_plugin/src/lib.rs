@@ -15,7 +15,7 @@ mod fixedparam;
 use fixedparam::{new_fixed_param, new_fixed_param_freq, new_fixed_param_percent};
 
 pub mod parambuf;
-use parambuf::{EnvParamBuffer, FiltParamBuffer, OscParamBuffer};
+use parambuf::{EnvParamBuffer, FiltParamBuffer, OscParamBuffer, RingModParamBuffer};
 
 mod voicealloc;
 use voicealloc::{MonoSynthFxP, VoiceAllocator};
@@ -24,7 +24,9 @@ use voicealloc::{MonoSynthFxP, VoiceAllocator};
 pub struct JanusPlugin {
     params: Arc<JanusParams>,
 
-    osc_params: OscParamBuffer,
+    osc1_params: OscParamBuffer,
+    osc2_params: OscParamBuffer,
+    ringmod_params: RingModParamBuffer,
     filt_params: FiltParamBuffer,
     env_amp_params: EnvParamBuffer,
     env_filt_params: EnvParamBuffer,
@@ -63,6 +65,29 @@ impl Default for OscPluginParams {
             saw: new_fixed_param_percent("Saw", ScalarFxP::MAX),
             sq: new_fixed_param_percent("Square", ScalarFxP::ZERO),
             tri: new_fixed_param_percent("Triangle", ScalarFxP::ZERO),
+        }
+    }
+}
+
+/// Contains all of the parameters for an oscillator within the plugin
+#[derive(Params)]
+pub struct RingModPluginParams {
+    #[id = "vol_o1"]
+    pub mix_a: IntParam,
+
+    #[id = "vol_o2"]
+    pub mix_b: IntParam,
+
+    #[id = "ringmd"]
+    pub mix_mod: IntParam,
+}
+
+impl Default for RingModPluginParams {
+    fn default() -> Self {
+        Self {
+            mix_a: new_fixed_param_percent("Osc 1", ScalarFxP::MAX),
+            mix_b: new_fixed_param_percent("Osc 2", ScalarFxP::ZERO),
+            mix_mod: new_fixed_param_percent("Ring Mod", ScalarFxP::ZERO),
         }
     }
 }
@@ -147,6 +172,12 @@ pub struct JanusParams {
     #[nested(id_prefix = "o1", group = "osc1")]
     pub osc1: OscPluginParams,
 
+    #[nested(id_prefix = "o2", group = "osc2")]
+    pub osc2: OscPluginParams,
+
+    #[nested(group = "ringmod")]
+    pub ringmod: RingModPluginParams,
+
     #[nested(group = "filt")]
     pub filt: FiltPluginParams,
 
@@ -162,7 +193,9 @@ impl Default for JanusPlugin {
         let (tx, rx) = sync_channel::<i8>(128);
         Self {
             params: Arc::new(JanusParams::default()),
-            osc_params: Default::default(),
+            osc1_params: Default::default(),
+            osc2_params: Default::default(),
+            ringmod_params: Default::default(),
             filt_params: Default::default(),
             env_amp_params: Default::default(),
             env_filt_params: Default::default(),
@@ -179,6 +212,8 @@ impl Default for JanusParams {
         Self {
             editor_state: editor::default_state(),
             osc1: Default::default(),
+            osc2: Default::default(),
+            ringmod: Default::default(),
             filt: Default::default(),
             env_vca: EnvPluginParams::new("VCA Envelope"),
             env_vcf: EnvPluginParams::new("VCF Envelope"),
@@ -227,7 +262,9 @@ impl Plugin for JanusPlugin {
     ) -> bool {
         // TODO
         let bufsz = buffer_config.max_buffer_size;
-        self.osc_params.allocate(bufsz);
+        self.osc1_params.allocate(bufsz);
+        self.osc2_params.allocate(bufsz);
+        self.ringmod_params.allocate(bufsz);
         self.filt_params.allocate(bufsz);
         self.env_amp_params.allocate(bufsz);
         self.env_filt_params.allocate(bufsz);
@@ -255,7 +292,9 @@ impl Plugin for JanusPlugin {
         assert!(buffer.samples() <= self.max_buffer_size);
         let mut next_event = context.next_event();
         for (sample_id, _channel_samples) in buffer.iter_samples().enumerate() {
-            self.osc_params.update_index(index, &self.params.osc1);
+            self.osc1_params.update_index(index, &self.params.osc1);
+            self.osc2_params.update_index(index, &self.params.osc2);
+            self.ringmod_params.update_index(index, &self.params.ringmod);
             self.filt_params.update_index(index, &self.params.filt);
             self.env_amp_params.update_index(index, &self.params.env_vca);
             self.env_filt_params.update_index(index, &self.params.env_vcf);
@@ -280,13 +319,16 @@ impl Plugin for JanusPlugin {
             index += 1;
         }
         if !(voices.is_fixed_point()) {
-            self.osc_params.conv_float();
+            self.osc1_params.conv_float();
+            self.osc2_params.conv_float();
             self.filt_params.conv_float();
             self.env_amp_params.conv_float();
             self.env_filt_params.conv_float();
         }
         let output = voices.process(
-            &self.osc_params,
+            &self.osc1_params,
+            &self.osc2_params,
+            &self.ringmod_params,
             &self.filt_params,
             &self.env_filt_params,
             &self.env_amp_params,
