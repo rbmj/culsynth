@@ -1,5 +1,5 @@
 //! Fixed-Point math functions used internally by the synthesizer.
-//! 
+//!
 //! As a quick aside - all of these functions prioritize
 //! speed over accuracy.  Don't use for scientific calculations...
 //! you have been warned!
@@ -22,7 +22,7 @@ pub type USample = U4F12;
 /// A unsigned 16 bit fixed point number representing a note/pitch, with 7 integral
 /// bits and 9 fractional.  The integral bits correspond to the MIDI note numbers,
 /// i.e. a value of 69.0 represents A440 and tuning is 12 tone equal temprament.
-/// 
+///
 /// 9 fractional bits provides a resolution of about 0.2 cents, but most of the
 /// functions in this library will only be accurate to about 0.5-1 cent.
 pub type Note = U7F9;
@@ -74,7 +74,8 @@ where
 
 /// Widen the given 16 bit fixed point number to a 32 bit fixed point number
 pub fn widen_i<Frac>(a: FixedI16<Frac>) -> FixedI32<Frac>
-where Frac: Unsigned + LeEqU16 + LeEqU32
+where
+    Frac: Unsigned + LeEqU16 + LeEqU32,
 {
     FixedI32::<Frac>::from_num(a)
 }
@@ -117,12 +118,12 @@ where
 /// a tuple representing a sixteen bit number in scientific notation - the first
 /// element is a sixteen bit fixed point number with 1 integral bit, and the
 /// second element represents the negative of the exponent (base 2).
-/// 
+///
 /// Internally, this uses a quadratic taylor series expansion about 2^-x for the
 /// closest value of 2^-x on a logarithmic basis.
-/// 
+///
 /// # Examples
-/// 
+///
 /// ```no_compile
 /// use janus::fixedmath::{one_over_one_plus, U16F16};
 /// let x = U16F16::ONE;
@@ -161,9 +162,9 @@ pub fn one_over_one_plus_highacc(x: U0F16) -> (U1F15, u32) {
 
 /// Fixed point sin(x), using a 7th order taylor series approximation about
 /// x == 0.  This is fairly accurate from -pi to pi.
-/// 
+///
 /// # Panics
-/// 
+///
 /// This function may panic due to fixed-point overflow if given an input ouside
 /// of the range -pi to pi, though it has been tested to be safe up to +/- 3.2
 pub fn sin_fixed(x: Sample) -> Sample {
@@ -194,9 +195,9 @@ pub fn sin_fixed(x: Sample) -> Sample {
 
 /// Fixed point cos(x), using a sixth order taylor series approximation about
 /// x == 0.  This is fairly accurate from -pi/2 to pi/2.
-/// 
+///
 /// # Panics
-/// 
+///
 /// This function may panic due to fixed point overflow if given a number outside
 /// of the range -pi to pi, though it has been tested out to 3.2.
 pub fn cos_fixed(x: Sample) -> Sample {

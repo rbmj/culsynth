@@ -1,4 +1,3 @@
-
 use super::*;
 use crate::fixedmath::{apply_scalar_i, widen_i};
 
@@ -24,7 +23,7 @@ impl<'a, Smp> RingModParams<'a, Smp> {
     pub fn len(&self) -> usize {
         std::cmp::min(
             std::cmp::min(self.mix_a.len(), self.mix_b.len()),
-            self.mix_out.len()
+            self.mix_out.len(),
         )
     }
 }
@@ -37,7 +36,7 @@ impl<Smp: Float> RingMod<Smp> {
     }
     /// Run the ring modulator on the provided input signals and mix the result
     /// back in with the input signals according to the provided parameters.
-    /// 
+    ///
     /// Note: The output slice from this function may be shorter than the
     /// input slices.  Callers must check the number of returned samples and
     /// copy them into their own output buffers before calling this function
@@ -45,14 +44,12 @@ impl<Smp: Float> RingMod<Smp> {
     pub fn process(&mut self, a: &[Smp], b: &[Smp], params: RingModParams<Smp>) -> &[Smp] {
         let numsamples = std::cmp::min(
             std::cmp::min(params.len(), STATIC_BUFFER_SIZE),
-            std::cmp::min(a.len(), b.len())
+            std::cmp::min(a.len(), b.len()),
         );
         for i in 0..numsamples {
             let out = a[i] * b[i];
             self.outbuf[i] =
-                out * params.mix_out[i]
-                + a[i] * params.mix_a[i]
-                + b[i] * params.mix_b[i];
+                out * params.mix_out[i] + a[i] * params.mix_a[i] + b[i] * params.mix_b[i];
         }
         &self.outbuf[0..numsamples]
     }
@@ -80,7 +77,7 @@ impl<'a> RingModParamsFxP<'a> {
     pub fn len(&self) -> usize {
         std::cmp::min(
             std::cmp::min(self.mix_a.len(), self.mix_b.len()),
-            self.mix_out.len()
+            self.mix_out.len(),
         )
     }
 }
@@ -100,7 +97,7 @@ impl RingModFxP {
     }
     /// Run the ring modulator on the provided input signals and mix the result
     /// back in with the input signals according to the provided parameters.
-    /// 
+    ///
     /// Note: The output slice from this function may be shorter than the
     /// input slices.  Callers must check the number of returned samples and
     /// copy them into their own output buffers before calling this function
@@ -113,12 +110,11 @@ impl RingModFxP {
     ) -> &[SampleFxP] {
         let numsamples = std::cmp::min(
             std::cmp::min(params.len(), STATIC_BUFFER_SIZE),
-            std::cmp::min(a.len(), b.len())
+            std::cmp::min(a.len(), b.len()),
         );
         for i in 0..numsamples {
             let out = SampleFxP::saturating_from_num(a[i].wide_mul(b[i]));
-            let mixed_32bits =
-                widen_i(apply_scalar_i(out, params.mix_out[i]))
+            let mixed_32bits = widen_i(apply_scalar_i(out, params.mix_out[i]))
                 + widen_i(apply_scalar_i(a[i], params.mix_a[i]))
                 + widen_i(apply_scalar_i(b[i], params.mix_b[i]));
             self.outbuf[i] = SampleFxP::saturating_from_num(mixed_32bits);

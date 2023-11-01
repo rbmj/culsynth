@@ -25,7 +25,7 @@ pub struct OscOutput<'a, Smp> {
 }
 
 /// A wrapper struct for passing parameters into the floating-point [Osc].
-/// 
+///
 /// Currently there is only one parameter, but it is wrapped for API consistency
 pub struct OscParams<'a, Smp> {
     pub shape: &'a [Smp],
@@ -33,7 +33,7 @@ pub struct OscParams<'a, Smp> {
 
 impl<'a, Smp> OscParams<'a, Smp> {
     /// The length of the input parameters.
-    /// 
+    ///
     /// As shape is the only parameter, this is the same as `.shape.len()`
     pub fn len(&self) -> usize {
         self.shape.len()
@@ -52,9 +52,9 @@ impl<Smp: Float> Osc<Smp> {
         }
     }
     /// Run the oscillator, using the given note signal and parameters.
-    /// 
+    ///
     /// `note` is formatted as a MIDI note number (floating point allowed for bends, etc.)
-    /// 
+    ///
     /// Note: The output slices from this function may be shorter than the
     /// input slices.  Callers must check the number of returned samples and
     /// copy them into their own output buffers before calling this function
@@ -116,8 +116,7 @@ impl<Smp: Float> Osc<Smp> {
             self.phase = old_phase + phase_per_smp_adj;
             // make sure we calculate the correct new phase on transitions for assymmetric waves:
             // check if we've crossed from negative to positive phase
-            if old_phase < Smp::ZERO && self.phase > Smp::ZERO && shp != Smp::ZERO
-            {
+            if old_phase < Smp::ZERO && self.phase > Smp::ZERO && shp != Smp::ZERO {
                 // need to multiply residual phase i.e. (phase - 0) by (1+k)/(1-k)
                 // where k is the shape, so no work required if shape is 0
                 self.phase = self.phase * (Smp::ONE + shp) / (Smp::ONE + shp);
@@ -152,7 +151,7 @@ impl<Smp: Float> Default for Osc<Smp> {
 }
 
 /// A struct wrapping the output of a fixed point oscillator (see [OscFxP])
-/// 
+///
 /// All signals are in phase with each other.
 pub struct OscOutputFxP<'a> {
     /// Sine wave output
@@ -198,9 +197,9 @@ impl OscFxP {
         }
     }
     /// Generate waves based on the `note` control signal and parameters.
-    /// 
+    ///
     /// See the definition of [NoteFxP] for further information.
-    /// 
+    ///
     /// Note: The output slice from this function may be shorter than the
     /// input slices.  Callers must check the number of returned samples and
     /// copy them into their own output buffers before calling this function
@@ -261,22 +260,20 @@ impl OscFxP {
             let old_phase = self.phase;
             self.phase += phase_per_smp_adj;
             // check if we've crossed from negative to positive phase
-            if 
-                old_phase < PhaseFxP::ZERO
+            if old_phase < PhaseFxP::ZERO
                 && self.phase > PhaseFxP::ZERO
                 && shape[i] != ScalarFxP::ZERO
             {
                 // need to multiply residual phase i.e. (phase - 0) by (1+k)/(1-k)
                 // where k is the shape, so no work required if shape is 0
                 let scaled = fixedmath::scale_fixedfloat(
-                    fixedmath::U4F28::from_num(self.phase), 
-                    one_over_one_minus_x(shape[i])
+                    fixedmath::U4F28::from_num(self.phase),
+                    one_over_one_minus_x(shape[i]),
                 );
-                let one_plus_shape = fixedmath::U1F15::from_num(clip_shape(shape[i]))
-                    + fixedmath::U1F15::ONE;
-                self.phase = PhaseFxP::from_num(
-                    fixedmath::scale_fixedfloat(scaled, one_plus_shape)
-                );
+                let one_plus_shape =
+                    fixedmath::U1F15::from_num(clip_shape(shape[i])) + fixedmath::U1F15::ONE;
+                self.phase =
+                    PhaseFxP::from_num(fixedmath::scale_fixedfloat(scaled, one_plus_shape));
             }
             // Check if we've crossed from positive phase back to negative:
             if self.phase >= PhaseFxP::PI {
@@ -286,8 +283,8 @@ impl OscFxP {
                 } else {
                     // if assymmetric we have to multiply residual phase i.e. phase - pi
                     // by (1-k)/(1+k) where k is the shape:
-                    let one_minus_shape = (ScalarFxP::MAX - clip_shape(shape[i]))
-                        + ScalarFxP::DELTA;
+                    let one_minus_shape =
+                        (ScalarFxP::MAX - clip_shape(shape[i])) + ScalarFxP::DELTA;
                     // scaled = residual_phase * (1-k)
                     let scaled = fixedmath::scale_fixedfloat(
                         fixedmath::U4F28::from_num(self.phase - PhaseFxP::PI),
@@ -295,8 +292,7 @@ impl OscFxP {
                     );
                     // new change in phase = scaled * 1/(1 + k)
                     let (x, s) = fixedmath::one_over_one_plus_highacc(clip_shape(shape[i]));
-                    let delta = fixedmath::scale_fixedfloat(scaled, x)
-                        .unwrapped_shr(s);
+                    let delta = fixedmath::scale_fixedfloat(scaled, x).unwrapped_shr(s);
                     // add new change in phase to our baseline, -pi:
                     self.phase = PhaseFxP::from_num(delta) - PhaseFxP::PI;
                 }
@@ -329,7 +325,9 @@ fn clip_shape(x: ScalarFxP) -> ScalarFxP {
 fn one_over_one_minus_x(x: ScalarFxP) -> USampleFxP {
     let x_bits = clip_shape(x).to_bits();
     // Provide a local function alias for brevity:
-    const fn lit(x: &str) -> USampleFxP { USampleFxP::lit(x) }
+    const fn lit(x: &str) -> USampleFxP {
+        USampleFxP::lit(x)
+    }
     // Table generated with python:
     //
     // table = [1/(1-(x/256.0)) for x in range(0,256)][:0xF1]

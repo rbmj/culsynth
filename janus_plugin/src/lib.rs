@@ -1,7 +1,6 @@
 //! This contains all the code required to generate the actual plugins using the `nih-plug`
 //! framework.  Most of GUI code is in the [editor] module.
 
-
 use nih_plug::prelude::*;
 use nih_plug_egui::EguiState;
 use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
@@ -164,7 +163,7 @@ impl EnvPluginParams {
 /// Holds all of the plugin parameters
 #[derive(Params)]
 pub struct JanusParams {
-    /// The editor state, saved together with the parameter state so the 
+    /// The editor state, saved together with the parameter state so the
     /// custom scaling can be restored.
     #[persist = "editor-state"]
     editor_state: Arc<EguiState>,

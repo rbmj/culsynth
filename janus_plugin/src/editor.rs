@@ -1,4 +1,4 @@
-use crate::{JanusParams, EnvPluginParams, FiltPluginParams, OscPluginParams, RingModPluginParams};
+use crate::{EnvPluginParams, FiltPluginParams, JanusParams, OscPluginParams, RingModPluginParams};
 use egui::widgets;
 use egui::Context;
 use nih_plug::prelude::*;
@@ -76,7 +76,6 @@ impl PluginWidget for RingModPluginParams {
                 ui.label("Osc 1");
                 ui.label("Osc 2");
                 ui.label("Ring");
-                
             });
         });
     }

@@ -134,11 +134,7 @@ impl RingModParamBuffer {
         if self.len() >= sz as usize {
             return;
         }
-        for buf in [
-            &mut self.mix_a,
-            &mut self.mix_b,
-            &mut self.mix_mod,
-        ] {
+        for buf in [&mut self.mix_a, &mut self.mix_b, &mut self.mix_mod] {
             buf.resize(sz as usize, 0f32);
         }
         for buf in [

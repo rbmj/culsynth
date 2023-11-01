@@ -16,7 +16,7 @@ enum EnvState {
 /// for the range of the parameters than allow for precise timing.  If precise
 /// timing is desired, the data displayed to the user can be refined on the UI
 /// side.
-/// 
+///
 /// TODO:  Determine formula for converting to a precise rise/fall time
 pub struct EnvParams<'a, Smp> {
     /// The attack (rise to peak) time of the envelope, in seconds.
@@ -71,7 +71,7 @@ impl<Smp: Float> Env<Smp> {
     }
     /// Process the gate input and return an envelope signal according to the ADSR
     /// parameters passed into the function.
-    /// 
+    ///
     /// Note: The output slice from this function may be shorter than the
     /// input slices.  Callers must check the number of returned samples and
     /// copy them into their own output buffers before calling this function
@@ -131,7 +131,7 @@ impl<Smp: Float> Default for Env<Smp> {
 /// for the range of the parameters than allow for precise timing.  If precise
 /// timing is desired, the data displayed to the user can be refined on the UI
 /// side.
-/// 
+///
 /// TODO:  Determine formula for converting to a precise rise/fall time
 pub struct EnvParamsFxP<'a> {
     /// The attack (rise) time of the envelope, in seconds, as a fixed point number
@@ -192,7 +192,7 @@ impl EnvFxP {
     }
     /// Process the gate input and return an envelope signal according to the ADSR
     /// parameters passed into the function.
-    /// 
+    ///
     /// Note: The output slice from this function may be shorter than the
     /// input slices.  Callers must check the number of returned samples and
     /// copy them into their own output buffers before calling this function
@@ -220,20 +220,17 @@ impl EnvFxP {
             } else if self.state == EnvState::Attack && self.last > Self::ATTACK_THRESHOLD {
                 self.state = EnvState::Decay;
             }
-            let rise =
-                if self.state == EnvState::Attack {
-                    attack[i]
-                } else if self.state == EnvState::Decay {
-                    self.setpoint = std::cmp::max(
-                        fixedmath::I3F29::from_num(
-                            std::cmp::min(sustain[i], Self::SIGNAL_MAX)
-                        ),
-                        Self::SIGNAL_MIN,
-                    );
-                    decay[i]
-                } else {
-                    release[i]
-                };
+            let rise = if self.state == EnvState::Attack {
+                attack[i]
+            } else if self.state == EnvState::Decay {
+                self.setpoint = std::cmp::max(
+                    fixedmath::I3F29::from_num(std::cmp::min(sustain[i], Self::SIGNAL_MAX)),
+                    Self::SIGNAL_MIN,
+                );
+                decay[i]
+            } else {
+                release[i]
+            };
             // This is equivalen to saying rise time = 4 time constants...
             let sr = fixedmath::U16F0::from_bits(SAMPLE_RATE >> 1);
             let k = rise.wide_mul(sr);

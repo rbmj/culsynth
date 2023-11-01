@@ -19,13 +19,13 @@ pub trait VoiceAllocator: Send {
     fn note_on(&mut self, n: u8, v: u8);
     /// For the sample at the current index (see [VoiceAllocator::sample_tick]),
     /// process a 'note off' event with MIDI note number `n` and velocity `v`
-    /// 
+    ///
     /// Note:  Most implementations will ignore note off velocity
     fn note_off(&mut self, n: u8, v: u8);
     /// Process all of the note on/off events within the buffer, taking the
     /// parameter buffers as input and returning a reference to an internal
     /// buffer holding the corresponding audio sample output
-    /// 
+    ///
     /// After calling this function, the internal index will be reset back
     /// to the beginning of the buffer (see [VoiceAllocator::sample_tick]).
     fn process(

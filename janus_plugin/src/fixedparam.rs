@@ -44,7 +44,7 @@ fn fixed_s2v_freq(s: &str) -> Option<i32> {
 }
 
 /// Helper function to create a new `nih_plug::IntParam` for a fixed point number
-/// 
+///
 /// The integer value will be the raw fixed point representation (i.e. 0 -> 2^16 - 1),
 /// but the string representation in the DAW/GUI will be the logical value.
 pub fn new_fixed_param<F: Fixed>(name: impl Into<String>, default: F) -> IntParam

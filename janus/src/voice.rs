@@ -37,7 +37,7 @@ impl VoiceFxP {
     /// Process the note/gate inputs, passing the parameters to the relevant
     /// components of the voice unit, and return a reference to an internal
     /// buffer containing the output sample data.
-    /// 
+    ///
     /// Note: The output slice from this function may be shorter than the
     /// input slices.  Callers must check the number of returned samples and
     /// copy them into their own output buffers before calling this function

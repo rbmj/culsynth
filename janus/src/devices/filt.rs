@@ -54,7 +54,7 @@ impl<Smp: Float> Filt<Smp> {
         Smp::tan(Smp::PI() * f_c / Smp::from(SAMPLE_RATE).unwrap())
     }
     /// Run the filter on the provided input and parameters.
-    /// 
+    ///
     /// Note: The output slice from this function may be shorter than the
     /// input slices.  Callers must check the number of returned samples and
     /// copy them into their own output buffers before calling this function
@@ -156,7 +156,7 @@ impl FiltFxP {
         fixedmath::tan_fixed(omega_d)
     }
     /// Run the filter on the provided input and parameters.
-    /// 
+    ///
     /// Note: The output slice from this function may be shorter than the
     /// input slices.  Callers must check the number of returned samples and
     /// copy them into their own output buffers before calling this function
