@@ -1,4 +1,5 @@
 use super::*;
+use fixedmath::apply_scalar_u;
 
 pub struct ModFiltParams<'a, Smp> {
     pub env_mod: &'a [Smp],
@@ -132,9 +133,8 @@ impl ModFiltFxP {
         for i in 0..numsamples {
             // reinterpret the env_mod as a number from 0 to NOTE_MAX instead of 0 to 1,
             // then multiply by the envelope output:
-            let envmod =
-                NoteFxP::from_num(NoteFxP::from_bits(params.env_mod[i].to_bits()).wide_mul(env[i]));
-            let kbdmod = NoteFxP::from_num(note[i].wide_mul(params.kbd[i]));
+            let envmod = apply_scalar_u(NoteFxP::from_bits(params.env_mod[i].to_bits()), env[i]);
+            let kbdmod = apply_scalar_u(note[i], params.kbd[i]);
             // TODO: reuse outbuf?  Would require some _ugly_ casts to get around the type system...
             self.modbuf[i] = params.cutoff[i]
                 .saturating_add(envmod)

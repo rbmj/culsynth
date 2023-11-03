@@ -289,6 +289,8 @@ pub fn exp_fixed(x: I3F13) -> U8F24 {
     let index = (x_int + 4) as usize;
     let frac_exp = exp_fixed_small(I0F16::from_num(x.frac() - I3F13::lit("0.5")));
     let (multiplier, right, left) = LOOKUP_TABLE[index];
+    // do a 16 bit widening multiply, then we'll store in a 64 bit fixed point number to make
+    // sure we retain all precision on shifting.
     let retval = U8F56::from_num(multiplier.wide_mul(frac_exp));
     U8F24::from_num(retval.unwrapped_shl(left).unwrapped_shr(right))
 }
@@ -310,7 +312,7 @@ pub fn midi_note_to_frequency(note: Note) -> Frequency {
     //this change in representation brings us to 1.0 = 16 semitones
     //need to multiply by (4/3) in order to scale it to 1.0=12 semitones
     //we also need to multiply by ln(2) so we'll do that in one step
-    let power = I3F13::from_num(note_xform.wide_mul_unsigned(FRAC_4LN2_3));
+    let power = apply_scalar_i(note_xform, FRAC_4LN2_3);
     //Our note numbers are centered about E4, so that's our f0:
     FREQ_E4 * U14F18::from_num(exp_fixed(power))
 }

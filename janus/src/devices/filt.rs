@@ -150,7 +150,7 @@ impl FiltFxP {
     fn prewarped_gain(n: NoteFxP) -> fixedmath::U1F15 {
         let f_c = fixedmath::U14F2::from_num(fixedmath::midi_note_to_frequency(n));
         let omega_d = ScalarFxP::from_num(
-            f_c.wide_mul(ScalarFxP::from_num(FRAC_4096_2PI_SR))
+            f_c.wide_mul(FRAC_4096_2PI_SR)
                 .unwrapped_shr(13),
         );
         fixedmath::tan_fixed(omega_d)

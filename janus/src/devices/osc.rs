@@ -1,4 +1,5 @@
 use super::*;
+use fixedmath::apply_scalar_i;
 
 type PhaseFxP = fixedmath::I4F28;
 
@@ -212,7 +213,7 @@ impl OscFxP {
         for i in 0..numsamples {
             //generate waveforms (piecewise defined)
             let frac_2phase_pi =
-                SampleFxP::from_num(SampleFxP::from_num(self.phase).wide_mul_unsigned(FRAC_2_PI));
+                apply_scalar_i(SampleFxP::from_num(self.phase), FRAC_2_PI);
             //Sawtooth wave does not have to be piecewise-defined
             self.sawbuf[i] = frac_2phase_pi.unwrapped_shr(1);
             //All other functions are piecewise-defined:
@@ -245,12 +246,20 @@ impl OscFxP {
                     self.tribuf[i] = SampleFxP::lit("2") - frac_2phase_pi;
                 }
             }
-            //calculate the next phase
-            let phase_per_sample = fixedmath::U4F28::from_num(
-                fixedmath::midi_note_to_frequency(note[i])
-                    .wide_mul(FRAC_4096_2PI_SR)
-                    .unwrapped_shr(12),
+            // we need to divide by 2^12 here, but we're increasing the fractional part by 10
+            // bits so we'll only actually shift by 2 places and then use a bitcast for the
+            // remaining logical 10 bits:
+            let phase_per_sample = fixedmath::U4F28::from_bits(
+                fixedmath::scale_fixedfloat(
+                    fixedmath::midi_note_to_frequency(note[i]),
+                    FRAC_4096_2PI_SR,
+                ).unwrapped_shr(2).to_bits()
             );
+            //let phase_per_sample = fixedmath::U4F28::from_num(
+            //    fixedmath::midi_note_to_frequency(note[i])
+            //        .wide_mul(FRAC_4096_2PI_SR)
+            //        .unwrapped_shr(12),
+            //);
             let phase_per_smp_adj = PhaseFxP::from_num(if self.phase < PhaseFxP::ZERO {
                 let (x, s) = fixedmath::one_over_one_plus_highacc(clip_shape(shape[i]));
                 fixedmath::scale_fixedfloat(phase_per_sample, x).unwrapped_shr(s)

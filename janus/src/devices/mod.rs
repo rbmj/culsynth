@@ -15,7 +15,8 @@ use super::STATIC_BUFFER_SIZE;
 
 //TODO: Support multiple sample rates
 const SAMPLE_RATE: u16 = 44100;
-const FRAC_4096_2PI_SR: fixedmath::U0F32 = fixedmath::U0F32::lit("0x0.9565925d");
+//const FRAC_4096_2PI_SR: fixedmath::U0F32 = fixedmath::U0F32::lit("0x0.9565925d");
+const FRAC_4096_2PI_SR: ScalarFxP = ScalarFxP::lit("0x0.9566");
 
 /// Types must implement this trait to instantiate any of the generic devices
 /// in this module.  Implementations are provided for `f32` and `f64`.

@@ -30,10 +30,23 @@ pub struct JanusPlugin {
     env_amp_params: EnvParamBuffer,
     env_filt_params: EnvParamBuffer,
 
+    /// Used by the GUI thread to send MIDI events to the audio thread when,
+    /// for example, a user presses a key on a on screen virtual keyboard.
+    ///
+    /// The MIDI event is packaged as an i8, where a positive integer indicates
+    /// a "Note On" for that note number, and a negative integer indicates a
+    /// "Note Off" at the absolute value of the integer
     tx: SyncSender<i8>,
+    /// Used by the audio thread to receive MIDI events from the GUI thread.
+    ///
+    /// The MIDI event is packaged as an i8, where a positive integer indicates
+    /// a "Note On" for that note number, and a negative integer indicates a
+    /// "Note Off" at the absolute value of the integer
     rx: Receiver<i8>,
 
+    /// The sound engine currently in use to process audio for the synth.
     voices: Option<Box<dyn VoiceAllocator>>,
+    /// The maximum number of samples we will be expected to process
     max_buffer_size: usize,
 }
 

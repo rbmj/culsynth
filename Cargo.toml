@@ -6,3 +6,6 @@ members = [
     "janus_plugin",
     "janus-playground"
 ]
+
+[profile.dev]
+opt-level = 1
