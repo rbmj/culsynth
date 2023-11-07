@@ -6,6 +6,7 @@ pub struct MixOsc<Smp> {
 }
 
 pub struct MixOscParams<'a, Smp> {
+    pub tune: &'a [Smp],
     pub shape: &'a [Smp],
     pub sin: &'a [Smp],
     pub sq: &'a [Smp],
@@ -16,6 +17,7 @@ pub struct MixOscParams<'a, Smp> {
 impl<'a, Smp> MixOscParams<'a, Smp> {
     pub fn len(&self) -> usize {
         *[
+            self.tune.len(),
             self.shape.len(),
             self.sin.len(),
             self.sq.len(),
@@ -24,7 +26,7 @@ impl<'a, Smp> MixOscParams<'a, Smp> {
         ]
         .iter()
         .min()
-        .unwrap()
+        .unwrap_or(&0)
     }
 }
 
@@ -35,13 +37,18 @@ impl<Smp: Float> MixOsc<Smp> {
             osc: Default::default(),
         }
     }
-    pub fn process(&mut self, note: &[Smp], params: MixOscParams<Smp>) -> &[Smp] {
-        let numsamples = std::cmp::min(STATIC_BUFFER_SIZE, std::cmp::min(note.len(), params.len()));
+    pub fn process(&mut self, note: &[Smp], params: MixOscParams<Smp>, sync: OscSync<Smp>) -> &[Smp] {
+        let numsamples = std::cmp::min(
+            std::cmp::min(STATIC_BUFFER_SIZE, sync.len().unwrap_or(STATIC_BUFFER_SIZE)),
+            std::cmp::min(note.len(), params.len()),
+        );
         let osc_out = self.osc.process(
             &note[0..numsamples],
             OscParams {
+                tune: params.tune,
                 shape: params.shape,
             },
+            sync,
         );
         for i in 0..numsamples {
             self.outbuf[i] = (osc_out.sin[i] * params.sin[i])
@@ -65,6 +72,7 @@ pub struct MixOscFxP {
 }
 
 pub struct MixOscParamsFxP<'a> {
+    pub tune: &'a [SignedNoteFxP],
     pub shape: &'a [ScalarFxP],
     pub sin: &'a [ScalarFxP],
     pub sq: &'a [ScalarFxP],
@@ -75,6 +83,7 @@ pub struct MixOscParamsFxP<'a> {
 impl<'a> MixOscParamsFxP<'a> {
     pub fn len(&self) -> usize {
         *[
+            self.tune.len(),
             self.shape.len(),
             self.sin.len(),
             self.sq.len(),
@@ -94,13 +103,18 @@ impl MixOscFxP {
             osc: Default::default(),
         }
     }
-    pub fn process(&mut self, note: &[NoteFxP], params: MixOscParamsFxP) -> &[SampleFxP] {
-        let numsamples = std::cmp::min(STATIC_BUFFER_SIZE, std::cmp::min(note.len(), params.len()));
+    pub fn process(&mut self, note: &[NoteFxP], params: MixOscParamsFxP, sync: OscSync<ScalarFxP>) -> &[SampleFxP] {
+        let numsamples = std::cmp::min(
+            std::cmp::min(STATIC_BUFFER_SIZE, sync.len().unwrap_or(STATIC_BUFFER_SIZE)),
+            std::cmp::min(note.len(), params.len()),
+        );
         let osc_out = self.osc.process(
             &note[0..numsamples],
             OscParamsFxP {
+                tune: params.tune,
                 shape: params.shape,
             },
+            sync,
         );
         for i in 0..numsamples {
             let sin = osc_out.sin[i].wide_mul_unsigned(params.sin[i]);

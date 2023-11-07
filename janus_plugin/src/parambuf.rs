@@ -3,7 +3,7 @@ use janus::devices::{
     EnvParams, EnvParamsFxP, MixOscParams, MixOscParamsFxP, ModFiltParams, ModFiltParamsFxP,
     RingModParams, RingModParamsFxP,
 };
-use janus::{EnvParamFxP, NoteFxP, ScalarFxP};
+use janus::{EnvParamFxP, NoteFxP, ScalarFxP, SignedNoteFxP};
 
 #[derive(Default)]
 pub struct EnvParamBuffer {
@@ -201,12 +201,54 @@ impl RingModParamBuffer {
 }
 
 #[derive(Default)]
+pub struct GlobalParamBuffer {
+    sync: Vec<f32>,
+    sync_fxp: Vec<ScalarFxP>,
+}
+
+impl GlobalParamBuffer {
+    pub fn new() -> Self {
+        Self::default()
+    }
+    pub fn len(&self) -> usize {
+        self.sync.len()
+    }
+    pub fn allocate(&mut self, sz: u32) {
+        if self.len() >= sz as usize {
+            return;
+        }
+        for buf in [&mut self.sync] {
+            buf.resize(sz as usize, 0f32);
+        }
+        for buf in [&mut self.sync_fxp] {
+            buf.resize(sz as usize, ScalarFxP::ZERO);
+        }
+    }
+    pub fn conv_float(&mut self) {
+        for i in 0..self.len() {
+            self.sync[i] = self.sync_fxp[i].to_num();
+        }
+    }
+    pub fn sync(&mut self, base: usize, end: usize) -> &mut [ScalarFxP] {
+        &mut self.sync_fxp[base..end]
+    }
+    pub fn sync_float(&mut self, base: usize, end: usize) -> &mut [f32] {
+        &mut self.sync[base..end]
+    }
+    pub fn update_index(&mut self, idx: usize, osc_sync: &nih_plug::params::BoolParam) {
+        self.sync_fxp[idx] = if osc_sync.value() { ScalarFxP::DELTA } else { ScalarFxP::ZERO };
+    }
+}
+
+#[derive(Default)]
 pub struct OscParamBuffer {
+    tune: Vec<f32>,
     shape: Vec<f32>,
     sin: Vec<f32>,
     sq: Vec<f32>,
     tri: Vec<f32>,
     saw: Vec<f32>,
+    tune_fxp: Vec<SignedNoteFxP>,
     shape_fxp: Vec<ScalarFxP>,
     sin_fxp: Vec<ScalarFxP>,
     sq_fxp: Vec<ScalarFxP>,
@@ -225,11 +267,13 @@ impl OscParamBuffer {
         if self.len() >= sz as usize {
             return;
         }
+        self.tune.resize(sz as usize, 0f32);
         self.shape.resize(sz as usize, 0f32);
         self.sin.resize(sz as usize, 0f32);
         self.sq.resize(sz as usize, 0f32);
         self.tri.resize(sz as usize, 0f32);
         self.saw.resize(sz as usize, 0f32);
+        self.tune_fxp.resize(sz as usize, SignedNoteFxP::ZERO);
         self.shape_fxp.resize(sz as usize, ScalarFxP::ZERO);
         self.sin_fxp.resize(sz as usize, ScalarFxP::ZERO);
         self.sq_fxp.resize(sz as usize, ScalarFxP::ZERO);
@@ -238,6 +282,7 @@ impl OscParamBuffer {
     }
     pub fn conv_float(&mut self) {
         for i in 0..self.len() {
+            self.tune[i] = self.tune_fxp[i].to_num();
             self.shape[i] = self.shape_fxp[i].to_num();
             self.sin[i] = self.sin_fxp[i].to_num();
             self.sq[i] = self.sq_fxp[i].to_num();
@@ -247,6 +292,7 @@ impl OscParamBuffer {
     }
     pub fn params_float(&self, base: usize, end: usize) -> MixOscParams<f32> {
         MixOscParams {
+            tune: &self.tune[base..end],
             shape: &self.shape[base..end],
             sin: &self.sin[base..end],
             sq: &self.sq[base..end],
@@ -256,12 +302,22 @@ impl OscParamBuffer {
     }
     pub fn params(&self, base: usize, end: usize) -> MixOscParamsFxP {
         MixOscParamsFxP {
+            tune: &self.tune_fxp[base..end],
             shape: &self.shape_fxp[base..end],
             sin: &self.sin_fxp[base..end],
             sq: &self.sq_fxp[base..end],
             tri: &self.tri_fxp[base..end],
             saw: &self.saw_fxp[base..end],
         }
+    }
+    pub fn tune(&self) -> &[SignedNoteFxP] {
+        self.tune_fxp.as_slice()
+    }
+    pub fn tune_mut(&mut self) -> &mut [SignedNoteFxP] {
+        self.tune_fxp.as_mut_slice()
+    }
+    pub fn tune_float(&self) -> &[f32] {
+        self.tune.as_slice()
     }
     pub fn shape(&self) -> &[ScalarFxP] {
         self.shape_fxp.as_slice()
@@ -314,6 +370,9 @@ impl OscParamBuffer {
         self.sq_fxp[idx] = ScalarFxP::from_bits(p.sq.smoothed.next() as u16);
         self.tri_fxp[idx] = ScalarFxP::from_bits(p.tri.smoothed.next() as u16);
         self.saw_fxp[idx] = ScalarFxP::from_bits(p.saw.smoothed.next() as u16);
+        self.tune_fxp[idx] = SignedNoteFxP::from_bits(
+            ((p.course.smoothed.next() << 9) + p.fine.smoothed.next()) as i16
+        )
     }
 }
 

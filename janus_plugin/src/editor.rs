@@ -46,15 +46,17 @@ impl PluginWidget for OscPluginParams {
         ui.vertical(|ui| {
             ui.label(label);
             egui::Grid::new(label).show(ui, |ui| {
+                ui.add(param_slider(setter, &self.course).vertical());
+                ui.add(param_slider(setter, &self.fine).vertical());
                 ui.add(param_slider(setter, &self.shape).vertical());
-                //ui.add(param_slider(setter, &self.tune))
                 ui.add(param_slider(setter, &self.sin).vertical());
                 ui.add(param_slider(setter, &self.tri).vertical());
                 ui.add(param_slider(setter, &self.sq).vertical());
                 ui.add(param_slider(setter, &self.saw).vertical());
                 ui.end_row();
+                ui.label("Course");
+                ui.label("Fine");
                 ui.label("Shape");
-                //ui.label("Tune")
                 ui.label("Sine");
                 ui.label("Tri");
                 ui.label("Square");
@@ -379,15 +381,21 @@ impl JanusEditor {
                     self.params.osc1.draw_on(ui, setter, "Oscillator 1");
                     ui.separator();
                     self.params.osc2.draw_on(ui, setter, "Oscillator 2");
+                    let sync_on = self.params.osc_sync.value();
+                    if ui.selectable_label(sync_on, "Osc Sync").clicked() {
+                        setter.begin_set_parameter(&self.params.osc_sync);
+                        setter.set_parameter(&self.params.osc_sync, !sync_on);
+                        setter.end_set_parameter(&self.params.osc_sync);
+                    }
                     ui.separator();
                     self.params.ringmod.draw_on(ui, setter, "Mixer/Ring Modulator");
-                    ui.separator();
-                    self.params.filt.draw_on(ui, setter, "Filter");
                 });
                 ui.horizontal(|ui| {
-                    self.params.env_vca.draw_on(ui, setter, "VCA Envelope");
+                    self.params.filt.draw_on(ui, setter, "Filter");
                     ui.separator();
                     self.params.env_vcf.draw_on(ui, setter, "Filter Envelope");
+                    ui.separator();
+                    self.params.env_vca.draw_on(ui, setter, "Amplifier Envelope");
                 });
             });
         });

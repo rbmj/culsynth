@@ -2,7 +2,7 @@
 //! single voice unit for a basic subtractive synthesizer.
 
 use super::{BufferT, STATIC_BUFFER_SIZE};
-use super::{NoteFxP, SampleFxP};
+use super::{NoteFxP, SampleFxP, ScalarFxP};
 use crate::devices::*;
 
 /// This struct encapsulates a single voice unit, containing a single oscillator,
@@ -46,6 +46,7 @@ impl VoiceFxP {
         &mut self,
         note: &[NoteFxP],
         gate: &[SampleFxP],
+        sync: &mut [ScalarFxP],
         osc1_p: MixOscParamsFxP,
         osc2_p: MixOscParamsFxP,
         ring_p: RingModParamsFxP,
@@ -56,6 +57,7 @@ impl VoiceFxP {
         let numsamples = *[
             note.len(),
             gate.len(),
+            sync.len(),
             osc1_p.len(),
             osc2_p.len(),
             ring_p.len(),
@@ -66,8 +68,9 @@ impl VoiceFxP {
         .iter()
         .min()
         .unwrap();
-        let osc1_out = self.osc1.process(&note[0..numsamples], osc1_p);
-        let osc2_out = self.osc2.process(&note[0..numsamples], osc2_p);
+        //
+        let osc1_out = self.osc1.process(&note[0..numsamples], osc1_p, OscSync::Master(sync));
+        let osc2_out = self.osc2.process(&note[0..numsamples], osc2_p, OscSync::Slave(sync));
         let ring_mod_out = self.ringmod.process(osc1_out, osc2_out, ring_p);
         let filt_env_out = self.env_filt.process(&gate[0..numsamples], filt_env_p);
         let filt_out = self.filt.process(ring_mod_out, filt_env_out, note, filt_p);
@@ -75,8 +78,7 @@ impl VoiceFxP {
         for i in 0..vca_env_out.len() {
             self.vcabuf[i] = SampleFxP::from_num(vca_env_out[i]);
         }
-        self.vca
-            .process(filt_out, &self.vcabuf[0..vca_env_out.len()])
+        self.vca.process(filt_out, &self.vcabuf[0..vca_env_out.len()])
     }
 }
 

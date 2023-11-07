@@ -2,7 +2,8 @@
 //! and having it "decide" how to handle the notes based on the polyphony mode,
 //! selected logic form (fixed, float32, float64), etc.
 
-use crate::parambuf::{EnvParamBuffer, FiltParamBuffer, OscParamBuffer, RingModParamBuffer};
+use crate::parambuf::{EnvParamBuffer, FiltParamBuffer, GlobalParamBuffer,
+    OscParamBuffer, RingModParamBuffer};
 use janus::{NoteFxP, SampleFxP, VoiceFxP};
 
 /// This trait is the main abstraction for this module - the plugin may send it
@@ -30,6 +31,7 @@ pub trait VoiceAllocator: Send {
     /// to the beginning of the buffer (see [VoiceAllocator::sample_tick]).
     fn process(
         &mut self,
+        glob_p: &mut GlobalParamBuffer,
         o1p: &OscParamBuffer,
         o2p: &OscParamBuffer,
         rp: &RingModParamBuffer,
@@ -84,6 +86,7 @@ impl VoiceAllocator for MonoSynthFxP {
     }
     fn process(
         &mut self,
+        glob_p: &mut GlobalParamBuffer,
         osc1_p: &OscParamBuffer,
         osc2_p: &OscParamBuffer,
         ring_p: &RingModParamBuffer,
@@ -96,6 +99,7 @@ impl VoiceAllocator for MonoSynthFxP {
             let thisiter = self.voice.process(
                 &self.notebuf[processed..self.index],
                 &self.gatebuf[processed..self.index],
+                glob_p.sync(processed, self.index),
                 osc1_p.params(processed, self.index),
                 osc2_p.params(processed, self.index),
                 ring_p.params(processed, self.index),

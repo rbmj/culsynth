@@ -26,6 +26,7 @@ pub type USample = U4F12;
 /// 9 fractional bits provides a resolution of about 0.2 cents, but most of the
 /// functions in this library will only be accurate to about 0.5-1 cent.
 pub type Note = U7F9;
+pub type SignedNote = I7F9;
 /// A unsigned 32 bit fixed point number representing a frequency in Hz.
 /// This uses 14 integral bits and 18 fractional bits
 pub type Frequency = U14F18; // 14 bits will hold the highest MIDI freq

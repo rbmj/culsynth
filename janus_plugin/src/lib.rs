@@ -14,7 +14,7 @@ mod fixedparam;
 use fixedparam::{new_fixed_param, new_fixed_param_freq, new_fixed_param_percent};
 
 pub mod parambuf;
-use parambuf::{EnvParamBuffer, FiltParamBuffer, OscParamBuffer, RingModParamBuffer};
+use parambuf::{EnvParamBuffer, FiltParamBuffer, OscParamBuffer, RingModParamBuffer, GlobalParamBuffer};
 
 mod voicealloc;
 use voicealloc::{MonoSynthFxP, VoiceAllocator};
@@ -23,6 +23,7 @@ use voicealloc::{MonoSynthFxP, VoiceAllocator};
 pub struct JanusPlugin {
     params: Arc<JanusParams>,
 
+    glob_params: GlobalParamBuffer,
     osc1_params: OscParamBuffer,
     osc2_params: OscParamBuffer,
     ringmod_params: RingModParamBuffer,
@@ -53,6 +54,12 @@ pub struct JanusPlugin {
 /// Contains all of the parameters for an oscillator within the plugin
 #[derive(Params)]
 pub struct OscPluginParams {
+    #[id = "course"]
+    pub course: IntParam,
+
+    #[id = "fine"]
+    pub fine: IntParam,
+
     #[id = "shape"]
     pub shape: IntParam,
 
@@ -72,6 +79,8 @@ pub struct OscPluginParams {
 impl Default for OscPluginParams {
     fn default() -> Self {
         Self {
+            course: IntParam::new("Course", 0, IntRange::Linear{ min: -36, max: 36}),
+            fine: IntParam::new("Fine", 0, IntRange::Linear{ min: -512, max: 512}),
             shape: new_fixed_param("Shape", ScalarFxP::ZERO),
             sin: new_fixed_param_percent("Sin", ScalarFxP::ZERO),
             saw: new_fixed_param_percent("Saw", ScalarFxP::MAX),
@@ -181,6 +190,9 @@ pub struct JanusParams {
     #[persist = "editor-state"]
     editor_state: Arc<EguiState>,
 
+    #[id = "osync"]
+    pub osc_sync: BoolParam,
+
     #[nested(id_prefix = "o1", group = "osc1")]
     pub osc1: OscPluginParams,
 
@@ -205,6 +217,7 @@ impl Default for JanusPlugin {
         let (tx, rx) = sync_channel::<i8>(128);
         Self {
             params: Arc::new(JanusParams::default()),
+            glob_params: Default::default(),
             osc1_params: Default::default(),
             osc2_params: Default::default(),
             ringmod_params: Default::default(),
@@ -223,6 +236,7 @@ impl Default for JanusParams {
     fn default() -> Self {
         Self {
             editor_state: editor::default_state(),
+            osc_sync: BoolParam::new("Oscillator Sync", false),
             osc1: Default::default(),
             osc2: Default::default(),
             ringmod: Default::default(),
@@ -274,6 +288,7 @@ impl Plugin for JanusPlugin {
     ) -> bool {
         // TODO
         let bufsz = buffer_config.max_buffer_size;
+        self.glob_params.allocate(bufsz);
         self.osc1_params.allocate(bufsz);
         self.osc2_params.allocate(bufsz);
         self.ringmod_params.allocate(bufsz);
@@ -304,6 +319,7 @@ impl Plugin for JanusPlugin {
         assert!(buffer.samples() <= self.max_buffer_size);
         let mut next_event = context.next_event();
         for (sample_id, _channel_samples) in buffer.iter_samples().enumerate() {
+            self.glob_params.update_index(index, &self.params.osc_sync);
             self.osc1_params.update_index(index, &self.params.osc1);
             self.osc2_params.update_index(index, &self.params.osc2);
             self.ringmod_params.update_index(index, &self.params.ringmod);
@@ -338,6 +354,7 @@ impl Plugin for JanusPlugin {
             self.env_filt_params.conv_float();
         }
         let output = voices.process(
+            &mut self.glob_params,
             &self.osc1_params,
             &self.osc2_params,
             &self.ringmod_params,

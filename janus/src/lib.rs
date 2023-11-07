@@ -38,6 +38,7 @@ type BufferT<T> = [T; STATIC_BUFFER_SIZE];
 
 pub use fixedmath::midi_note_to_frequency;
 pub use fixedmath::Note as NoteFxP;
+pub use fixedmath::SignedNote as SignedNoteFxP;
 pub use fixedmath::Sample as SampleFxP;
 pub use fixedmath::Scalar as ScalarFxP;
 pub use fixedmath::USample as USampleFxP;

@@ -3,6 +3,22 @@ use fixedmath::apply_scalar_i;
 
 type PhaseFxP = fixedmath::I4F28;
 
+pub enum OscSync<'a, Smp> {
+    Off,
+    Master(&'a mut [Smp]),
+    Slave(&'a [Smp]),
+}
+
+impl<'a, Smp> OscSync<'a, Smp> {
+    pub fn len(&self) -> Option<usize> {
+        match self {
+            OscSync::Off => None,
+            OscSync::Master(x) => Some(x.len()),
+            OscSync::Slave(x) => Some(x.len()),
+        }
+    }
+}
+
 /// A floating point Oscillator providing Sine, Square, Sawtooth, and Triangle outputs.
 pub struct Osc<Smp> {
     sinbuf: BufferT<Smp>,
@@ -29,6 +45,7 @@ pub struct OscOutput<'a, Smp> {
 ///
 /// Currently there is only one parameter, but it is wrapped for API consistency
 pub struct OscParams<'a, Smp> {
+    pub tune: &'a [Smp],
     pub shape: &'a [Smp],
 }
 
@@ -60,10 +77,17 @@ impl<Smp: Float> Osc<Smp> {
     /// input slices.  Callers must check the number of returned samples and
     /// copy them into their own output buffers before calling this function
     /// again to process the remainder of the data.
-    pub fn process(&mut self, note: &[Smp], params: OscParams<Smp>) -> OscOutput<Smp> {
+    pub fn process(&mut self, note: &[Smp], params: OscParams<Smp>, sync: OscSync<Smp>) -> OscOutput<Smp> {
+        let mut sync_arg = sync;
         let shape = params.shape;
-        let input_len = std::cmp::min(note.len(), shape.len());
-        let numsamples = std::cmp::min(input_len, STATIC_BUFFER_SIZE);
+        let tune = params.tune;
+        let numsamples = *[
+            note.len(),
+            shape.len(),
+            tune.len(),
+            sync_arg.len().unwrap_or(STATIC_BUFFER_SIZE),
+            STATIC_BUFFER_SIZE
+        ].iter().min().unwrap_or(&0);
         // We don't have to split sin up piecewise but we'll do it for symmetry with
         // the fixed point implementation and to make it easy to switch to an
         // approximation if performance dictates
@@ -101,20 +125,52 @@ impl<Smp: Float> Osc<Smp> {
             }
             let sample_rate = Smp::from(SAMPLE_RATE).unwrap();
             //calculate the next phase
-            let phase_per_sample = midi_note_to_frequency(note[i]) * Smp::TAU() / sample_rate;
+            let phase_per_sample = midi_note_to_frequency(note[i] + tune[i]) * Smp::TAU() / sample_rate;
             let shape_clip = Smp::from(0.9375).unwrap();
             let shp = if shape[i] < shape_clip {
                 shape[i]
             } else {
                 shape_clip
             };
+            // Handle slave oscillator resetting phase if master crosses:
+            match sync_arg {
+                OscSync::Slave(syncbuf) => {
+                    if syncbuf[i] != Smp::ZERO {
+                        self.phase = Smp::ZERO;
+                    }
+                },
+                _ => {}
+            }
             let phase_per_smp_adj = if self.phase < Smp::zero() {
                 phase_per_sample * (Smp::ONE / (Smp::ONE + shp))
             } else {
                 phase_per_sample * (Smp::ONE / (Smp::ONE - shp))
             };
             let old_phase = self.phase;
-            self.phase = old_phase + phase_per_smp_adj;
+            match sync_arg {
+                OscSync::Off => {
+                    self.phase = self.phase + phase_per_smp_adj;
+                },
+                OscSync::Master(ref mut syncbuf) => {
+                    self.phase = self.phase + phase_per_smp_adj;
+                    // calculate what time in this sampling period the phase crossed zero:
+                    syncbuf[i] = if syncbuf[i] != Smp::ZERO
+                        && old_phase < Smp::ZERO 
+                        && self.phase >= Smp::ZERO
+                    {
+                        Smp::ONE - (self.phase / phase_per_smp_adj)
+                    } else {
+                        Smp::ZERO
+                    };
+                },
+                OscSync::Slave(syncbuf) => {
+                    self.phase = self.phase + if syncbuf[i] != Smp::ZERO {
+                        phase_per_smp_adj * (Smp::ONE - syncbuf[i])
+                    } else {
+                        phase_per_smp_adj
+                    };
+                }
+            }
             // make sure we calculate the correct new phase on transitions for assymmetric waves:
             // check if we've crossed from negative to positive phase
             if old_phase < Smp::ZERO && self.phase > Smp::ZERO && shp != Smp::ZERO {
@@ -168,6 +224,7 @@ pub struct OscOutputFxP<'a> {
 /// A wrapper struct for passing parameters to an [OscFxP].  Currently there
 /// is only one parameter, but it is wrapped for API consistency.
 pub struct OscParamsFxP<'a> {
+    pub tune: &'a [SignedNoteFxP],
     pub shape: &'a [ScalarFxP],
 }
 
@@ -205,10 +262,17 @@ impl OscFxP {
     /// input slices.  Callers must check the number of returned samples and
     /// copy them into their own output buffers before calling this function
     /// again to process the remainder of the data.
-    pub fn process(&mut self, note: &[NoteFxP], params: OscParamsFxP) -> OscOutputFxP {
+    pub fn process(&mut self, note: &[NoteFxP], params: OscParamsFxP, sync: OscSync<ScalarFxP>) -> OscOutputFxP {
         let shape = params.shape;
-        let input_len = std::cmp::min(note.len(), shape.len());
-        let numsamples = std::cmp::min(input_len, STATIC_BUFFER_SIZE);
+        let tune = params.tune;
+        let numsamples = *[
+            note.len(),
+            shape.len(),
+            tune.len(),
+            sync.len().unwrap_or(STATIC_BUFFER_SIZE),
+            STATIC_BUFFER_SIZE
+        ].iter().min().unwrap_or(&0);
+        let mut sync_arg = sync;
         const FRAC_2_PI: ScalarFxP = ScalarFxP::lit("0x0.a2fa");
         for i in 0..numsamples {
             //generate waveforms (piecewise defined)
@@ -251,23 +315,69 @@ impl OscFxP {
             // remaining logical 10 bits:
             let phase_per_sample = fixedmath::U4F28::from_bits(
                 fixedmath::scale_fixedfloat(
-                    fixedmath::midi_note_to_frequency(note[i]),
+                    fixedmath::midi_note_to_frequency(
+                        note[i].saturating_add_signed(tune[i])
+                    ),
                     FRAC_4096_2PI_SR,
                 ).unwrapped_shr(2).to_bits()
             );
-            //let phase_per_sample = fixedmath::U4F28::from_num(
-            //    fixedmath::midi_note_to_frequency(note[i])
-            //        .wide_mul(FRAC_4096_2PI_SR)
-            //        .unwrapped_shr(12),
-            //);
+            // Handle slave oscillator resetting phase if master crosses:
+            match sync_arg {
+                OscSync::Slave(syncbuf) => {
+                    if syncbuf[i] != ScalarFxP::ZERO {
+                        self.phase = PhaseFxP::ZERO;
+                    }
+                },
+                _ => {}
+            }
+            // Adjust phase per sample for the shape parameter:
             let phase_per_smp_adj = PhaseFxP::from_num(if self.phase < PhaseFxP::ZERO {
                 let (x, s) = fixedmath::one_over_one_plus_highacc(clip_shape(shape[i]));
                 fixedmath::scale_fixedfloat(phase_per_sample, x).unwrapped_shr(s)
             } else {
                 fixedmath::scale_fixedfloat(phase_per_sample, one_over_one_minus_x(shape[i]))
             });
+            // Advance the oscillator's phase, and handle oscillator sync logic:
             let old_phase = self.phase;
-            self.phase += phase_per_smp_adj;
+            match sync_arg {
+                OscSync::Off => {
+                    self.phase += phase_per_smp_adj;
+                },
+                OscSync::Master(ref mut syncbuf) => {
+                    self.phase += phase_per_smp_adj;
+                    // calculate what time in this sampling period the phase crossed zero:
+                    syncbuf[i] = if syncbuf[i] != ScalarFxP::ZERO
+                        && old_phase < PhaseFxP::ZERO 
+                        && self.phase >= PhaseFxP::ZERO
+                    {
+                        // we need to calculate 1 - (phase / phase_per_sample_adj)
+                        let adj_s = ScalarFxP::from_num(phase_per_smp_adj.unwrapped_shr(2));
+                        let x = fixedmath::U3F13::from_num(self.phase).wide_mul(inverse(adj_s));
+                        let proportion = ScalarFxP::saturating_from_num(x.unwrapped_shr(2));
+                        if proportion == ScalarFxP::MAX {
+                            ScalarFxP::DELTA
+                        } else {
+                            ScalarFxP::MAX - proportion
+                        }
+                    } else {
+                        ScalarFxP::ZERO
+                    }
+                },
+                OscSync::Slave(syncbuf) => {
+                    self.phase += if syncbuf[i] != ScalarFxP::ZERO {
+                        // Only advance phase for the portion of time after master crossed zero:
+                        let scale = ScalarFxP::MAX - syncbuf[i];
+                        PhaseFxP::from_num(
+                            fixedmath::scale_fixedfloat(
+                                fixedmath::U4F28::from_num(phase_per_smp_adj),
+                                scale,
+                            ),
+                        )
+                    } else {
+                        phase_per_smp_adj
+                    }
+                }
+            }
             // check if we've crossed from negative to positive phase
             if old_phase < PhaseFxP::ZERO
                 && self.phase > PhaseFxP::ZERO
@@ -331,12 +441,88 @@ fn clip_shape(x: ScalarFxP) -> ScalarFxP {
     }
 }
 
+fn inverse(x: ScalarFxP) -> fixedmath::U8F8 {
+    // For brevity in defining the lookup table:
+    const fn lit(x: &str) -> fixedmath::U8F8 {
+        fixedmath::U8F8::lit(x)
+    }
+    #[rustfmt::skip]
+    const LOOKUP_TABLE: [fixedmath::U8F8; 256] = [
+        lit("0xff.ff"), lit("0xff.ff"), lit("0x80.00"), lit("0x55.55"),
+        lit("0x40.00"), lit("0x33.33"), lit("0x2a.aa"), lit("0x24.92"),
+        lit("0x20.00"), lit("0x1c.71"), lit("0x19.99"), lit("0x17.45"),
+        lit("0x15.55"), lit("0x13.b1"), lit("0x12.49"), lit("0x11.11"),
+        lit("0x10.00"), lit("0xf.0f"), lit("0xe.38"), lit("0xd.79"),
+        lit("0xc.cc"), lit("0xc.30"), lit("0xb.a2"), lit("0xb.21"),
+        lit("0xa.aa"), lit("0xa.3d"), lit("0x9.d8"), lit("0x9.7b"),
+        lit("0x9.24"), lit("0x8.d3"), lit("0x8.88"), lit("0x8.42"),
+        lit("0x8.00"), lit("0x7.c1"), lit("0x7.87"), lit("0x7.50"),
+        lit("0x7.1c"), lit("0x6.eb"), lit("0x6.bc"), lit("0x6.90"),
+        lit("0x6.66"), lit("0x6.3e"), lit("0x6.18"), lit("0x5.f4"),
+        lit("0x5.d1"), lit("0x5.b0"), lit("0x5.90"), lit("0x5.72"),
+        lit("0x5.55"), lit("0x5.39"), lit("0x5.1e"), lit("0x5.05"),
+        lit("0x4.ec"), lit("0x4.d4"), lit("0x4.bd"), lit("0x4.a7"),
+        lit("0x4.92"), lit("0x4.7d"), lit("0x4.69"), lit("0x4.56"),
+        lit("0x4.44"), lit("0x4.32"), lit("0x4.21"), lit("0x4.10"),
+        lit("0x4.00"), lit("0x3.f0"), lit("0x3.e0"), lit("0x3.d2"),
+        lit("0x3.c3"), lit("0x3.b5"), lit("0x3.a8"), lit("0x3.9b"),
+        lit("0x3.8e"), lit("0x3.81"), lit("0x3.75"), lit("0x3.69"),
+        lit("0x3.5e"), lit("0x3.53"), lit("0x3.48"), lit("0x3.3d"),
+        lit("0x3.33"), lit("0x3.29"), lit("0x3.1f"), lit("0x3.15"),
+        lit("0x3.0c"), lit("0x3.03"), lit("0x2.fa"), lit("0x2.f1"),
+        lit("0x2.e8"), lit("0x2.e0"), lit("0x2.d8"), lit("0x2.d0"),
+        lit("0x2.c8"), lit("0x2.c0"), lit("0x2.b9"), lit("0x2.b1"),
+        lit("0x2.aa"), lit("0x2.a3"), lit("0x2.9c"), lit("0x2.95"),
+        lit("0x2.8f"), lit("0x2.88"), lit("0x2.82"), lit("0x2.7c"),
+        lit("0x2.76"), lit("0x2.70"), lit("0x2.6a"), lit("0x2.64"),
+        lit("0x2.5e"), lit("0x2.59"), lit("0x2.53"), lit("0x2.4e"),
+        lit("0x2.49"), lit("0x2.43"), lit("0x2.3e"), lit("0x2.39"),
+        lit("0x2.34"), lit("0x2.30"), lit("0x2.2b"), lit("0x2.26"),
+        lit("0x2.22"), lit("0x2.1d"), lit("0x2.19"), lit("0x2.14"),
+        lit("0x2.10"), lit("0x2.0c"), lit("0x2.08"), lit("0x2.04"),
+        lit("0x2.00"), lit("0x1.fc"), lit("0x1.f8"), lit("0x1.f4"),
+        lit("0x1.f0"), lit("0x1.ec"), lit("0x1.e9"), lit("0x1.e5"),
+        lit("0x1.e1"), lit("0x1.de"), lit("0x1.da"), lit("0x1.d7"),
+        lit("0x1.d4"), lit("0x1.d0"), lit("0x1.cd"), lit("0x1.ca"),
+        lit("0x1.c7"), lit("0x1.c3"), lit("0x1.c0"), lit("0x1.bd"),
+        lit("0x1.ba"), lit("0x1.b7"), lit("0x1.b4"), lit("0x1.b2"),
+        lit("0x1.af"), lit("0x1.ac"), lit("0x1.a9"), lit("0x1.a6"),
+        lit("0x1.a4"), lit("0x1.a1"), lit("0x1.9e"), lit("0x1.9c"),
+        lit("0x1.99"), lit("0x1.97"), lit("0x1.94"), lit("0x1.92"),
+        lit("0x1.8f"), lit("0x1.8d"), lit("0x1.8a"), lit("0x1.88"),
+        lit("0x1.86"), lit("0x1.83"), lit("0x1.81"), lit("0x1.7f"),
+        lit("0x1.7d"), lit("0x1.7a"), lit("0x1.78"), lit("0x1.76"),
+        lit("0x1.74"), lit("0x1.72"), lit("0x1.70"), lit("0x1.6e"),
+        lit("0x1.6c"), lit("0x1.6a"), lit("0x1.68"), lit("0x1.66"),
+        lit("0x1.64"), lit("0x1.62"), lit("0x1.60"), lit("0x1.5e"),
+        lit("0x1.5c"), lit("0x1.5a"), lit("0x1.58"), lit("0x1.57"),
+        lit("0x1.55"), lit("0x1.53"), lit("0x1.51"), lit("0x1.50"),
+        lit("0x1.4e"), lit("0x1.4c"), lit("0x1.4a"), lit("0x1.49"),
+        lit("0x1.47"), lit("0x1.46"), lit("0x1.44"), lit("0x1.42"),
+        lit("0x1.41"), lit("0x1.3f"), lit("0x1.3e"), lit("0x1.3c"),
+        lit("0x1.3b"), lit("0x1.39"), lit("0x1.38"), lit("0x1.36"),
+        lit("0x1.35"), lit("0x1.33"), lit("0x1.32"), lit("0x1.30"),
+        lit("0x1.2f"), lit("0x1.2e"), lit("0x1.2c"), lit("0x1.2b"),
+        lit("0x1.29"), lit("0x1.28"), lit("0x1.27"), lit("0x1.25"),
+        lit("0x1.24"), lit("0x1.23"), lit("0x1.21"), lit("0x1.20"),
+        lit("0x1.1f"), lit("0x1.1e"), lit("0x1.1c"), lit("0x1.1b"),
+        lit("0x1.1a"), lit("0x1.19"), lit("0x1.18"), lit("0x1.16"),
+        lit("0x1.15"), lit("0x1.14"), lit("0x1.13"), lit("0x1.12"),
+        lit("0x1.11"), lit("0x1.0f"), lit("0x1.0e"), lit("0x1.0d"),
+        lit("0x1.0c"), lit("0x1.0b"), lit("0x1.0a"), lit("0x1.09"),
+        lit("0x1.08"), lit("0x1.07"), lit("0x1.06"), lit("0x1.05"),
+        lit("0x1.04"), lit("0x1.03"), lit("0x1.02"), lit("0x1.01"),
+    ];
+    LOOKUP_TABLE[(x.to_bits() >> 8) as usize]
+}
+
+
 fn one_over_one_minus_x(x: ScalarFxP) -> USampleFxP {
-    let x_bits = clip_shape(x).to_bits();
-    // Provide a local function alias for brevity:
+    // For brevity in defining the lookup table:
     const fn lit(x: &str) -> USampleFxP {
         USampleFxP::lit(x)
     }
+    let x_bits = clip_shape(x).to_bits();
     // Table generated with python:
     //
     // table = [1/(1-(x/256.0)) for x in range(0,256)][:0xF1]
@@ -475,6 +661,7 @@ mod bindings {
         p: *mut OscFxP,
         samples: u32,
         note: *const u16,
+        tune: *const i16,
         shape: *const u16,
         sin: *mut *const i16,
         tri: *mut *const i16,
@@ -483,6 +670,7 @@ mod bindings {
         offset: u32,
     ) -> i32 {
         if p.is_null()
+            || tune.is_null()
             || note.is_null()
             || shape.is_null()
             || sin.is_null()
@@ -497,11 +685,15 @@ mod bindings {
                 samples as usize,
             );
             let shape_s = std::slice::from_raw_parts(
-                shape.offset(offset as isize).cast::<fixedmath::U0F16>(),
+                shape.offset(offset as isize).cast::<ScalarFxP>(),
                 samples as usize,
             );
-            let params = OscParamsFxP { shape: shape_s };
-            let out = p.as_mut().unwrap().process(note_s, params);
+            let tune_s = std::slice::from_raw_parts(
+                tune.offset(offset as isize).cast::<SignedNoteFxP>(),
+                samples as usize
+            );
+            let params = OscParamsFxP { tune: tune_s, shape: shape_s };
+            let out = p.as_mut().unwrap().process(note_s, params, OscSync::Off);
             *sin = out.sin.as_ptr().cast();
             *tri = out.tri.as_ptr().cast();
             *sq = out.sq.as_ptr().cast();
@@ -527,6 +719,7 @@ mod bindings {
         p: *mut Osc<f32>,
         samples: u32,
         note: *const f32,
+        tune: *const f32,
         shape: *const f32,
         sin: *mut *const f32,
         tri: *mut *const f32,
@@ -535,6 +728,7 @@ mod bindings {
         offset: u32,
     ) -> i32 {
         if p.is_null()
+            || tune.is_null()
             || note.is_null()
             || shape.is_null()
             || sin.is_null()
@@ -548,8 +742,9 @@ mod bindings {
             let note_s = std::slice::from_raw_parts(note.offset(offset as isize), samples as usize);
             let shape_s =
                 std::slice::from_raw_parts(shape.offset(offset as isize), samples as usize);
-            let params = OscParams::<f32> { shape: shape_s };
-            let out = p.as_mut().unwrap().process(note_s, params);
+            let tune_s = std::slice::from_raw_parts(tune.offset(offset as isize), samples as usize);
+            let params = OscParams::<f32> { tune: tune_s, shape: shape_s };
+            let out = p.as_mut().unwrap().process(note_s, params, OscSync::Off);
             *sin = out.sin.as_ptr().cast();
             *tri = out.tri.as_ptr().cast();
             *sq = out.sq.as_ptr().cast();

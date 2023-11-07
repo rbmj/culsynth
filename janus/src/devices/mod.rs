@@ -8,7 +8,7 @@ mod modfilt;
 mod osc;
 mod ringmod;
 
-use super::{fixedmath, EnvParamFxP, NoteFxP, SampleFxP, ScalarFxP, USampleFxP};
+use super::{fixedmath, EnvParamFxP, NoteFxP, SampleFxP, ScalarFxP, SignedNoteFxP, USampleFxP};
 
 use super::BufferT;
 use super::STATIC_BUFFER_SIZE;
@@ -66,5 +66,5 @@ pub use env::{Env, EnvFxP, EnvParams, EnvParamsFxP};
 pub use filt::{Filt, FiltFxP, FiltOutput, FiltOutputFxP, FiltParams, FiltParamsFxP};
 pub use mixosc::{MixOsc, MixOscFxP, MixOscParams, MixOscParamsFxP};
 pub use modfilt::{ModFilt, ModFiltFxP, ModFiltParams, ModFiltParamsFxP};
-pub use osc::{Osc, OscFxP, OscOutput, OscOutputFxP, OscParams, OscParamsFxP};
+pub use osc::{Osc, OscFxP, OscOutput, OscOutputFxP, OscParams, OscParamsFxP, OscSync};
 pub use ringmod::{RingMod, RingModFxP, RingModParams, RingModParamsFxP};
