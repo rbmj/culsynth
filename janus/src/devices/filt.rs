@@ -24,6 +24,9 @@ impl<'a, Smp> FiltParams<'a, Smp> {
     pub fn len(&self) -> usize {
         std::cmp::min(self.cutoff.len(), self.resonance.len())
     }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 /// A 2-pole, floating-point state variable filter, with low, band, and high
@@ -119,6 +122,9 @@ impl<'a> FiltParamsFxP<'a> {
     /// The length of the parameters, defined as the length of the shortest slice.
     pub fn len(&self) -> usize {
         std::cmp::min(self.cutoff.len(), self.resonance.len())
+    }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 }
 

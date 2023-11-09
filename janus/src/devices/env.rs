@@ -43,6 +43,9 @@ impl<'a, Smp> EnvParams<'a, Smp> {
         .min()
         .unwrap_or(&0)
     }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 /// A floating-point ADSR envelope generator.  See [EnvParams] for the definitions
@@ -164,6 +167,9 @@ impl<'a> EnvParamsFxP<'a> {
         .min()
         .unwrap_or(&0);
         l
+    }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 }
 

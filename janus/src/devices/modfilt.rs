@@ -26,6 +26,9 @@ impl<'a, Smp> ModFiltParams<'a, Smp> {
         .min()
         .unwrap_or(&0)
     }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 pub struct ModFilt<Smp> {
@@ -108,6 +111,9 @@ impl<'a> ModFiltParamsFxP<'a> {
         .iter()
         .min()
         .unwrap_or(&0)
+    }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 }
 

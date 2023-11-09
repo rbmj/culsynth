@@ -30,6 +30,9 @@ impl<'a, Smp> MixOscParams<'a, Smp> {
         .unwrap_or(&0);
         self.sync.len().map_or(x, |y| std::cmp::min(x, y))
     }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
     pub fn with_sync(self, s: OscSync<'a, Smp>) -> Self {
         Self {
             tune: self.tune,
@@ -105,6 +108,9 @@ impl<'a> MixOscParamsFxP<'a> {
         .min()
         .unwrap_or(&0);
         self.sync.len().map_or(x, |y| std::cmp::min(x, y))
+    }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
     pub fn with_sync(self, s: OscSync<'a, ScalarFxP>) -> Self {
         Self {

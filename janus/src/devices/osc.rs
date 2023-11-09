@@ -62,6 +62,12 @@ impl<'a, Smp> OscSync<'a, Smp> {
             OscSync::Slave(x) => Some(x.len()),
         }
     }
+    pub fn is_empty(&self) -> bool {
+        match self.len() {
+            Some(x) => x == 0,
+            None => false,
+        }
+    }
 }
 
 /// A floating point Oscillator providing Sine, Square, Sawtooth, and Triangle outputs.
@@ -90,6 +96,9 @@ impl<'a, Smp> OscOutput<'a, Smp> {
     pub fn len(&self) -> usize {
         self.sin.len()
     }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 /// A wrapper struct for passing parameters into the floating-point [Osc].
@@ -107,6 +116,9 @@ impl<'a, Smp> OscParams<'a, Smp> {
     pub fn len(&self) -> usize {
         let x = std::cmp::min(self.shape.len(), self.tune.len());
         self.sync.len().map_or(x, |y| std::cmp::min(x, y))
+    }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
     /// Replace the sync parameter in `self`, consuming `self` and returning the new struct.
     pub fn with_sync(self, s: OscSync<'a, Smp>) -> Self {
@@ -274,6 +286,9 @@ impl<'a> OscParamsFxP<'a> {
     pub fn len(&self) -> usize {
         let x = std::cmp::min(self.shape.len(), self.tune.len());
         self.sync.len().map_or(x, |y| std::cmp::min(x, y))
+    }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
     /// Replace the sync parameter of `self`, consuming `self` and returning the resultant struct.
     pub fn with_sync(self, s: OscSync<'a, ScalarFxP>) -> Self {

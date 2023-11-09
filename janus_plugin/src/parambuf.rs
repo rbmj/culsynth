@@ -24,6 +24,9 @@ impl EnvParamBuffer {
     pub fn len(&self) -> usize {
         self.attack.len()
     }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
     pub fn allocate(&mut self, sz: u32) {
         if self.len() >= sz as usize {
             return;
@@ -130,6 +133,9 @@ impl RingModParamBuffer {
     pub fn len(&self) -> usize {
         self.mix_a.len()
     }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
     pub fn allocate(&mut self, sz: u32) {
         if self.len() >= sz as usize {
             return;
@@ -213,6 +219,9 @@ impl GlobalParamBuffer {
     pub fn len(&self) -> usize {
         self.sync.len()
     }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
     pub fn allocate(&mut self, sz: u32) {
         if self.len() >= sz as usize {
             return;
@@ -262,6 +271,9 @@ impl OscParamBuffer {
     }
     pub fn len(&self) -> usize {
         self.shape.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
     pub fn allocate(&mut self, sz: u32) {
         if self.len() >= sz as usize {
@@ -402,6 +414,9 @@ impl FiltParamBuffer {
     }
     pub fn len(&self) -> usize {
         self.cutoff.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
     pub fn allocate(&mut self, sz: u32) {
         if self.len() >= sz as usize {

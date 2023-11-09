@@ -226,8 +226,8 @@ impl Default for JanusPlugin {
             filt_params: Default::default(),
             env_amp_params: Default::default(),
             env_filt_params: Default::default(),
-            tx: tx,
-            rx: rx,
+            tx,
+            rx,
             voices: None,
             max_buffer_size: 0,
         }

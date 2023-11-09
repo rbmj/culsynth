@@ -26,6 +26,9 @@ impl<'a, Smp> RingModParams<'a, Smp> {
             self.mix_out.len(),
         )
     }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 impl<Smp: Float> RingMod<Smp> {
@@ -79,6 +82,9 @@ impl<'a> RingModParamsFxP<'a> {
             std::cmp::min(self.mix_a.len(), self.mix_b.len()),
             self.mix_out.len(),
         )
+    }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 }
 
