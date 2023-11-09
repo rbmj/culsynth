@@ -4,7 +4,7 @@
 
 use crate::parambuf::{EnvParamBuffer, FiltParamBuffer, GlobalParamBuffer,
     OscParamBuffer, RingModParamBuffer};
-use janus::{NoteFxP, SampleFxP, VoiceFxP};
+use janus::{NoteFxP, SampleFxP, VoiceFxP, ScalarFxP};
 
 /// This trait is the main abstraction for this module - the plugin may send it
 /// note on/off events and it will assign those events to voices, stealing if
@@ -52,9 +52,11 @@ pub struct MonoSynthFxP {
     outbuf: Vec<f32>,
     notebuf: Vec<NoteFxP>,
     gatebuf: Vec<SampleFxP>,
+    velbuf: Vec<ScalarFxP>,
     note: NoteFxP,
     index: usize,
     gate: SampleFxP,
+    velocity: ScalarFxP,
 }
 
 impl MonoSynthFxP {
@@ -68,6 +70,7 @@ impl VoiceAllocator for MonoSynthFxP {
         self.outbuf.resize(sz, 0f32);
         self.notebuf.resize(sz, NoteFxP::ZERO);
         self.gatebuf.resize(sz, SampleFxP::ZERO);
+        self.velbuf.resize(sz, ScalarFxP::ZERO);
         self.index = 0;
         self.note = NoteFxP::lit("69"); //A440, nice
         self.gate = SampleFxP::ZERO;
@@ -75,14 +78,17 @@ impl VoiceAllocator for MonoSynthFxP {
     fn sample_tick(&mut self) {
         self.notebuf[self.index] = self.note;
         self.gatebuf[self.index] = self.gate;
+        self.velbuf[self.index] = self.velocity;
         self.index += 1;
     }
-    fn note_on(&mut self, note: u8, _velocity: u8) {
+    fn note_on(&mut self, note: u8, velocity: u8) {
         self.note = NoteFxP::from_num(note);
         self.gate = SampleFxP::ONE;
+        self.velocity = ScalarFxP::from_bits((velocity as u16) << 8);
     }
-    fn note_off(&mut self, _note: u8, _velocity: u8) {
+    fn note_off(&mut self, _note: u8, velocity: u8) {
         self.gate = SampleFxP::ZERO;
+        self.velocity = ScalarFxP::from_bits((velocity as u16) << 8);
     }
     fn process(
         &mut self,
@@ -99,6 +105,7 @@ impl VoiceAllocator for MonoSynthFxP {
             let thisiter = self.voice.process(
                 &self.notebuf[processed..self.index],
                 &self.gatebuf[processed..self.index],
+                &self.velbuf[processed..self.index],
                 glob_p.sync(processed, self.index),
                 osc1_p.params(processed, self.index),
                 osc2_p.params(processed, self.index),

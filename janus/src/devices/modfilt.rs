@@ -3,6 +3,7 @@ use fixedmath::apply_scalar_u;
 
 pub struct ModFiltParams<'a, Smp> {
     pub env_mod: &'a [Smp],
+    pub vel_mod: &'a [Smp],
     pub kbd: &'a [Smp],
     pub cutoff: &'a [Smp],
     pub resonance: &'a [Smp],
@@ -48,15 +49,17 @@ impl<Smp: Float> ModFilt<Smp> {
         input: &[Smp],
         env: &[Smp],
         note: &[Smp],
+        vel: &[Smp],
         params: ModFiltParams<Smp>,
     ) -> &[Smp] {
-        let numsamples = *[input.len(), env.len(), note.len(), params.len()]
+        let numsamples = *[input.len(), env.len(), note.len(), vel.len(), params.len()]
             .iter()
             .min()
             .unwrap_or(&0);
         for i in 0..numsamples {
             // use outbuf to hold the modulated filter cutoff
             self.outbuf[i] = Smp::NOTE_MAX * params.env_mod[i] * env[i];
+            self.outbuf[i] = self.outbuf[i] + (Smp::NOTE_MAX * params.vel_mod[i] * vel[i]);
             self.outbuf[i] = self.outbuf[i] + params.cutoff[i] + (params.kbd[i] * note[i]);
             // saturate the cutoff if it's higher than note_max
             if self.outbuf[i] > Smp::NOTE_MAX {
@@ -89,6 +92,7 @@ impl<Smp: Float> Default for ModFilt<Smp> {
 
 pub struct ModFiltParamsFxP<'a> {
     pub env_mod: &'a [ScalarFxP],
+    pub vel_mod: &'a [ScalarFxP],
     pub kbd: &'a [ScalarFxP],
     pub cutoff: &'a [NoteFxP],
     pub resonance: &'a [ScalarFxP],
@@ -136,6 +140,7 @@ impl ModFiltFxP {
         input: &[SampleFxP],
         env: &[ScalarFxP],
         note: &[NoteFxP],
+        vel: &[ScalarFxP],
         params: ModFiltParamsFxP,
     ) -> &[SampleFxP] {
         let numsamples = *[input.len(), env.len(), note.len(), params.len()]
@@ -146,10 +151,12 @@ impl ModFiltFxP {
             // reinterpret the env_mod as a number from 0 to NOTE_MAX instead of 0 to 1,
             // then multiply by the envelope output:
             let envmod = apply_scalar_u(NoteFxP::from_bits(params.env_mod[i].to_bits()), env[i]);
+            let velmod = apply_scalar_u(NoteFxP::from_bits(params.vel_mod[i].to_bits()), vel[i]);
             let kbdmod = apply_scalar_u(note[i], params.kbd[i]);
             // TODO: reuse outbuf?  Would require some _ugly_ casts to get around the type system...
             self.modbuf[i] = params.cutoff[i]
                 .saturating_add(envmod)
+                .saturating_add(velmod)
                 .saturating_add(kbdmod);
         }
         //calculate filter output

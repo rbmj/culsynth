@@ -53,6 +53,7 @@ impl VoiceFxP {
         &mut self,
         note: &[NoteFxP],
         gate: &[SampleFxP],
+        vel: &[ScalarFxP],
         sync: &mut [ScalarFxP],
         osc1_p: MixOscParamsFxP,
         osc2_p: MixOscParamsFxP,
@@ -64,6 +65,7 @@ impl VoiceFxP {
         let numsamples = *[
             note.len(),
             gate.len(),
+            vel.len(),
             sync.len(),
             osc1_p.len(),
             osc2_p.len(),
@@ -71,6 +73,7 @@ impl VoiceFxP {
             filt_p.len(),
             filt_env_p.len(),
             amp_env_p.len(),
+            STATIC_BUFFER_SIZE,
         ]
         .iter()
         .min()
@@ -85,7 +88,7 @@ impl VoiceFxP {
         );
         let ring_mod_out = self.ringmod.process(osc1_out, osc2_out, ring_p);
         let filt_env_out = self.env_filt.process(&gate[0..numsamples], filt_env_p);
-        let filt_out = self.filt.process(ring_mod_out, filt_env_out, note, filt_p);
+        let filt_out = self.filt.process(ring_mod_out, filt_env_out, note, vel, filt_p);
         let vca_env_out = self.env_amp.process(&gate[0..numsamples], amp_env_p);
         for i in 0..numsamples {
             self.vcabuf[i] = SampleFxP::from_num(vca_env_out[i]);

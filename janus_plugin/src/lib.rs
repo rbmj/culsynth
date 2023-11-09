@@ -121,6 +121,9 @@ pub struct FiltPluginParams {
     #[id = "kbd"]
     pub kbd: IntParam,
 
+    #[id = "vel"]
+    pub vel: IntParam,
+
     #[id = "env"]
     pub env: IntParam,
 
@@ -145,6 +148,7 @@ impl Default for FiltPluginParams {
         Self {
             env: new_fixed_param_percent("Filter Envelope Modulation", ScalarFxP::ZERO),
             kbd: new_fixed_param_percent("Filter Keyboard Tracking", ScalarFxP::ZERO),
+            vel: new_fixed_param_percent("Filter Velocity Modulation", ScalarFxP::ZERO),
             cutoff: new_fixed_param_freq("Filter Cutoff", NoteFxP::lit("127")),
             res: new_fixed_param_percent("Filter Resonance", ScalarFxP::ZERO),
             low: new_fixed_param_percent("Filter Low Pass", ScalarFxP::MAX),

@@ -393,6 +393,7 @@ impl OscParamBuffer {
 #[derive(Default)]
 pub struct FiltParamBuffer {
     env_mod: Vec<f32>,
+    vel_mod: Vec<f32>,
     kbd: Vec<f32>,
     cutoff: Vec<f32>,
     resonance: Vec<f32>,
@@ -400,6 +401,7 @@ pub struct FiltParamBuffer {
     band_mix: Vec<f32>,
     high_mix: Vec<f32>,
     env_mod_fxp: Vec<ScalarFxP>,
+    vel_mod_fxp: Vec<ScalarFxP>,
     kbd_fxp: Vec<ScalarFxP>,
     cutoff_fxp: Vec<NoteFxP>,
     resonance_fxp: Vec<ScalarFxP>,
@@ -424,6 +426,7 @@ impl FiltParamBuffer {
         }
         for buf in [
             &mut self.env_mod,
+            &mut self.vel_mod,
             &mut self.kbd,
             &mut self.cutoff,
             &mut self.resonance,
@@ -436,6 +439,7 @@ impl FiltParamBuffer {
         self.cutoff_fxp.resize(sz as usize, NoteFxP::ZERO);
         for buf in [
             &mut self.env_mod_fxp,
+            &mut self.vel_mod_fxp,
             &mut self.kbd_fxp,
             &mut self.resonance_fxp,
             &mut self.low_mix_fxp,
@@ -448,6 +452,7 @@ impl FiltParamBuffer {
     pub fn conv_float(&mut self) {
         for i in 0..self.len() {
             self.env_mod[i] = self.env_mod_fxp[i].to_num();
+            self.vel_mod[i] = self.vel_mod_fxp[i].to_num();
             self.kbd[i] = self.kbd_fxp[i].to_num();
             self.cutoff[i] = self.cutoff_fxp[i].to_num();
             self.resonance[i] = self.resonance_fxp[i].to_num();
@@ -459,6 +464,7 @@ impl FiltParamBuffer {
     pub fn params_float(&self, base: usize, end: usize) -> ModFiltParams<f32> {
         ModFiltParams {
             env_mod: &self.env_mod[base..end],
+            vel_mod: &self.vel_mod[base..end],
             kbd: &self.kbd[base..end],
             cutoff: &self.cutoff[base..end],
             resonance: &self.resonance[base..end],
@@ -470,6 +476,7 @@ impl FiltParamBuffer {
     pub fn params(&self, base: usize, end: usize) -> ModFiltParamsFxP {
         ModFiltParamsFxP {
             env_mod: &self.env_mod_fxp[base..end],
+            vel_mod: & self.vel_mod_fxp[base..end],
             kbd: &self.kbd_fxp[base..end],
             cutoff: &self.cutoff_fxp[base..end],
             resonance: &self.resonance_fxp[base..end],
@@ -486,6 +493,15 @@ impl FiltParamBuffer {
     }
     pub fn env_mod_float(&self) -> &[f32] {
         self.env_mod.as_slice()
+    }
+    pub fn vel_mod(&self) -> &[ScalarFxP] {
+        self.vel_mod_fxp.as_slice()
+    }
+    pub fn vel_mod_mut(&mut self) -> &mut [ScalarFxP] {
+        self.vel_mod_fxp.as_mut_slice()
+    }
+    pub fn vel_mod_float(&self) -> &[f32] {
+        self.vel_mod.as_slice()
     }
     pub fn kbd(&self) -> &[ScalarFxP] {
         self.kbd_fxp.as_slice()
@@ -543,6 +559,7 @@ impl FiltParamBuffer {
     }
     pub fn update_index(&mut self, idx: usize, p: &FiltPluginParams) {
         self.env_mod_fxp[idx] = ScalarFxP::from_bits(p.env.smoothed.next() as u16);
+        self.vel_mod_fxp[idx] = ScalarFxP::from_bits(p.vel.smoothed.next() as u16);
         self.kbd_fxp[idx] = ScalarFxP::from_bits(p.kbd.smoothed.next() as u16);
         self.cutoff_fxp[idx] = NoteFxP::from_bits(p.cutoff.smoothed.next() as u16);
         self.resonance_fxp[idx] = ScalarFxP::from_bits(p.res.smoothed.next() as u16);

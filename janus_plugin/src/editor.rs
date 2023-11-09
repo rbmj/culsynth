@@ -91,6 +91,7 @@ impl PluginWidget for FiltPluginParams {
                 ui.add(param_slider(setter, &self.cutoff).vertical());
                 ui.add(param_slider(setter, &self.res).vertical());
                 ui.add(param_slider(setter, &self.kbd).vertical());
+                ui.add(param_slider(setter, &self.vel).vertical());
                 ui.add(param_slider(setter, &self.env).vertical());
                 ui.add(param_slider(setter, &self.low).vertical());
                 ui.add(param_slider(setter, &self.band).vertical());
@@ -99,6 +100,7 @@ impl PluginWidget for FiltPluginParams {
                 ui.label("Cut");
                 ui.label("Res");
                 ui.label("Kbd");
+                ui.label("Vel");
                 ui.label("Env");
                 ui.label("Low");
                 ui.label("Band");
