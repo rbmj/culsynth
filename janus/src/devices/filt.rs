@@ -269,7 +269,7 @@ mod bindings {
                 cutoff: c,
                 resonance: r,
             };
-            let out = p.as_mut().unwrap().process(i, params);
+            let out = (*p).process(i, params);
             *low = out.low.as_ptr().cast();
             *band = out.band.as_ptr().cast();
             *high = out.high.as_ptr().cast();
@@ -319,7 +319,7 @@ mod bindings {
                 cutoff: c,
                 resonance: r,
             };
-            let out = p.as_mut().unwrap().process(i, params);
+            let out = (*p).process(i, params);
             *low = out.low.as_ptr().cast();
             *band = out.band.as_ptr().cast();
             *high = out.high.as_ptr().cast();

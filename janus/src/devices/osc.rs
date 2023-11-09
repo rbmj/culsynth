@@ -98,7 +98,7 @@ pub struct OscParams<'a, Smp> {
     pub tune: &'a [Smp],
     /// Controls the phase distortion of the wave, from 0 to 1
     pub shape: &'a [Smp],
-    /// Controls oscillator sync
+    /// Controls oscillator sync (see [OscSync] for further details)
     pub sync: OscSync<'a, Smp>,
 }
 
@@ -108,9 +108,13 @@ impl<'a, Smp> OscParams<'a, Smp> {
         let x = std::cmp::min(self.shape.len(), self.tune.len());
         self.sync.len().map_or(x, |y| std::cmp::min(x, y))
     }
-    pub fn set_sync(&mut self, s: OscSync<'a, Smp>) -> &mut Self {
-        self.sync = s;
-        self
+    /// Replace the sync parameter in `self`, consuming `self` and returning the new struct.
+    pub fn with_sync(self, s: OscSync<'a, Smp>) -> Self {
+        Self {
+            tune: self.tune,
+            shape: self.shape,
+            sync: s,
+        }
     }
 }
 
@@ -185,13 +189,10 @@ impl<Smp: Float> Osc<Smp> {
                 shape_clip
             };
             // Handle slave oscillator resetting phase if master crosses:
-            match sync {
-                OscSync::Slave(syncbuf) => {
-                    if syncbuf[i] != Smp::ZERO {
-                        self.phase = Smp::ZERO;
-                    }
-                },
-                _ => {}
+            if let OscSync::Slave(syncbuf) = sync {
+                if syncbuf[i] != Smp::ZERO {
+                    self.phase = Smp::ZERO;
+                }
             }
             let phase_per_smp_adj = if self.phase < Smp::zero() {
                 phase_per_sample * (Smp::ONE / (Smp::ONE + shp))
@@ -259,26 +260,6 @@ impl<Smp: Float> Default for Osc<Smp> {
     }
 }
 
-/// A struct wrapping the output of a fixed point oscillator (see [OscFxP])
-///
-/// All signals are in phase with each other.
-pub struct OscOutputFxP<'a> {
-    /// Sine wave output
-    pub sin: &'a [SampleFxP],
-    /// Square wave output
-    pub sq: &'a [SampleFxP],
-    /// Triangle wave output
-    pub tri: &'a [SampleFxP],
-    /// Sawtooth wave output
-    pub saw: &'a [SampleFxP],
-}
-
-impl<'a> OscOutputFxP<'a> {
-    pub fn len(&self) -> usize {
-        self.sin.len()
-    }
-}
-
 /// A wrapper struct for passing parameters to an [OscFxP].
 pub struct OscParamsFxP<'a> {
     /// The tuning offset for the oscillator, in semitones
@@ -294,9 +275,13 @@ impl<'a> OscParamsFxP<'a> {
         let x = std::cmp::min(self.shape.len(), self.tune.len());
         self.sync.len().map_or(x, |y| std::cmp::min(x, y))
     }
-    pub fn set_sync(&mut self, s: OscSync<'a, ScalarFxP>) -> &mut Self {
-        self.sync = s;
-        self
+    /// Replace the sync parameter of `self`, consuming `self` and returning the resultant struct.
+    pub fn with_sync(self, s: OscSync<'a, ScalarFxP>) -> Self {
+        Self {
+            tune: self.tune,
+            shape: self.shape,
+            sync: s,
+        }
     }
 }
 
@@ -330,7 +315,7 @@ impl OscFxP {
     /// input slices.  Callers must check the number of returned samples and
     /// copy them into their own output buffers before calling this function
     /// again to process the remainder of the data.
-    pub fn process(&mut self, note: &[NoteFxP], params: OscParamsFxP) -> OscOutputFxP {
+    pub fn process(&mut self, note: &[NoteFxP], params: OscParamsFxP) -> OscOutput<SampleFxP> {
         let numsamples = *[note.len(), params.len(), STATIC_BUFFER_SIZE]
             .iter().min().unwrap_or(&0);
         let shape = params.shape;
@@ -385,13 +370,10 @@ impl OscFxP {
                 ).unwrapped_shr(2).to_bits()
             );
             // Handle slave oscillator resetting phase if master crosses:
-            match sync {
-                OscSync::Slave(syncbuf) => {
-                    if syncbuf[i] != ScalarFxP::ZERO {
-                        self.phase = PhaseFxP::ZERO;
-                    }
-                },
-                _ => {}
+            if let OscSync::Slave(syncbuf) = sync {
+                if syncbuf[i] != ScalarFxP::ZERO {
+                    self.phase = PhaseFxP::ZERO;
+                }
             }
             // Adjust phase per sample for the shape parameter:
             let phase_per_smp_adj = PhaseFxP::from_num(if self.phase < PhaseFxP::ZERO {
@@ -480,7 +462,7 @@ impl OscFxP {
                 }
             }
         }
-        OscOutputFxP {
+        OscOutput {
             sin: &self.sinbuf[0..numsamples],
             tri: &self.tribuf[0..numsamples],
             sq: &self.sqbuf[0..numsamples],
@@ -756,7 +738,7 @@ mod bindings {
                 samples as usize
             );
             let params = OscParamsFxP { tune: tune_s, shape: shape_s, sync: OscSync::Off };
-            let out = p.as_mut().unwrap().process(note_s, params);
+            let out = (*p).process(note_s, params);
             *sin = out.sin.as_ptr().cast();
             *tri = out.tri.as_ptr().cast();
             *sq = out.sq.as_ptr().cast();
@@ -807,7 +789,7 @@ mod bindings {
                 std::slice::from_raw_parts(shape.offset(offset as isize), samples as usize);
             let tune_s = std::slice::from_raw_parts(tune.offset(offset as isize), samples as usize);
             let params = OscParams::<f32> { tune: tune_s, shape: shape_s, sync: OscSync::Off };
-            let out = p.as_mut().unwrap().process(note_s, params);
+            let out = (*p).process(note_s, params);
             *sin = out.sin.as_ptr().cast();
             *tri = out.tri.as_ptr().cast();
             *sq = out.sq.as_ptr().cast();

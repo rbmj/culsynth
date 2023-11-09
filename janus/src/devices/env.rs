@@ -41,7 +41,7 @@ impl<'a, Smp> EnvParams<'a, Smp> {
         ]
         .iter()
         .min()
-        .unwrap()
+        .unwrap_or(&0)
     }
 }
 
@@ -162,7 +162,7 @@ impl<'a> EnvParamsFxP<'a> {
         ]
         .iter()
         .min()
-        .unwrap();
+        .unwrap_or(&0);
         l
     }
 }
@@ -317,7 +317,7 @@ mod bindings {
                 sustain: s,
                 release: r,
             };
-            let out = p.as_mut().unwrap().process(g, params);
+            let out = (*p).process(g, params);
             *signal = out.as_ptr().cast();
             out.len() as i32
         }
@@ -369,7 +369,7 @@ mod bindings {
                 sustain: s,
                 release: r,
             };
-            let out = p.as_mut().unwrap().process(g, params);
+            let out = (*p).process(g, params);
             *signal = out.as_ptr().cast();
             out.len() as i32
         }

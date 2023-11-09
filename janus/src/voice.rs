@@ -40,7 +40,7 @@ impl VoiceFxP {
     /// 
     /// The syncbuf should be set non-zero for any sample where oscillator sync
     /// is enabled, or zero if sync is disabled.  This function will clobber the
-    /// buffer unless it is zero for all samples.
+    /// `sync` buffer unless it is zero for all samples.
     /// 
     /// `osc1_p.sync` and `osc2_p.sync` may be set to `OscSync::Off`, and this
     /// will internally set osc1 to be the master and osc2 to be the slave.
@@ -74,17 +74,23 @@ impl VoiceFxP {
         ]
         .iter()
         .min()
-        .unwrap();
-        let osc1_out = self.osc1.process(&note[0..numsamples], osc1_p.with_sync(OscSync::Master(sync)));
-        let osc2_out = self.osc2.process(&note[0..numsamples], osc2_p.with_sync(OscSync::Slave(sync)));
+        .unwrap_or(&0);
+        let osc1_out = self.osc1.process(
+            &note[0..numsamples],
+            osc1_p.with_sync(OscSync::Master(sync)),
+        );
+        let osc2_out = self.osc2.process(
+            &note[0..numsamples], 
+            osc2_p.with_sync(OscSync::Slave(sync)),
+        );
         let ring_mod_out = self.ringmod.process(osc1_out, osc2_out, ring_p);
         let filt_env_out = self.env_filt.process(&gate[0..numsamples], filt_env_p);
         let filt_out = self.filt.process(ring_mod_out, filt_env_out, note, filt_p);
         let vca_env_out = self.env_amp.process(&gate[0..numsamples], amp_env_p);
-        for i in 0..vca_env_out.len() {
+        for i in 0..numsamples {
             self.vcabuf[i] = SampleFxP::from_num(vca_env_out[i]);
         }
-        self.vca.process(filt_out, &self.vcabuf[0..vca_env_out.len()])
+        self.vca.process(filt_out, &self.vcabuf[0..numsamples])
     }
 }
 

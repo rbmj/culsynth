@@ -24,7 +24,7 @@ impl<'a, Smp> ModFiltParams<'a, Smp> {
         ]
         .iter()
         .min()
-        .unwrap()
+        .unwrap_or(&0)
     }
 }
 
@@ -50,7 +50,7 @@ impl<Smp: Float> ModFilt<Smp> {
         let numsamples = *[input.len(), env.len(), note.len(), params.len()]
             .iter()
             .min()
-            .unwrap();
+            .unwrap_or(&0);
         for i in 0..numsamples {
             // use outbuf to hold the modulated filter cutoff
             self.outbuf[i] = Smp::NOTE_MAX * params.env_mod[i] * env[i];
@@ -62,7 +62,7 @@ impl<Smp: Float> ModFilt<Smp> {
         }
         //calculate filter output
         let filt_out = self.filter.process(
-            &input,
+            input,
             FiltParams {
                 cutoff: &self.outbuf[0..numsamples],
                 resonance: params.resonance,
@@ -75,6 +75,12 @@ impl<Smp: Float> ModFilt<Smp> {
                 + (params.high_mix[i] * filt_out.high[i]);
         }
         &self.outbuf[0..numsamples]
+    }
+}
+
+impl<Smp: Float> Default for ModFilt<Smp> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -101,7 +107,7 @@ impl<'a> ModFiltParamsFxP<'a> {
         ]
         .iter()
         .min()
-        .unwrap()
+        .unwrap_or(&0)
     }
 }
 
@@ -129,7 +135,7 @@ impl ModFiltFxP {
         let numsamples = *[input.len(), env.len(), note.len(), params.len()]
             .iter()
             .min()
-            .unwrap();
+            .unwrap_or(&0);
         for i in 0..numsamples {
             // reinterpret the env_mod as a number from 0 to NOTE_MAX instead of 0 to 1,
             // then multiply by the envelope output:
@@ -142,7 +148,7 @@ impl ModFiltFxP {
         }
         //calculate filter output
         let filt_out = self.filter.process(
-            &input,
+            input,
             FiltParamsFxP {
                 cutoff: &self.modbuf[0..numsamples],
                 resonance: params.resonance,
@@ -156,5 +162,11 @@ impl ModFiltFxP {
             self.outbuf[i] = SampleFxP::from_num(low.saturating_add(band).saturating_add(high));
         }
         &self.outbuf[0..numsamples]
+    }
+}
+
+impl Default for ModFiltFxP {
+    fn default() -> Self {
+        Self::new()
     }
 }

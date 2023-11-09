@@ -86,7 +86,7 @@ mod bindings {
                 gain.offset(offset as isize).cast::<SampleFxP>(),
                 samples as usize,
             );
-            let out_slice = p.as_mut().unwrap().process(s, g);
+            let out_slice = (*p).process(s, g);
             *out = out_slice.as_ptr().cast();
             out_slice.len() as i32
         }
@@ -119,7 +119,7 @@ mod bindings {
         unsafe {
             let s = std::slice::from_raw_parts(signal.offset(offset as isize), samples as usize);
             let g = std::slice::from_raw_parts(gain.offset(offset as isize), samples as usize);
-            let out_slice = p.as_mut().unwrap().process(s, g);
+            let out_slice = (*p).process(s, g);
             *out = out_slice.as_ptr().cast();
             out_slice.len() as i32
         }

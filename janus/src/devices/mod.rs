@@ -69,5 +69,5 @@ pub use filt::{Filt, FiltFxP, FiltOutput, FiltOutputFxP, FiltParams, FiltParamsF
 pub use lfo::{Lfo, LfoFxP, LfoParam, LfoWave};
 pub use mixosc::{MixOsc, MixOscFxP, MixOscParams, MixOscParamsFxP};
 pub use modfilt::{ModFilt, ModFiltFxP, ModFiltParams, ModFiltParamsFxP};
-pub use osc::{Osc, OscFxP, OscOutput, OscOutputFxP, OscParams, OscParamsFxP, OscSync};
+pub use osc::{Osc, OscFxP, OscOutput, OscParams, OscParamsFxP, OscSync};
 pub use ringmod::{RingMod, RingModFxP, RingModParams, RingModParamsFxP};

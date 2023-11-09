@@ -297,8 +297,9 @@ impl Plugin for JanusPlugin {
         self.filt_params.allocate(bufsz);
         self.env_amp_params.allocate(bufsz);
         self.env_filt_params.allocate(bufsz);
-        self.voices = Some(Box::new(MonoSynthFxP::new()));
-        self.voices.as_mut().unwrap().initialize(bufsz as usize);
+        let mut voice_alloc = Box::new(MonoSynthFxP::new());
+        voice_alloc.initialize(bufsz as usize);
+        self.voices = Some(voice_alloc);
         self.max_buffer_size = bufsz as usize;
         true
     }
@@ -309,7 +310,10 @@ impl Plugin for JanusPlugin {
         _aux: &mut AuxiliaryBuffers,
         context: &mut impl ProcessContext<Self>,
     ) -> ProcessStatus {
-        let voices = &mut self.voices.as_mut().unwrap();
+        let voices = match self.voices {
+            Some(ref mut x) => x,
+            None => return ProcessStatus::Error("Uninitialized"),
+        };
         let mut index = 0;
         while let Ok(note) = self.rx.try_recv() {
             if note < 0 {
