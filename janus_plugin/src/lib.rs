@@ -38,6 +38,7 @@ pub struct JanusPlugin {
     /// a "Note On" for that note number, and a negative integer indicates a
     /// "Note Off" at the absolute value of the integer
     tx: SyncSender<i8>,
+
     /// Used by the audio thread to receive MIDI events from the GUI thread.
     ///
     /// The MIDI event is packaged as an i8, where a positive integer indicates
@@ -47,6 +48,7 @@ pub struct JanusPlugin {
 
     /// The sound engine currently in use to process audio for the synth.
     voices: Option<Box<dyn VoiceAllocator>>,
+    
     /// The maximum number of samples we will be expected to process
     max_buffer_size: usize,
 }

@@ -47,3 +47,7 @@ pub use fixedmath::USample as USampleFxP;
 /// yields a range of 0 to 8 seconds - though as implemented this timing is not
 /// precisely accurate (see [devices::EnvParamsFxP])
 pub type EnvParamFxP = fixedmath::U3F13;
+/// A frequency parameter for a LFO, in Hertz
+///
+/// TODO: should this be a newtype?
+pub type LfoFreqFxP = fixedmath::U7F9;

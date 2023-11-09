@@ -3,12 +3,14 @@
 mod amp;
 mod env;
 mod filt;
+mod lfo;
 mod mixosc;
 mod modfilt;
 mod osc;
 mod ringmod;
 
-use super::{fixedmath, EnvParamFxP, NoteFxP, SampleFxP, ScalarFxP, SignedNoteFxP, USampleFxP};
+use super::{fixedmath, EnvParamFxP, LfoFreqFxP, NoteFxP, SampleFxP, ScalarFxP,
+    SignedNoteFxP, USampleFxP};
 
 use super::BufferT;
 use super::STATIC_BUFFER_SIZE;
@@ -64,6 +66,7 @@ fn midi_note_to_frequency<T: Float>(note: T) -> T {
 pub use amp::{Amp, AmpFxP};
 pub use env::{Env, EnvFxP, EnvParams, EnvParamsFxP};
 pub use filt::{Filt, FiltFxP, FiltOutput, FiltOutputFxP, FiltParams, FiltParamsFxP};
+pub use lfo::{Lfo, LfoFxP, LfoParam, LfoWave};
 pub use mixosc::{MixOsc, MixOscFxP, MixOscParams, MixOscParamsFxP};
 pub use modfilt::{ModFilt, ModFiltFxP, ModFiltParams, ModFiltParamsFxP};
 pub use osc::{Osc, OscFxP, OscOutput, OscOutputFxP, OscParams, OscParamsFxP, OscSync};

@@ -294,6 +294,7 @@ impl OscParamBuffer {
         MixOscParams {
             tune: &self.tune[base..end],
             shape: &self.shape[base..end],
+            sync: janus::devices::OscSync::Off,
             sin: &self.sin[base..end],
             sq: &self.sq[base..end],
             tri: &self.tri[base..end],
@@ -304,6 +305,7 @@ impl OscParamBuffer {
         MixOscParamsFxP {
             tune: &self.tune_fxp[base..end],
             shape: &self.shape_fxp[base..end],
+            sync: janus::devices::OscSync::Off,
             sin: &self.sin_fxp[base..end],
             sq: &self.sq_fxp[base..end],
             tri: &self.tri_fxp[base..end],

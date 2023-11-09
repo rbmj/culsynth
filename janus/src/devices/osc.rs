@@ -1,8 +1,53 @@
 use super::*;
 use fixedmath::apply_scalar_i;
 
-type PhaseFxP = fixedmath::I4F28;
+pub(crate) type PhaseFxP = fixedmath::I4F28;
 
+/// This enum gets passed to a oscillator to define its sync behavior.
+///
+/// `Off` means do not calculate any oscillator sync information
+///
+/// `Master` passes in a mutable buffer to the master oscillator (i.e. the oscillator to which the
+/// slave is forced to reset).  The buffer also determines whether sync behavior is enabled to
+/// support sample-accurate automation - if the buffer is zero at an index, then the oscillator
+/// will not calculate sync information for that sample.  For any sample where the buffer is
+/// non-zero, the oscillator will overwrite that sample with data that the slave needs to properly
+/// calculate its own phase.  A buffer of all zeros will have equivalent semantics to `Off`, and
+/// the oscillator will not mutate the buffer (i.e. leave it all zero).
+///
+/// `Slave` passes in an immutable buffer to the slave oscillator (i.e. the oscillator that has
+/// its frequency locked to another).  This buffer should be the mutated buffer from the master
+/// oscillator.  Passing in a buffer of all zeros has equivalent semantics to `Off`.
+///
+/// # Example
+///
+/// ```
+/// use janus::midi_const;
+/// use janus::devices::*;
+/// const NUMSAMPLES: usize = 256;
+/// let mut osc1 = Osc::<f32>::new();
+/// let mut osc2 = Osc::<f32>::new();
+/// let osc1_pitch = [midi_const::A4 as f32; NUMSAMPLES];
+/// let osc2_pitch = [midi_const::C3 as f32; NUMSAMPLES];
+/// let zerobuf = [0f32; NUMSAMPLES];
+/// let mut syncbuf = [1f32; NUMSAMPLES];
+/// osc1.process(
+///     &osc1_pitch,
+///     OscParams {
+///         tune: &zerobuf,
+///         shape: &zerobuf,
+///         sync: OscSync::Master(&mut syncbuf),
+///     },
+/// );
+/// osc2.process(
+///     &osc2_pitch,
+///     OscParams {
+///         tune: &zerobuf,
+///         shape: &zerobuf,
+///         sync: OscSync::Slave(&syncbuf),
+///     },
+/// );
+/// ```
 pub enum OscSync<'a, Smp> {
     Off,
     Master(&'a mut [Smp]),
@@ -41,20 +86,31 @@ pub struct OscOutput<'a, Smp> {
     pub saw: &'a [Smp],
 }
 
+impl<'a, Smp> OscOutput<'a, Smp> {
+    pub fn len(&self) -> usize {
+        self.sin.len()
+    }
+}
+
 /// A wrapper struct for passing parameters into the floating-point [Osc].
-///
-/// Currently there is only one parameter, but it is wrapped for API consistency
 pub struct OscParams<'a, Smp> {
+    /// Tune control as an offset from the commanded note, in semitones
     pub tune: &'a [Smp],
+    /// Controls the phase distortion of the wave, from 0 to 1
     pub shape: &'a [Smp],
+    /// Controls oscillator sync
+    pub sync: OscSync<'a, Smp>,
 }
 
 impl<'a, Smp> OscParams<'a, Smp> {
     /// The length of the input parameters.
-    ///
-    /// As shape is the only parameter, this is the same as `.shape.len()`
     pub fn len(&self) -> usize {
-        self.shape.len()
+        let x = std::cmp::min(self.shape.len(), self.tune.len());
+        self.sync.len().map_or(x, |y| std::cmp::min(x, y))
+    }
+    pub fn set_sync(&mut self, s: OscSync<'a, Smp>) -> &mut Self {
+        self.sync = s;
+        self
     }
 }
 
@@ -72,22 +128,18 @@ impl<Smp: Float> Osc<Smp> {
     /// Run the oscillator, using the given note signal and parameters.
     ///
     /// `note` is formatted as a MIDI note number (floating point allowed for bends, etc.)
+    /// 
+    /// See [OscSync] for the semantics of the `sync` argument.
     ///
     /// Note: The output slices from this function may be shorter than the
     /// input slices.  Callers must check the number of returned samples and
     /// copy them into their own output buffers before calling this function
     /// again to process the remainder of the data.
-    pub fn process(&mut self, note: &[Smp], params: OscParams<Smp>, sync: OscSync<Smp>) -> OscOutput<Smp> {
-        let mut sync_arg = sync;
+    pub fn process(&mut self, note: &[Smp], params: OscParams<Smp>) -> OscOutput<Smp> {
+        let numsamples = *[note.len(), params.len(), STATIC_BUFFER_SIZE].iter().min().unwrap_or(&0);
+        let mut sync = params.sync;
         let shape = params.shape;
         let tune = params.tune;
-        let numsamples = *[
-            note.len(),
-            shape.len(),
-            tune.len(),
-            sync_arg.len().unwrap_or(STATIC_BUFFER_SIZE),
-            STATIC_BUFFER_SIZE
-        ].iter().min().unwrap_or(&0);
         // We don't have to split sin up piecewise but we'll do it for symmetry with
         // the fixed point implementation and to make it easy to switch to an
         // approximation if performance dictates
@@ -133,7 +185,7 @@ impl<Smp: Float> Osc<Smp> {
                 shape_clip
             };
             // Handle slave oscillator resetting phase if master crosses:
-            match sync_arg {
+            match sync {
                 OscSync::Slave(syncbuf) => {
                     if syncbuf[i] != Smp::ZERO {
                         self.phase = Smp::ZERO;
@@ -147,7 +199,7 @@ impl<Smp: Float> Osc<Smp> {
                 phase_per_sample * (Smp::ONE / (Smp::ONE - shp))
             };
             let old_phase = self.phase;
-            match sync_arg {
+            match sync {
                 OscSync::Off => {
                     self.phase = self.phase + phase_per_smp_adj;
                 },
@@ -176,7 +228,7 @@ impl<Smp: Float> Osc<Smp> {
             if old_phase < Smp::ZERO && self.phase > Smp::ZERO && shp != Smp::ZERO {
                 // need to multiply residual phase i.e. (phase - 0) by (1+k)/(1-k)
                 // where k is the shape, so no work required if shape is 0
-                self.phase = self.phase * (Smp::ONE + shp) / (Smp::ONE + shp);
+                self.phase = self.phase * (Smp::ONE + shp) / (Smp::ONE - shp);
             }
             // Check if we've crossed from positive phase back to negative:
             if self.phase >= Smp::PI() {
@@ -221,16 +273,30 @@ pub struct OscOutputFxP<'a> {
     pub saw: &'a [SampleFxP],
 }
 
-/// A wrapper struct for passing parameters to an [OscFxP].  Currently there
-/// is only one parameter, but it is wrapped for API consistency.
+impl<'a> OscOutputFxP<'a> {
+    pub fn len(&self) -> usize {
+        self.sin.len()
+    }
+}
+
+/// A wrapper struct for passing parameters to an [OscFxP].
 pub struct OscParamsFxP<'a> {
+    /// The tuning offset for the oscillator, in semitones
     pub tune: &'a [SignedNoteFxP],
+    /// Controls the phase distortion
     pub shape: &'a [ScalarFxP],
+    /// Controls oscillator sync
+    pub sync: OscSync<'a, ScalarFxP>,
 }
 
 impl<'a> OscParamsFxP<'a> {
     pub fn len(&self) -> usize {
-        self.shape.len()
+        let x = std::cmp::min(self.shape.len(), self.tune.len());
+        self.sync.len().map_or(x, |y| std::cmp::min(x, y))
+    }
+    pub fn set_sync(&mut self, s: OscSync<'a, ScalarFxP>) -> &mut Self {
+        self.sync = s;
+        self
     }
 }
 
@@ -257,22 +323,19 @@ impl OscFxP {
     /// Generate waves based on the `note` control signal and parameters.
     ///
     /// See the definition of [NoteFxP] for further information.
+    /// 
+    /// See [OscSync] for the semantics of the sync argument.
     ///
     /// Note: The output slice from this function may be shorter than the
     /// input slices.  Callers must check the number of returned samples and
     /// copy them into their own output buffers before calling this function
     /// again to process the remainder of the data.
-    pub fn process(&mut self, note: &[NoteFxP], params: OscParamsFxP, sync: OscSync<ScalarFxP>) -> OscOutputFxP {
+    pub fn process(&mut self, note: &[NoteFxP], params: OscParamsFxP) -> OscOutputFxP {
+        let numsamples = *[note.len(), params.len(), STATIC_BUFFER_SIZE]
+            .iter().min().unwrap_or(&0);
         let shape = params.shape;
         let tune = params.tune;
-        let numsamples = *[
-            note.len(),
-            shape.len(),
-            tune.len(),
-            sync.len().unwrap_or(STATIC_BUFFER_SIZE),
-            STATIC_BUFFER_SIZE
-        ].iter().min().unwrap_or(&0);
-        let mut sync_arg = sync;
+        let mut sync = params.sync;
         const FRAC_2_PI: ScalarFxP = ScalarFxP::lit("0x0.a2fa");
         for i in 0..numsamples {
             //generate waveforms (piecewise defined)
@@ -322,7 +385,7 @@ impl OscFxP {
                 ).unwrapped_shr(2).to_bits()
             );
             // Handle slave oscillator resetting phase if master crosses:
-            match sync_arg {
+            match sync {
                 OscSync::Slave(syncbuf) => {
                     if syncbuf[i] != ScalarFxP::ZERO {
                         self.phase = PhaseFxP::ZERO;
@@ -339,7 +402,7 @@ impl OscFxP {
             });
             // Advance the oscillator's phase, and handle oscillator sync logic:
             let old_phase = self.phase;
-            match sync_arg {
+            match sync {
                 OscSync::Off => {
                     self.phase += phase_per_smp_adj;
                 },
@@ -692,8 +755,8 @@ mod bindings {
                 tune.offset(offset as isize).cast::<SignedNoteFxP>(),
                 samples as usize
             );
-            let params = OscParamsFxP { tune: tune_s, shape: shape_s };
-            let out = p.as_mut().unwrap().process(note_s, params, OscSync::Off);
+            let params = OscParamsFxP { tune: tune_s, shape: shape_s, sync: OscSync::Off };
+            let out = p.as_mut().unwrap().process(note_s, params);
             *sin = out.sin.as_ptr().cast();
             *tri = out.tri.as_ptr().cast();
             *sq = out.sq.as_ptr().cast();
@@ -743,8 +806,8 @@ mod bindings {
             let shape_s =
                 std::slice::from_raw_parts(shape.offset(offset as isize), samples as usize);
             let tune_s = std::slice::from_raw_parts(tune.offset(offset as isize), samples as usize);
-            let params = OscParams::<f32> { tune: tune_s, shape: shape_s };
-            let out = p.as_mut().unwrap().process(note_s, params, OscSync::Off);
+            let params = OscParams::<f32> { tune: tune_s, shape: shape_s, sync: OscSync::Off };
+            let out = p.as_mut().unwrap().process(note_s, params);
             *sin = out.sin.as_ptr().cast();
             *tri = out.tri.as_ptr().cast();
             *sq = out.sq.as_ptr().cast();
