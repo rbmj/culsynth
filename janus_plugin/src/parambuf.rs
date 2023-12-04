@@ -1,4 +1,4 @@
-use super::{EnvPluginParams, FiltPluginParams, OscPluginParams, RingModPluginParams};
+use crate::pluginparams::{EnvPluginParams, FiltPluginParams, OscPluginParams, RingModPluginParams};
 use janus::devices::{
     EnvParams, EnvParamsFxP, MixOscParams, MixOscParamsFxP, ModFiltParams, ModFiltParamsFxP,
     RingModParams, RingModParamsFxP,

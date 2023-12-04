@@ -79,7 +79,7 @@ impl<Smp: Float> Env<Smp> {
     /// input slices.  Callers must check the number of returned samples and
     /// copy them into their own output buffers before calling this function
     /// again to process the remainder of the data.
-    pub fn process(&mut self, gate: &[Smp], params: EnvParams<Smp>) -> &[Smp] {
+    pub fn process(&mut self, ctx: &Context<Smp>, gate: &[Smp], params: EnvParams<Smp>) -> &[Smp] {
         let attack = params.attack;
         let decay = params.decay;
         let sustain = params.sustain;
@@ -111,8 +111,7 @@ impl<Smp: Float> Env<Smp> {
                 release[i]
             };
             // This is equivalen to saying rise time = 4 time constants...
-            let sr_2 = SAMPLE_RATE >> 1;
-            let k = rise * Smp::from(sr_2).unwrap() + Smp::ONE;
+            let k = rise * ( ctx.sample_rate / Smp::TWO ) + Smp::ONE;
             let pro = setpoint_old + self.setpoint - self.last - self.last;
             let delta = pro / k;
             self.last = self.last + delta;
@@ -203,7 +202,7 @@ impl EnvFxP {
     /// input slices.  Callers must check the number of returned samples and
     /// copy them into their own output buffers before calling this function
     /// again to process the remainder of the data.
-    pub fn process(&mut self, gate: &[SampleFxP], params: EnvParamsFxP) -> &[ScalarFxP] {
+    pub fn process(&mut self, ctx: &ContextFxP, gate: &[SampleFxP], params: EnvParamsFxP) -> &[ScalarFxP] {
         let attack = params.attack;
         let decay = params.decay;
         let sustain = params.sustain;
@@ -238,7 +237,7 @@ impl EnvFxP {
                 release[i]
             };
             // This is equivalen to saying rise time = 4 time constants...
-            let sr = fixedmath::U16F0::from_bits(SAMPLE_RATE >> 1);
+            let sr = fixedmath::U16F0::from_bits(ctx.sample_rate.value() >> 1);
             let k = rise.wide_mul(sr);
             let (gain, shift) = fixedmath::one_over_one_plus(k);
             // Need saturating here to avoid panic if A == 0 && S == 0:
@@ -323,7 +322,8 @@ mod bindings {
                 sustain: s,
                 release: r,
             };
-            let out = (*p).process(g, params);
+            let ctx = ContextFxP::default();
+            let out = (*p).process(&ctx, g, params);
             *signal = out.as_ptr().cast();
             out.len() as i32
         }
@@ -375,7 +375,9 @@ mod bindings {
                 sustain: s,
                 release: r,
             };
-            let out = (*p).process(g, params);
+            //FIXME
+            let ctx = Context::<f32> { sample_rate: 44100f32 };
+            let out = (*p).process(&ctx, g, params);
             *signal = out.as_ptr().cast();
             out.len() as i32
         }

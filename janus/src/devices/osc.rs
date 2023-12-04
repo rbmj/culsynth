@@ -151,7 +151,7 @@ impl<Smp: Float> Osc<Smp> {
     /// input slices.  Callers must check the number of returned samples and
     /// copy them into their own output buffers before calling this function
     /// again to process the remainder of the data.
-    pub fn process(&mut self, note: &[Smp], params: OscParams<Smp>) -> OscOutput<Smp> {
+    pub fn process(&mut self, ctx: &Context<Smp>, note: &[Smp], params: OscParams<Smp>) -> OscOutput<Smp> {
         let numsamples = *[note.len(), params.len(), STATIC_BUFFER_SIZE].iter().min().unwrap_or(&0);
         let mut sync = params.sync;
         let shape = params.shape;
@@ -191,10 +191,10 @@ impl<Smp: Float> Osc<Smp> {
                     self.tribuf[i] = Smp::TWO - frac_2phase_pi;
                 }
             }
-            let sample_rate = Smp::from(SAMPLE_RATE).unwrap();
             //calculate the next phase
-            let phase_per_sample = midi_note_to_frequency(note[i] + tune[i]) * Smp::TAU() / sample_rate;
-            let shape_clip = Smp::from(0.9375).unwrap();
+            let phase_per_sample =
+                midi_note_to_frequency(note[i] + tune[i]) * Smp::TAU() / ctx.sample_rate;
+            let shape_clip = Smp::SHAPE_CLIP;
             let shp = if shape[i] < shape_clip {
                 shape[i]
             } else {
@@ -330,7 +330,7 @@ impl OscFxP {
     /// input slices.  Callers must check the number of returned samples and
     /// copy them into their own output buffers before calling this function
     /// again to process the remainder of the data.
-    pub fn process(&mut self, note: &[NoteFxP], params: OscParamsFxP) -> OscOutput<SampleFxP> {
+    pub fn process(&mut self, ctx: &ContextFxP, note: &[NoteFxP], params: OscParamsFxP) -> OscOutput<SampleFxP> {
         let numsamples = *[note.len(), params.len(), STATIC_BUFFER_SIZE]
             .iter().min().unwrap_or(&0);
         let shape = params.shape;
@@ -381,7 +381,7 @@ impl OscFxP {
                     fixedmath::midi_note_to_frequency(
                         note[i].saturating_add_signed(tune[i])
                     ),
-                    FRAC_4096_2PI_SR,
+                    ctx.sample_rate.frac_2pi4096_sr(),
                 ).unwrapped_shr(2).to_bits()
             );
             // Handle slave oscillator resetting phase if master crosses:
@@ -753,7 +753,9 @@ mod bindings {
                 samples as usize
             );
             let params = OscParamsFxP { tune: tune_s, shape: shape_s, sync: OscSync::Off };
-            let out = (*p).process(note_s, params);
+            //FIXME
+            let ctx = ContextFxP::default();
+            let out = (*p).process(&ctx, note_s, params);
             *sin = out.sin.as_ptr().cast();
             *tri = out.tri.as_ptr().cast();
             *sq = out.sq.as_ptr().cast();
@@ -804,7 +806,9 @@ mod bindings {
                 std::slice::from_raw_parts(shape.offset(offset as isize), samples as usize);
             let tune_s = std::slice::from_raw_parts(tune.offset(offset as isize), samples as usize);
             let params = OscParams::<f32> { tune: tune_s, shape: shape_s, sync: OscSync::Off };
-            let out = (*p).process(note_s, params);
+            //FIXME
+            let ctx = Context::<f32> { sample_rate: 44100f32 };
+            let out = (*p).process(&ctx, note_s, params);
             *sin = out.sin.as_ptr().cast();
             *tri = out.tri.as_ptr().cast();
             *sq = out.sq.as_ptr().cast();

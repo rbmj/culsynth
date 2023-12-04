@@ -12,3 +12,4 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 fixed = "1.24"
 num-traits = "0.2"
+rand = {version = "0.8.5", features = ["small_rng"]}

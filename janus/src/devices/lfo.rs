@@ -3,6 +3,10 @@ use super::osc::PhaseFxP;
 use crate::fixedmath::apply_scalar_i;
 use core::mem::transmute;
 use core::option::Option;
+use rand::{RngCore, SeedableRng, rngs::SmallRng};
+
+/// Default random seed to use if not provided a seed
+const RANDOM_SEED: u64 = 0xce607a9d25ec3d88u64; //random 64 bit integer
 
 #[repr(transparent)]
 pub struct LfoParam {
@@ -14,12 +18,7 @@ impl LfoParam {
     const RETRIGGER: u16 = 1 << 9;
     pub fn wave(&self) -> Option<LfoWave> {
         let value = (self.bits & 0xFF) as u8;
-        if value >= LfoWave::Sine as u8 && value <= LfoWave::SampleGlide as u8 {
-            unsafe { Some(transmute::<u8, LfoWave>(value)) }
-        }
-        else {
-            None
-        }
+        LfoWave::try_from(value).ok()
     }
     pub fn bipolar(&self) -> bool {
         self.bits & Self::BIPOLAR != 0
@@ -36,7 +35,7 @@ impl LfoParam {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 #[repr(u8)]
 pub enum LfoWave {
     #[default]
@@ -48,20 +47,50 @@ pub enum LfoWave {
     SampleGlide,
 }
 
+impl From<LfoWave> for &'static str {
+    fn from(value: LfoWave) -> Self {
+        ["Sine", "Square", "Triangle", "Saw", "Sample & Hold", "Sample & Glide"][value as usize]
+    }
+}
+
+impl TryFrom<u8> for LfoWave {
+    type Error = &'static str;
+    fn try_from(value: u8) -> Result<Self, &'static str> {
+        if value >= LfoWave::Sine as u8 && value <= LfoWave::SampleGlide as u8 {
+            unsafe { Ok(transmute::<u8, LfoWave>(value)) }
+        }
+        else {
+            Err("Conversion of u8 to LfoWave Overflowed")
+        }
+    }
+}
+
 pub struct Lfo<Smp> {
     outbuf: BufferT<Smp>,
+    rng: SmallRng,
     phase: Smp,
+    rand_smps: [Smp; 2],
     last_gate: bool,
 }
 
 impl<Smp: Float> Lfo<Smp> {
     /// Constructor
-    pub fn new() -> Self {
-        Self {
+    pub fn new(seed: u64) -> Self {
+        let mut retval = Self {
             outbuf: [Smp::ZERO; STATIC_BUFFER_SIZE],
+            rng: SmallRng::seed_from_u64(seed),
             phase: Smp::ZERO,
+            rand_smps: [Smp::ZERO; 2],
             last_gate: false,
-        }
+        };
+        retval.update_rands();
+        retval.update_rands();
+        retval
+    }
+    fn update_rands(&mut self) {
+        self.rand_smps[1] = self.rand_smps[0];
+        let rand_num = self.rng.next_u32() & (u16::MAX as u32);
+        self.rand_smps[0] = Smp::from_u16(rand_num as u16) / Smp::from_u16(u16::MAX);
     }
     /// Generate the LFO signal
     ///
@@ -69,13 +98,8 @@ impl<Smp: Float> Lfo<Smp> {
     /// input slices.  Callers must check the number of returned samples and
     /// copy them into their own output buffers before calling this function
     /// again to process the remainder of the data.
-    pub fn process(&mut self, freq: &[Smp], gate: &[Smp], params: &[LfoParam]) -> &[Smp] {
-        let numsamples = *[
-            freq.len(),
-            gate.len(),
-            params.len(),
-            STATIC_BUFFER_SIZE
-        ].iter().min().unwrap_or(&0);
+    pub fn process(&mut self, ctx: &Context<Smp>, freq: &[Smp], gate: &[Smp], params: &[LfoParam]) -> &[Smp] {
+        let numsamples = min_size(&[freq.len(), gate.len(), params.len(), STATIC_BUFFER_SIZE]);
         for i in 0..numsamples {
             let this_gate = gate[i] > Smp::ONE_HALF;
             if params[i].retrigger() && this_gate && !self.last_gate{
@@ -97,8 +121,7 @@ impl<Smp: Float> Lfo<Smp> {
                         frac_2phase_pi
                     }
                 }
-                _ => {
-                    // Assume Sine by default
+                LfoWave::Sine => {
                     if self.phase < Smp::FRAC_PI_2().neg() {
                         // phase in [-pi, pi/2)
                         // Use the identity sin(x) = -cos(x+pi/2) since our taylor series
@@ -112,17 +135,23 @@ impl<Smp: Float> Lfo<Smp> {
                         Smp::sin(self.phase)
                     }
                 }
+                LfoWave::SampleHold => {
+                    self.rand_smps[0]
+                }
+                LfoWave::SampleGlide => {
+                    self.rand_smps[0] + (frac_2phase_pi * (self.rand_smps[1] - self.rand_smps[0]))
+                }
             };
             if !params[i].bipolar() {
                 value = (value + Smp::ONE) / Smp::TWO;
             }
-            self.outbuf[i] = value;   
-            let sample_rate = Smp::from(SAMPLE_RATE).unwrap();
-            let phase_per_sample = (freq[i] * Smp::TAU()) / sample_rate;
+            self.outbuf[i] = value;
+            let phase_per_sample = (freq[i] * Smp::TAU()) / ctx.sample_rate;
             self.phase = self.phase + phase_per_sample;
             // Check if we've crossed from positive phase back to negative:
             if self.phase >= Smp::PI() {
                 self.phase = self.phase - Smp::TAU();
+                self.update_rands();
             }
         }
         &self.outbuf[0..numsamples]
@@ -131,25 +160,38 @@ impl<Smp: Float> Lfo<Smp> {
 
 impl<Smp: Float> Default for Lfo<Smp> {
     fn default() -> Self {
-        Self::new()
+        Self::new(RANDOM_SEED)
     }
 }
 
 /// A fixed-point LFO:
 pub struct LfoFxP {
     outbuf: BufferT<SampleFxP>,
+    rng: SmallRng,
+    rand_smps: [SampleFxP; 2],
     phase: PhaseFxP,
     last_gate: bool,
 }
 
 impl LfoFxP {
     /// Constructor
-    pub fn new() -> LfoFxP {
-        LfoFxP {
+    pub fn new(seed: u64) -> LfoFxP {
+        let mut retval = LfoFxP {
             outbuf: [SampleFxP::ZERO; STATIC_BUFFER_SIZE],
+            rng: SmallRng::seed_from_u64(seed),
+            rand_smps: [SampleFxP::ZERO; 2],
             phase: PhaseFxP::ZERO,
             last_gate: false,
-        }
+        };
+        retval.update_rands();
+        retval.update_rands();
+        retval
+    }
+    fn update_rands(&mut self) {
+        self.rand_smps[1] = self.rand_smps[0];
+        let rand_num = self.rng.next_u32() & (u16::MAX as u32);
+        let rand_scalar = ScalarFxP::from_bits(rand_num as u16);
+        self.rand_smps[0] = SampleFxP::from_num(rand_scalar);
     }
     /// Generate the LFO signal
     ///
@@ -157,13 +199,13 @@ impl LfoFxP {
     /// input slices.  Callers must check the number of returned samples and
     /// copy them into their own output buffers before calling this function
     /// again to process the remainder of the data.
-    pub fn process(&mut self, freq: &[LfoFreqFxP], gate: &[SampleFxP], params: &[LfoParam]) -> &[SampleFxP] {
-        let numsamples = *[
+    pub fn process(&mut self, ctx: &ContextFxP, freq: &[LfoFreqFxP], gate: &[SampleFxP], params: &[LfoParam]) -> &[SampleFxP] {
+        let numsamples = min_size(&[
             freq.len(),
             gate.len(),
             params.len(),
             STATIC_BUFFER_SIZE
-        ].iter().min().unwrap_or(&0);
+        ]);
         const FRAC_2_PI: ScalarFxP = ScalarFxP::lit("0x0.a2fa");
         for i in 0..numsamples {
             let this_gate = gate[i] > SampleFxP::lit("0.5");
@@ -187,8 +229,7 @@ impl LfoFxP {
                         frac_2phase_pi
                     }
                 }
-                _ => {
-                    // Assume Sine by default
+                LfoWave::Sine => {
                     if self.phase < PhaseFxP::FRAC_PI_2.unwrapped_neg() {
                         // phase in [-pi, pi/2)
                         // Use the identity sin(x) = -cos(x+pi/2) since our taylor series
@@ -206,18 +247,30 @@ impl LfoFxP {
                         fixedmath::sin_fixed(SampleFxP::from_num(self.phase))
                     }
                 }
+                LfoWave::SampleHold => {
+                    self.rand_smps[0]
+                }
+                LfoWave::SampleGlide => {
+                    self.rand_smps[0] 
+                        + SampleFxP::from_num(
+                            SampleFxP::from_num(frac_2phase_pi).wide_mul(
+                                self.rand_smps[1] - self.rand_smps[0]
+                            )
+                        )
+                }
             };
             if !params[i].bipolar() {
                 value = (value + SampleFxP::ONE).unwrapped_shr(1);
             }
             self.outbuf[i] = value;     
             let phase_per_sample = PhaseFxP::from_num(
-                freq[i].wide_mul(FRAC_4096_2PI_SR).unwrapped_shr(12),
+                freq[i].wide_mul(ctx.sample_rate.frac_2pi4096_sr()).unwrapped_shr(12),
             );
             self.phase += phase_per_sample;
             // Check if we've crossed from positive phase back to negative:
             if self.phase >= PhaseFxP::PI {
                 self.phase -= PhaseFxP::TAU;
+                self.update_rands();
             }
         }
         &self.outbuf[0..numsamples]
@@ -226,6 +279,6 @@ impl LfoFxP {
 
 impl Default for LfoFxP {
     fn default() -> Self {
-        Self::new()
+        Self::new(RANDOM_SEED)
     }
 }

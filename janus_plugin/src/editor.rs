@@ -1,6 +1,10 @@
-use crate::{EnvPluginParams, FiltPluginParams, JanusParams, OscPluginParams, RingModPluginParams};
+use crate::ContextReader;
+use crate::pluginparams::{EnvPluginParams, FiltPluginParams, JanusParams, LfoPluginParams, 
+    OscPluginParams, RingModPluginParams};
+use crate::voicealloc::{MonoSynthFxP, MonoSynth, VoiceAllocator};
 use egui::widgets;
-use egui::Context;
+use janus::context::{ContextFxP, Context};
+use janus::devices::LfoWave;
 use nih_plug::prelude::*;
 use nih_plug_egui::{create_egui_editor, egui, EguiState};
 use piano_keyboard::Rectangle as PianoRectangle;
@@ -61,6 +65,46 @@ impl PluginWidget for OscPluginParams {
                 ui.label("Tri");
                 ui.label("Square");
                 ui.label("Saw");
+            });
+        });
+    }
+}
+
+impl PluginWidget for LfoPluginParams {
+    fn draw_on(&self, ui: &mut egui::Ui, setter: &ParamSetter, label: &str) {
+        ui.vertical(|ui| {
+            ui.label(label);
+            ui.horizontal(|ui| {
+                ui.vertical(|ui| {
+                    let cur_wave = self.wave.value();
+                    for wave in [
+                        LfoWave::Sine,
+                        LfoWave::Saw,
+                        LfoWave::Square,
+                        LfoWave::Triangle,
+                        LfoWave::SampleHold,
+                        LfoWave::SampleGlide
+                    ] {
+                        let wave_str : &str = wave.into();
+                        if ui.selectable_label(cur_wave == wave as i32, wave_str).clicked() {
+                            setter.begin_set_parameter(&self.wave);
+                            setter.set_parameter(&self.wave, wave as i32);
+                            setter.end_set_parameter(&self.wave);
+                        }
+                    }
+                });
+                ui.vertical(|ui| {
+                    if ui.selectable_label(self.retrigger.value(), "Retrigger").clicked() {
+                        setter.begin_set_parameter(&self.retrigger);
+                        setter.set_parameter(&self.retrigger, !self.retrigger.value());
+                        setter.end_set_parameter(&self.retrigger);
+                    }
+                    if ui.selectable_label(self.bipolar.value(), "Bipolar").clicked() {
+                        setter.begin_set_parameter(&self.bipolar);
+                        setter.set_parameter(&self.bipolar, !self.bipolar.value());
+                        setter.end_set_parameter(&self.bipolar);
+                    }
+                });  
             });
         });
     }
@@ -161,15 +205,24 @@ pub(crate) fn default_state() -> Arc<EguiState> {
 /// Struct to hold the global state information for the plugin editor (GUI).
 struct JanusEditor {
     params: Arc<JanusParams>,
-    channel: SyncSender<i8>,
+    midi_channel: SyncSender<i8>,
+    synth_channel: SyncSender<Box<dyn VoiceAllocator>>,
+    context: ContextReader,
     last_note: Option<i8>,
 }
 
 impl JanusEditor {
-    pub fn new(p: Arc<JanusParams>, c: SyncSender<i8>) -> Self {
+    pub fn new(
+        p: Arc<JanusParams>, 
+        midi_tx: SyncSender<i8>, 
+        synth_tx: SyncSender<Box<dyn VoiceAllocator>>, 
+        ctx: ContextReader
+    ) -> Self {
         JanusEditor {
             params: p,
-            channel: c,
+            midi_channel: midi_tx,
+            synth_channel: synth_tx,
+            context: ctx,
             last_note: None,
         }
     }
@@ -183,7 +236,7 @@ impl JanusEditor {
                         if !(*pressed) {
                             k += -128; //Note off
                         }
-                        let _ = self.channel.try_send(k);
+                        let _ = self.midi_channel.try_send(k);
                     }
                 }
             }
@@ -338,7 +391,7 @@ impl JanusEditor {
     }
     /// Draw the bottom keyboard panel and handle keyboard/mouse input so the user
     /// can interact with the plugin without sending it MIDI
-    fn draw_kbd_panel(&mut self, egui_ctx: &Context) {
+    fn draw_kbd_panel(&mut self, egui_ctx: &egui::Context) {
         egui::TopBottomPanel::bottom("keyboard").show(egui_ctx, |ui| {
             self.handle_kbd_input(ui);
             let keyboard = KeyboardBuilder::new()
@@ -355,14 +408,14 @@ impl JanusEditor {
                             None => {}
                             Some(k) => {
                                 // note off the last note
-                                let _ = self.channel.try_send(k + (-128));
+                                let _ = self.midi_channel.try_send(k + (-128));
                             }
                         }
                         match new_note {
                             None => {}
                             Some(k) => {
                                 // note on the new note
-                                let _ = self.channel.try_send(k);
+                                let _ = self.midi_channel.try_send(k);
                             }
                         }
                     }
@@ -374,8 +427,75 @@ impl JanusEditor {
             }
         });
     }
+    fn draw_status_bar(&mut self, egui_ctx: &egui::Context) {
+        egui::TopBottomPanel::top("status")
+        .frame(egui::Frame::none().fill(egui::Color32::from_gray(32)))
+        .max_height(20f32)
+        .show(egui_ctx, |ui| {
+            let width = ui.available_width();
+            let third = width / 3f32;
+            ui.columns(3, |columns| {
+                columns[0].horizontal_centered(|ui| {
+                    //ui.label("CPU PERCENT");
+                    ui.label("");
+                });
+                columns[0].expand_to_include_x(third);
+                columns[1].expand_to_include_x(width - third);
+                columns[2].with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    let (sr, fixed_point) = self.context.get();
+                    let fixed_str = if fixed_point {
+                        "16 bit fixed"
+                    }
+                    else {
+                        "32 bit float"
+                    };
+                    ui.label(format!(
+                        "{}.{} kHz / {}", 
+                        sr / 1000,
+                        (sr % 1000) / 100,
+                        fixed_str,
+                    )).context_menu(|ui| {
+                        let fixed_context = ContextFxP::maybe_create(sr);
+                        let mut new_synth : Option<Box<dyn VoiceAllocator>> = None;
+                        ui.vertical(|ui| {
+                            ui.horizontal(|ui| {
+                                if fixed_context.is_none() {
+                                    ui.set_enabled(false);
+                                }
+                                if ui.selectable_label(fixed_point, "Fixed").clicked() {
+                                    ui.close_menu();
+                                    if let Some(context) = fixed_context {
+                                        if !fixed_point {
+                                            new_synth = Some(Box::new(MonoSynthFxP::new(context)));     
+                                        }
+                                    }
+                                }
+                            });
+                            if ui.selectable_label(!fixed_point, "Float").clicked() {
+                                ui.close_menu();
+                                if fixed_point {
+                                    let ctx = Context::new(sr as f32);
+                                    new_synth = Some(Box::new(MonoSynth::new(ctx)));
+                                }
+                            }
+                            if let Some(mut synth) = new_synth {
+                                synth.initialize(self.context.bufsz());
+                                if let Err(e) = self.synth_channel.try_send(synth) {
+                                    nih_log!("{}", e);
+                                }
+                            }
+                        });
+                    });
+                });
+                columns[1].centered_and_justified(|ui| {
+                    ui.label(format!("Janus v{}", env!("CARGO_PKG_VERSION")));
+                });
+            });
+        });
+    }
     /// Draw the editor panel
-    pub fn update(&mut self, egui_ctx: &Context, setter: &ParamSetter) {
+    pub fn update(&mut self, egui_ctx: &egui::Context, setter: &ParamSetter) {
+        self.draw_status_bar(egui_ctx);
         self.draw_kbd_panel(egui_ctx);
         egui::CentralPanel::default().show(egui_ctx, |ui| {
             ui.vertical(|ui| {
@@ -403,15 +523,20 @@ impl JanusEditor {
         });
     }
     /// Helper function to be passed as a callback to `create_egui_editor`
-    pub fn update_helper(egui_ctx: &Context, setter: &ParamSetter, state: &mut Self) {
+    pub fn update_helper(egui_ctx: &egui::Context, setter: &ParamSetter, state: &mut Self) {
         state.update(egui_ctx, setter)
     }
 }
 
-pub fn create(params: Arc<JanusParams>, tx: SyncSender<i8>) -> Option<Box<dyn Editor>> {
+pub fn create(
+    params: Arc<JanusParams>,
+    midi_tx: SyncSender<i8>,
+    synth_tx: SyncSender<Box<dyn VoiceAllocator>>,
+    context: ContextReader,
+) -> Option<Box<dyn Editor>> {
     create_egui_editor(
         params.editor_state.clone(),
-        JanusEditor::new(params, tx),
+        JanusEditor::new(params, midi_tx, synth_tx, context),
         |_, _| {},
         JanusEditor::update_helper,
     )

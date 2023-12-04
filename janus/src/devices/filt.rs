@@ -52,9 +52,9 @@ impl<Smp: Float> Filt<Smp> {
         }
     }
     /// Helper function to prewarp the gain of the analog equivalent filter:
-    fn prewarped_gain(f: Smp) -> Smp {
+    fn prewarped_gain(sr: Smp, f: Smp) -> Smp {
         let f_c = midi_note_to_frequency(f);
-        Smp::tan(Smp::PI() * f_c / Smp::from(SAMPLE_RATE).unwrap())
+        Smp::tan(Smp::PI() * f_c / sr)
     }
     /// Run the filter on the provided input and parameters.
     ///
@@ -62,7 +62,7 @@ impl<Smp: Float> Filt<Smp> {
     /// input slices.  Callers must check the number of returned samples and
     /// copy them into their own output buffers before calling this function
     /// again to process the remainder of the data.
-    pub fn process(&mut self, input: &[Smp], params: FiltParams<Smp>) -> FiltOutput<Smp> {
+    pub fn process(&mut self, ctx: &Context<Smp>, input: &[Smp], params: FiltParams<Smp>) -> FiltOutput<Smp> {
         let cutoff = params.cutoff;
         let resonance = params.resonance;
         let numsamples =
@@ -74,7 +74,7 @@ impl<Smp: Float> Filt<Smp> {
                 } else {
                     Smp::RES_MAX
                 };
-            let gain = Self::prewarped_gain(cutoff[i]);
+            let gain = Self::prewarped_gain(ctx.sample_rate, cutoff[i]);
             let denom = gain * gain + Smp::TWO * res * gain + Smp::ONE;
             self.high[i] = (input[i] - (Smp::TWO * res + gain) * self.band_z - self.low_z) / denom;
             let band_gain = gain * self.high[i];
@@ -153,10 +153,10 @@ impl FiltFxP {
     /// A helper function to calculate the prewarped gain of the equivalent analog circuit.
     /// Note that the use of [fixedmath::tan_fixed] will cause this to be fairly inaccurate
     /// at high frequencies (approximately half Nyquist, or 11kHz at 44.1kHz sample rate)
-    fn prewarped_gain(n: NoteFxP) -> fixedmath::U1F15 {
+    fn prewarped_gain(c: &ContextFxP, n: NoteFxP) -> fixedmath::U1F15 {
         let f_c = fixedmath::U14F2::from_num(fixedmath::midi_note_to_frequency(n));
         let omega_d = ScalarFxP::from_num(
-            f_c.wide_mul(FRAC_4096_2PI_SR)
+            f_c.wide_mul(c.sample_rate.frac_2pi4096_sr())
                 .unwrapped_shr(13),
         );
         fixedmath::tan_fixed(omega_d)
@@ -167,7 +167,7 @@ impl FiltFxP {
     /// input slices.  Callers must check the number of returned samples and
     /// copy them into their own output buffers before calling this function
     /// again to process the remainder of the data.
-    pub fn process(&mut self, input: &[SampleFxP], params: FiltParamsFxP) -> FiltOutputFxP {
+    pub fn process(&mut self, ctx: &ContextFxP, input: &[SampleFxP], params: FiltParamsFxP) -> FiltOutputFxP {
         let cutoff = params.cutoff;
         let resonance = params.resonance;
         let numsamples = std::cmp::min(
@@ -177,7 +177,7 @@ impl FiltFxP {
         for i in 0..numsamples {
             let res = ScalarFxP::MAX - std::cmp::min(resonance[i], Self::RES_MAX);
             // include type annotations to make the fixed point logic more explicit
-            let gain: fixedmath::U1F15 = Self::prewarped_gain(cutoff[i]);
+            let gain: fixedmath::U1F15 = Self::prewarped_gain(ctx, cutoff[i]);
             let gain2 = fixedmath::U3F29::from_num(gain.wide_mul(gain));
             // resonance * gain is a U1F31, so this will only lose the least significant bit
             // and provides space for the shift left below (should be optimized out)
@@ -275,7 +275,9 @@ mod bindings {
                 cutoff: c,
                 resonance: r,
             };
-            let out = (*p).process(i, params);
+            //FIXME
+            let ctx = ContextFxP::default();
+            let out = (*p).process(&ctx, i, params);
             *low = out.low.as_ptr().cast();
             *band = out.band.as_ptr().cast();
             *high = out.high.as_ptr().cast();
@@ -325,7 +327,9 @@ mod bindings {
                 cutoff: c,
                 resonance: r,
             };
-            let out = (*p).process(i, params);
+            //FIXME
+            let ctx = Context::<f32> { sample_rate: 44100f32 };
+            let out = (*p).process(&ctx, i, params);
             *low = out.low.as_ptr().cast();
             *band = out.band.as_ptr().cast();
             *high = out.high.as_ptr().cast();

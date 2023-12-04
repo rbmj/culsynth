@@ -53,8 +53,9 @@ impl<Smp: Float> MixOsc<Smp> {
             osc: Default::default(),
         }
     }
-    pub fn process(&mut self, note: &[Smp], params: MixOscParams<Smp>) -> &[Smp] {
+    pub fn process(&mut self, ctx: &Context<Smp>, note: &[Smp], params: MixOscParams<Smp>) -> &[Smp] {
         let osc_out = self.osc.process(
+            ctx,
             note,
             OscParams {
                 tune: params.tune,
@@ -132,8 +133,9 @@ impl MixOscFxP {
             osc: Default::default(),
         }
     }
-    pub fn process(&mut self, note: &[NoteFxP], params: MixOscParamsFxP) -> &[SampleFxP] {
+    pub fn process(&mut self, ctx: &ContextFxP, note: &[NoteFxP], params: MixOscParamsFxP) -> &[SampleFxP] {
         let osc_out = self.osc.process(
+            ctx,
             note,
             OscParamsFxP {
                 tune: params.tune,

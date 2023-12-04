@@ -46,6 +46,7 @@ impl<Smp: Float> ModFilt<Smp> {
     }
     pub fn process(
         &mut self,
+        ctx: &Context<Smp>,
         input: &[Smp],
         env: &[Smp],
         note: &[Smp],
@@ -68,6 +69,7 @@ impl<Smp: Float> ModFilt<Smp> {
         }
         //calculate filter output
         let filt_out = self.filter.process(
+            ctx,
             input,
             FiltParams {
                 cutoff: &self.outbuf[0..numsamples],
@@ -137,6 +139,7 @@ impl ModFiltFxP {
     }
     pub fn process(
         &mut self,
+        ctx: &ContextFxP,
         input: &[SampleFxP],
         env: &[ScalarFxP],
         note: &[NoteFxP],
@@ -161,6 +164,7 @@ impl ModFiltFxP {
         }
         //calculate filter output
         let filt_out = self.filter.process(
+            ctx,
             input,
             FiltParamsFxP {
                 cutoff: &self.modbuf[0..numsamples],

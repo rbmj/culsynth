@@ -28,6 +28,7 @@ mod util;
 /// flat.
 pub mod midi_const;
 
+pub mod context;
 pub mod devices;
 
 pub mod voice;
@@ -51,3 +52,7 @@ pub type EnvParamFxP = fixedmath::U3F13;
 ///
 /// TODO: should this be a newtype?
 pub type LfoFreqFxP = fixedmath::U7F9;
+
+fn min_size(sizes: &[usize]) -> usize {
+    *sizes.iter().min().unwrap_or(&0)
+}
