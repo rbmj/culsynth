@@ -111,7 +111,7 @@ impl<Smp: Float> Env<Smp> {
                 release[i]
             };
             // This is equivalen to saying rise time = 4 time constants...
-            let k = rise * ( ctx.sample_rate / Smp::TWO ) + Smp::ONE;
+            let k = rise * (ctx.sample_rate / Smp::TWO) + Smp::ONE;
             let pro = setpoint_old + self.setpoint - self.last - self.last;
             let delta = pro / k;
             self.last = self.last + delta;
@@ -202,7 +202,12 @@ impl EnvFxP {
     /// input slices.  Callers must check the number of returned samples and
     /// copy them into their own output buffers before calling this function
     /// again to process the remainder of the data.
-    pub fn process(&mut self, ctx: &ContextFxP, gate: &[SampleFxP], params: EnvParamsFxP) -> &[ScalarFxP] {
+    pub fn process(
+        &mut self,
+        ctx: &ContextFxP,
+        gate: &[SampleFxP],
+        params: EnvParamsFxP,
+    ) -> &[ScalarFxP] {
         let attack = params.attack;
         let decay = params.decay;
         let sustain = params.sustain;
@@ -376,7 +381,9 @@ mod bindings {
                 release: r,
             };
             //FIXME
-            let ctx = Context::<f32> { sample_rate: 44100f32 };
+            let ctx = Context::<f32> {
+                sample_rate: 44100f32,
+            };
             let out = (*p).process(&ctx, g, params);
             *signal = out.as_ptr().cast();
             out.len() as i32

@@ -144,15 +144,20 @@ impl<Smp: Float> Osc<Smp> {
     /// Run the oscillator, using the given note signal and parameters.
     ///
     /// `note` is formatted as a MIDI note number (floating point allowed for bends, etc.)
-    /// 
+    ///
     /// See [OscSync] for the semantics of the `sync` argument.
     ///
     /// Note: The output slices from this function may be shorter than the
     /// input slices.  Callers must check the number of returned samples and
     /// copy them into their own output buffers before calling this function
     /// again to process the remainder of the data.
-    pub fn process(&mut self, ctx: &Context<Smp>, note: &[Smp], params: OscParams<Smp>) -> OscOutput<Smp> {
-        let numsamples = *[note.len(), params.len(), STATIC_BUFFER_SIZE].iter().min().unwrap_or(&0);
+    pub fn process(
+        &mut self,
+        ctx: &Context<Smp>,
+        note: &[Smp],
+        params: OscParams<Smp>,
+    ) -> OscOutput<Smp> {
+        let numsamples = min_size(&[note.len(), params.len(), STATIC_BUFFER_SIZE]);
         let mut sync = params.sync;
         let shape = params.shape;
         let tune = params.tune;
@@ -215,25 +220,26 @@ impl<Smp: Float> Osc<Smp> {
             match sync {
                 OscSync::Off => {
                     self.phase = self.phase + phase_per_smp_adj;
-                },
+                }
                 OscSync::Master(ref mut syncbuf) => {
                     self.phase = self.phase + phase_per_smp_adj;
                     // calculate what time in this sampling period the phase crossed zero:
                     syncbuf[i] = if syncbuf[i] != Smp::ZERO
-                        && old_phase < Smp::ZERO 
+                        && old_phase < Smp::ZERO
                         && self.phase >= Smp::ZERO
                     {
                         Smp::ONE - (self.phase / phase_per_smp_adj)
                     } else {
                         Smp::ZERO
                     };
-                },
+                }
                 OscSync::Slave(syncbuf) => {
-                    self.phase = self.phase + if syncbuf[i] != Smp::ZERO {
-                        phase_per_smp_adj * (Smp::ONE - syncbuf[i])
-                    } else {
-                        phase_per_smp_adj
-                    };
+                    self.phase = self.phase
+                        + if syncbuf[i] != Smp::ZERO {
+                            phase_per_smp_adj * (Smp::ONE - syncbuf[i])
+                        } else {
+                            phase_per_smp_adj
+                        };
                 }
             }
             // make sure we calculate the correct new phase on transitions for assymmetric waves:
@@ -323,24 +329,27 @@ impl OscFxP {
     /// Generate waves based on the `note` control signal and parameters.
     ///
     /// See the definition of [NoteFxP] for further information.
-    /// 
+    ///
     /// See [OscSync] for the semantics of the sync argument.
     ///
     /// Note: The output slice from this function may be shorter than the
     /// input slices.  Callers must check the number of returned samples and
     /// copy them into their own output buffers before calling this function
     /// again to process the remainder of the data.
-    pub fn process(&mut self, ctx: &ContextFxP, note: &[NoteFxP], params: OscParamsFxP) -> OscOutput<SampleFxP> {
-        let numsamples = *[note.len(), params.len(), STATIC_BUFFER_SIZE]
-            .iter().min().unwrap_or(&0);
+    pub fn process(
+        &mut self,
+        ctx: &ContextFxP,
+        note: &[NoteFxP],
+        params: OscParamsFxP,
+    ) -> OscOutput<SampleFxP> {
+        let numsamples = min_size(&[note.len(), params.len(), STATIC_BUFFER_SIZE]);
         let shape = params.shape;
         let tune = params.tune;
         let mut sync = params.sync;
         const FRAC_2_PI: ScalarFxP = ScalarFxP::lit("0x0.a2fa");
         for i in 0..numsamples {
             //generate waveforms (piecewise defined)
-            let frac_2phase_pi =
-                apply_scalar_i(SampleFxP::from_num(self.phase), FRAC_2_PI);
+            let frac_2phase_pi = apply_scalar_i(SampleFxP::from_num(self.phase), FRAC_2_PI);
             //Sawtooth wave does not have to be piecewise-defined
             self.sawbuf[i] = frac_2phase_pi.unwrapped_shr(1);
             //All other functions are piecewise-defined:
@@ -378,11 +387,11 @@ impl OscFxP {
             // remaining logical 10 bits:
             let phase_per_sample = fixedmath::U4F28::from_bits(
                 fixedmath::scale_fixedfloat(
-                    fixedmath::midi_note_to_frequency(
-                        note[i].saturating_add_signed(tune[i])
-                    ),
+                    fixedmath::midi_note_to_frequency(note[i].saturating_add_signed(tune[i])),
                     ctx.sample_rate.frac_2pi4096_sr(),
-                ).unwrapped_shr(2).to_bits()
+                )
+                .unwrapped_shr(2)
+                .to_bits(),
             );
             // Handle slave oscillator resetting phase if master crosses:
             if let OscSync::Slave(syncbuf) = sync {
@@ -402,12 +411,12 @@ impl OscFxP {
             match sync {
                 OscSync::Off => {
                     self.phase += phase_per_smp_adj;
-                },
+                }
                 OscSync::Master(ref mut syncbuf) => {
                     self.phase += phase_per_smp_adj;
                     // calculate what time in this sampling period the phase crossed zero:
                     syncbuf[i] = if syncbuf[i] != ScalarFxP::ZERO
-                        && old_phase < PhaseFxP::ZERO 
+                        && old_phase < PhaseFxP::ZERO
                         && self.phase >= PhaseFxP::ZERO
                     {
                         // we need to calculate 1 - (phase / phase_per_sample_adj)
@@ -422,17 +431,15 @@ impl OscFxP {
                     } else {
                         ScalarFxP::ZERO
                     }
-                },
+                }
                 OscSync::Slave(syncbuf) => {
                     self.phase += if syncbuf[i] != ScalarFxP::ZERO {
                         // Only advance phase for the portion of time after master crossed zero:
                         let scale = ScalarFxP::MAX - syncbuf[i];
-                        PhaseFxP::from_num(
-                            fixedmath::scale_fixedfloat(
-                                fixedmath::U4F28::from_num(phase_per_smp_adj),
-                                scale,
-                            ),
-                        )
+                        PhaseFxP::from_num(fixedmath::scale_fixedfloat(
+                            fixedmath::U4F28::from_num(phase_per_smp_adj),
+                            scale,
+                        ))
                     } else {
                         phase_per_smp_adj
                     }
@@ -575,7 +582,6 @@ fn inverse(x: ScalarFxP) -> fixedmath::U8F8 {
     ];
     LOOKUP_TABLE[(x.to_bits() >> 8) as usize]
 }
-
 
 fn one_over_one_minus_x(x: ScalarFxP) -> USampleFxP {
     // For brevity in defining the lookup table:
@@ -750,9 +756,13 @@ mod bindings {
             );
             let tune_s = std::slice::from_raw_parts(
                 tune.offset(offset as isize).cast::<SignedNoteFxP>(),
-                samples as usize
+                samples as usize,
             );
-            let params = OscParamsFxP { tune: tune_s, shape: shape_s, sync: OscSync::Off };
+            let params = OscParamsFxP {
+                tune: tune_s,
+                shape: shape_s,
+                sync: OscSync::Off,
+            };
             //FIXME
             let ctx = ContextFxP::default();
             let out = (*p).process(&ctx, note_s, params);
@@ -805,9 +815,15 @@ mod bindings {
             let shape_s =
                 std::slice::from_raw_parts(shape.offset(offset as isize), samples as usize);
             let tune_s = std::slice::from_raw_parts(tune.offset(offset as isize), samples as usize);
-            let params = OscParams::<f32> { tune: tune_s, shape: shape_s, sync: OscSync::Off };
+            let params = OscParams::<f32> {
+                tune: tune_s,
+                shape: shape_s,
+                sync: OscSync::Off,
+            };
             //FIXME
-            let ctx = Context::<f32> { sample_rate: 44100f32 };
+            let ctx = Context::<f32> {
+                sample_rate: 44100f32,
+            };
             let out = (*p).process(&ctx, note_s, params);
             *sin = out.sin.as_ptr().cast();
             *tri = out.tri.as_ptr().cast();

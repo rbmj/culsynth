@@ -1,9 +1,11 @@
+use crate::pluginparams::{
+    EnvPluginParams, FiltPluginParams, JanusParams, LfoPluginParams, OscPluginParams,
+    RingModPluginParams,
+};
+use crate::voicealloc::{MonoSynth, MonoSynthFxP, VoiceAllocator};
 use crate::ContextReader;
-use crate::pluginparams::{EnvPluginParams, FiltPluginParams, JanusParams, LfoPluginParams, 
-    OscPluginParams, RingModPluginParams};
-use crate::voicealloc::{MonoSynthFxP, MonoSynth, VoiceAllocator};
 use egui::widgets;
-use janus::context::{ContextFxP, Context};
+use janus::context::{Context, ContextFxP};
 use janus::devices::LfoWave;
 use nih_plug::prelude::*;
 use nih_plug_egui::{create_egui_editor, egui, EguiState};
@@ -83,10 +85,13 @@ impl PluginWidget for LfoPluginParams {
                         LfoWave::Square,
                         LfoWave::Triangle,
                         LfoWave::SampleHold,
-                        LfoWave::SampleGlide
+                        LfoWave::SampleGlide,
                     ] {
-                        let wave_str : &str = wave.into();
-                        if ui.selectable_label(cur_wave == wave as i32, wave_str).clicked() {
+                        let wave_str: &str = wave.into();
+                        if ui
+                            .selectable_label(cur_wave == wave as i32, wave_str)
+                            .clicked()
+                        {
                             setter.begin_set_parameter(&self.wave);
                             setter.set_parameter(&self.wave, wave as i32);
                             setter.end_set_parameter(&self.wave);
@@ -94,17 +99,23 @@ impl PluginWidget for LfoPluginParams {
                     }
                 });
                 ui.vertical(|ui| {
-                    if ui.selectable_label(self.retrigger.value(), "Retrigger").clicked() {
+                    if ui
+                        .selectable_label(self.retrigger.value(), "Retrigger")
+                        .clicked()
+                    {
                         setter.begin_set_parameter(&self.retrigger);
                         setter.set_parameter(&self.retrigger, !self.retrigger.value());
                         setter.end_set_parameter(&self.retrigger);
                     }
-                    if ui.selectable_label(self.bipolar.value(), "Bipolar").clicked() {
+                    if ui
+                        .selectable_label(self.bipolar.value(), "Bipolar")
+                        .clicked()
+                    {
                         setter.begin_set_parameter(&self.bipolar);
                         setter.set_parameter(&self.bipolar, !self.bipolar.value());
                         setter.end_set_parameter(&self.bipolar);
                     }
-                });  
+                });
             });
         });
     }
@@ -213,10 +224,10 @@ struct JanusEditor {
 
 impl JanusEditor {
     pub fn new(
-        p: Arc<JanusParams>, 
-        midi_tx: SyncSender<i8>, 
-        synth_tx: SyncSender<Box<dyn VoiceAllocator>>, 
-        ctx: ContextReader
+        p: Arc<JanusParams>,
+        midi_tx: SyncSender<i8>,
+        synth_tx: SyncSender<Box<dyn VoiceAllocator>>,
+        ctx: ContextReader,
     ) -> Self {
         JanusEditor {
             params: p,
@@ -429,69 +440,73 @@ impl JanusEditor {
     }
     fn draw_status_bar(&mut self, egui_ctx: &egui::Context) {
         egui::TopBottomPanel::top("status")
-        .frame(egui::Frame::none().fill(egui::Color32::from_gray(32)))
-        .max_height(20f32)
-        .show(egui_ctx, |ui| {
-            let width = ui.available_width();
-            let third = width / 3f32;
-            ui.columns(3, |columns| {
-                columns[0].horizontal_centered(|ui| {
-                    //ui.label("CPU PERCENT");
-                    ui.label("");
-                });
-                columns[0].expand_to_include_x(third);
-                columns[1].expand_to_include_x(width - third);
-                columns[2].with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    let (sr, fixed_point) = self.context.get();
-                    let fixed_str = if fixed_point {
-                        "16 bit fixed"
-                    }
-                    else {
-                        "32 bit float"
-                    };
-                    ui.label(format!(
-                        "{}.{} kHz / {}", 
-                        sr / 1000,
-                        (sr % 1000) / 100,
-                        fixed_str,
-                    )).context_menu(|ui| {
-                        let fixed_context = ContextFxP::maybe_create(sr);
-                        let mut new_synth : Option<Box<dyn VoiceAllocator>> = None;
-                        ui.vertical(|ui| {
-                            ui.horizontal(|ui| {
-                                if fixed_context.is_none() {
-                                    ui.set_enabled(false);
-                                }
-                                if ui.selectable_label(fixed_point, "Fixed").clicked() {
-                                    ui.close_menu();
-                                    if let Some(context) = fixed_context {
-                                        if !fixed_point {
-                                            new_synth = Some(Box::new(MonoSynthFxP::new(context)));     
+            .frame(egui::Frame::none().fill(egui::Color32::from_gray(32)))
+            .max_height(20f32)
+            .show(egui_ctx, |ui| {
+                let width = ui.available_width();
+                let third = width / 3f32;
+                ui.columns(3, |columns| {
+                    columns[0].horizontal_centered(|ui| {
+                        //ui.label("CPU PERCENT");
+                        ui.label("");
+                    });
+                    columns[0].expand_to_include_x(third);
+                    columns[1].expand_to_include_x(width - third);
+                    columns[2].with_layout(
+                        egui::Layout::right_to_left(egui::Align::Center),
+                        |ui| {
+                            let (sr, fixed_point) = self.context.get();
+                            let fixed_str = if fixed_point {
+                                "16 bit fixed"
+                            } else {
+                                "32 bit float"
+                            };
+                            ui.label(format!(
+                                "{}.{} kHz / {}",
+                                sr / 1000,
+                                (sr % 1000) / 100,
+                                fixed_str,
+                            ))
+                            .context_menu(|ui| {
+                                let fixed_context = ContextFxP::maybe_create(sr);
+                                let mut new_synth: Option<Box<dyn VoiceAllocator>> = None;
+                                ui.vertical(|ui| {
+                                    ui.horizontal(|ui| {
+                                        if fixed_context.is_none() {
+                                            ui.set_enabled(false);
+                                        }
+                                        if ui.selectable_label(fixed_point, "Fixed").clicked() {
+                                            ui.close_menu();
+                                            if let Some(context) = fixed_context {
+                                                if !fixed_point {
+                                                    new_synth =
+                                                        Some(Box::new(MonoSynthFxP::new(context)));
+                                                }
+                                            }
+                                        }
+                                    });
+                                    if ui.selectable_label(!fixed_point, "Float").clicked() {
+                                        ui.close_menu();
+                                        if fixed_point {
+                                            let ctx = Context::new(sr as f32);
+                                            new_synth = Some(Box::new(MonoSynth::new(ctx)));
                                         }
                                     }
-                                }
+                                    if let Some(mut synth) = new_synth {
+                                        synth.initialize(self.context.bufsz());
+                                        if let Err(e) = self.synth_channel.try_send(synth) {
+                                            nih_log!("{}", e);
+                                        }
+                                    }
+                                });
                             });
-                            if ui.selectable_label(!fixed_point, "Float").clicked() {
-                                ui.close_menu();
-                                if fixed_point {
-                                    let ctx = Context::new(sr as f32);
-                                    new_synth = Some(Box::new(MonoSynth::new(ctx)));
-                                }
-                            }
-                            if let Some(mut synth) = new_synth {
-                                synth.initialize(self.context.bufsz());
-                                if let Err(e) = self.synth_channel.try_send(synth) {
-                                    nih_log!("{}", e);
-                                }
-                            }
-                        });
+                        },
+                    );
+                    columns[1].centered_and_justified(|ui| {
+                        ui.label(format!("Janus v{}", env!("CARGO_PKG_VERSION")));
                     });
                 });
-                columns[1].centered_and_justified(|ui| {
-                    ui.label(format!("Janus v{}", env!("CARGO_PKG_VERSION")));
-                });
             });
-        });
     }
     /// Draw the editor panel
     pub fn update(&mut self, egui_ctx: &egui::Context, setter: &ParamSetter) {

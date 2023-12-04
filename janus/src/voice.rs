@@ -1,15 +1,15 @@
 //! This module contains a struct composing various devices together as a
 //! single voice unit for a basic subtractive synthesizer.
 
-use super::{BufferT, STATIC_BUFFER_SIZE, min_size};
-use super::{NoteFxP, SampleFxP, ScalarFxP};
 use crate::context::{Context, ContextFxP};
 use crate::devices::*;
+use crate::{min_size, BufferT, STATIC_BUFFER_SIZE};
+use crate::{NoteFxP, SampleFxP, ScalarFxP};
 
 /// This struct encapsulates a single voice unit, containing a single oscillator,
 /// a single VCF (with modulation inputs and mixing of low/band/high pass outputs),
 /// a VCA, and two envelopes (one for the VCA and one for the VCF).
-/// 
+///
 /// This implementaiton uses fixed point logic.
 pub struct VoiceFxP {
     osc1: MixOscFxP,
@@ -40,11 +40,11 @@ impl VoiceFxP {
     /// Process the note/gate inputs, passing the parameters to the relevant
     /// components of the voice unit, and return a reference to an internal
     /// buffer containing the output sample data.
-    /// 
+    ///
     /// The syncbuf should be set non-zero for any sample where oscillator sync
     /// is enabled, or zero if sync is disabled.  This function will clobber the
     /// `sync` buffer unless it is zero for all samples.
-    /// 
+    ///
     /// `osc1_p.sync` and `osc2_p.sync` may be set to `OscSync::Off`, and this
     /// will internally set osc1 to be the master and osc2 to be the slave.
     ///
@@ -86,13 +86,15 @@ impl VoiceFxP {
         );
         let osc2_out = self.osc2.process(
             ctx,
-            &note[0..numsamples], 
+            &note[0..numsamples],
             osc2_p.with_sync(OscSync::Slave(sync)),
         );
         let ring_mod_out = self.ringmod.process(ctx, osc1_out, osc2_out, ring_p);
         let filt_env_out = self.env_filt.process(ctx, &gate[0..numsamples], filt_env_p);
-        let filt_out = self.filt.process(ctx, ring_mod_out, filt_env_out, note, vel, filt_p);
-        let vca_env_out = self.env_amp.process(ctx,&gate[0..numsamples], amp_env_p);
+        let filt_out = self
+            .filt
+            .process(ctx, ring_mod_out, filt_env_out, note, vel, filt_p);
+        let vca_env_out = self.env_amp.process(ctx, &gate[0..numsamples], amp_env_p);
         for i in 0..numsamples {
             self.vcabuf[i] = SampleFxP::from_num(vca_env_out[i]);
         }
@@ -106,11 +108,10 @@ impl Default for VoiceFxP {
     }
 }
 
-
 /// This struct encapsulates a single voice unit, containing a single oscillator,
 /// a single VCF (with modulation inputs and mixing of low/band/high pass outputs),
 /// a VCA, and two envelopes (one for the VCA and one for the VCF).
-/// 
+///
 /// This implementation uses floating point logic
 pub struct Voice<Smp: Float> {
     osc1: MixOsc<Smp>,
@@ -138,11 +139,11 @@ impl<Smp: Float> Voice<Smp> {
     /// Process the note/gate inputs, passing the parameters to the relevant
     /// components of the voice unit, and return a reference to an internal
     /// buffer containing the output sample data.
-    /// 
+    ///
     /// The syncbuf should be set non-zero for any sample where oscillator sync
     /// is enabled, or zero if sync is disabled.  This function will clobber the
     /// `sync` buffer unless it is zero for all samples.
-    /// 
+    ///
     /// `osc1_p.sync` and `osc2_p.sync` may be set to `OscSync::Off`, and this
     /// will internally set osc1 to be the master and osc2 to be the slave.
     ///
@@ -184,13 +185,15 @@ impl<Smp: Float> Voice<Smp> {
         );
         let osc2_out = self.osc2.process(
             ctx,
-            &note[0..numsamples], 
+            &note[0..numsamples],
             osc2_p.with_sync(OscSync::Slave(sync)),
         );
         let ring_mod_out = self.ringmod.process(ctx, osc1_out, osc2_out, ring_p);
         let filt_env_out = self.env_filt.process(ctx, &gate[0..numsamples], filt_env_p);
-        let filt_out = self.filt.process(ctx, ring_mod_out, filt_env_out, note, vel, filt_p);
-        let vca_env_out = self.env_amp.process(ctx,&gate[0..numsamples], amp_env_p);
+        let filt_out = self
+            .filt
+            .process(ctx, ring_mod_out, filt_env_out, note, vel, filt_p);
+        let vca_env_out = self.env_amp.process(ctx, &gate[0..numsamples], amp_env_p);
         self.vca.process(filt_out, vca_env_out)
     }
 }

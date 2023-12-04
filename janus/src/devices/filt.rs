@@ -62,7 +62,12 @@ impl<Smp: Float> Filt<Smp> {
     /// input slices.  Callers must check the number of returned samples and
     /// copy them into their own output buffers before calling this function
     /// again to process the remainder of the data.
-    pub fn process(&mut self, ctx: &Context<Smp>, input: &[Smp], params: FiltParams<Smp>) -> FiltOutput<Smp> {
+    pub fn process(
+        &mut self,
+        ctx: &Context<Smp>,
+        input: &[Smp],
+        params: FiltParams<Smp>,
+    ) -> FiltOutput<Smp> {
         let cutoff = params.cutoff;
         let resonance = params.resonance;
         let numsamples =
@@ -167,7 +172,12 @@ impl FiltFxP {
     /// input slices.  Callers must check the number of returned samples and
     /// copy them into their own output buffers before calling this function
     /// again to process the remainder of the data.
-    pub fn process(&mut self, ctx: &ContextFxP, input: &[SampleFxP], params: FiltParamsFxP) -> FiltOutputFxP {
+    pub fn process(
+        &mut self,
+        ctx: &ContextFxP,
+        input: &[SampleFxP],
+        params: FiltParamsFxP,
+    ) -> FiltOutputFxP {
         let cutoff = params.cutoff;
         let resonance = params.resonance;
         let numsamples = std::cmp::min(
@@ -328,7 +338,9 @@ mod bindings {
                 resonance: r,
             };
             //FIXME
-            let ctx = Context::<f32> { sample_rate: 44100f32 };
+            let ctx = Context::<f32> {
+                sample_rate: 44100f32,
+            };
             let out = (*p).process(&ctx, i, params);
             *low = out.low.as_ptr().cast();
             *band = out.band.as_ptr().cast();

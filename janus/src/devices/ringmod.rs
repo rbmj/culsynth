@@ -44,7 +44,13 @@ impl<Smp: Float> RingMod<Smp> {
     /// input slices.  Callers must check the number of returned samples and
     /// copy them into their own output buffers before calling this function
     /// again to process the remainder of the data.
-    pub fn process(&mut self, _ctx: &Context<Smp>, a: &[Smp], b: &[Smp], params: RingModParams<Smp>) -> &[Smp] {
+    pub fn process(
+        &mut self,
+        _ctx: &Context<Smp>,
+        a: &[Smp],
+        b: &[Smp],
+        params: RingModParams<Smp>,
+    ) -> &[Smp] {
         let numsamples = std::cmp::min(
             std::cmp::min(params.len(), STATIC_BUFFER_SIZE),
             std::cmp::min(a.len(), b.len()),

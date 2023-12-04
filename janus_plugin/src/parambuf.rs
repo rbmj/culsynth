@@ -1,4 +1,6 @@
-use crate::pluginparams::{EnvPluginParams, FiltPluginParams, OscPluginParams, RingModPluginParams};
+use crate::pluginparams::{
+    EnvPluginParams, FiltPluginParams, OscPluginParams, RingModPluginParams,
+};
 use janus::devices::{
     EnvParams, EnvParamsFxP, MixOscParams, MixOscParamsFxP, ModFiltParams, ModFiltParamsFxP,
     RingModParams, RingModParamsFxP,
@@ -245,7 +247,11 @@ impl GlobalParamBuffer {
         &mut self.sync[base..end]
     }
     pub fn update_index(&mut self, idx: usize, osc_sync: &nih_plug::params::BoolParam) {
-        self.sync_fxp[idx] = if osc_sync.value() { ScalarFxP::DELTA } else { ScalarFxP::ZERO };
+        self.sync_fxp[idx] = if osc_sync.value() {
+            ScalarFxP::DELTA
+        } else {
+            ScalarFxP::ZERO
+        };
     }
 }
 
@@ -385,7 +391,7 @@ impl OscParamBuffer {
         self.tri_fxp[idx] = ScalarFxP::from_bits(p.tri.smoothed.next() as u16);
         self.saw_fxp[idx] = ScalarFxP::from_bits(p.saw.smoothed.next() as u16);
         self.tune_fxp[idx] = SignedNoteFxP::from_bits(
-            ((p.course.smoothed.next() << 9) + p.fine.smoothed.next()) as i16
+            ((p.course.smoothed.next() << 9) + p.fine.smoothed.next()) as i16,
         )
     }
 }
@@ -476,7 +482,7 @@ impl FiltParamBuffer {
     pub fn params(&self, base: usize, end: usize) -> ModFiltParamsFxP {
         ModFiltParamsFxP {
             env_mod: &self.env_mod_fxp[base..end],
-            vel_mod: & self.vel_mod_fxp[base..end],
+            vel_mod: &self.vel_mod_fxp[base..end],
             kbd: &self.kbd_fxp[base..end],
             cutoff: &self.cutoff_fxp[base..end],
             resonance: &self.resonance_fxp[base..end],

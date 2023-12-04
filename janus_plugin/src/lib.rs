@@ -1,24 +1,26 @@
 //! This contains all the code required to generate the actual plugins using the `nih-plug`
 //! framework.  Most of GUI code is in the [editor] module.
-use nih_plug::prelude::*;
 use janus::context::{Context, ContextFxP, GenericContext};
+use nih_plug::prelude::*;
 use std::sync::atomic::AtomicUsize;
-use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
-use std::sync::{Arc, atomic::AtomicI32};
 use std::sync::atomic::Ordering::Relaxed;
+use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
+use std::sync::{atomic::AtomicI32, Arc};
 
 mod editor;
 
 mod fixedparam;
 
 pub mod parambuf;
-use parambuf::{EnvParamBuffer, FiltParamBuffer, OscParamBuffer, RingModParamBuffer, GlobalParamBuffer};
+use parambuf::{
+    EnvParamBuffer, FiltParamBuffer, GlobalParamBuffer, OscParamBuffer, RingModParamBuffer,
+};
 
 pub mod pluginparams;
 use pluginparams::JanusParams;
 
 mod voicealloc;
-use voicealloc::{MonoSynthFxP, VoiceAllocator, MonoSynth};
+use voicealloc::{MonoSynth, MonoSynthFxP, VoiceAllocator};
 
 struct PluginContext {
     sample_rate: AtomicI32,
@@ -105,7 +107,9 @@ pub struct JanusPlugin {
 impl JanusPlugin {
     fn update_sample_rate(&mut self, sr: u32, fixed: bool) {
         let mut value = sr as i32;
-        if fixed { value = -value; }
+        if fixed {
+            value = -value;
+        }
         self.context.sample_rate.store(value, Relaxed);
     }
     fn update_context(&mut self, ctx: &dyn GenericContext) {
@@ -114,7 +118,9 @@ impl JanusPlugin {
         self.update_sample_rate(sr, fixed)
     }
     fn get_context_reader(&mut self) -> ContextReader {
-        ContextReader { context: self.context.clone() }
+        ContextReader {
+            context: self.context.clone(),
+        }
     }
 }
 
@@ -175,7 +181,7 @@ impl Plugin for JanusPlugin {
             self.params.clone(),
             self.midi_tx.clone(),
             self.synth_tx.clone(),
-            self.get_context_reader()
+            self.get_context_reader(),
         )
     }
 
@@ -199,14 +205,13 @@ impl Plugin for JanusPlugin {
         self.filt_params.allocate(bufsz);
         self.env_amp_params.allocate(bufsz);
         self.env_filt_params.allocate(bufsz);
-        let mut voice_alloc: Box<dyn VoiceAllocator> =
-            if buffer_config.sample_rate == 44100f32 {
-                Box::new(MonoSynthFxP::new(ContextFxP::new_441()))
-            } else if buffer_config.sample_rate == 48000f32 {
-                Box::new(MonoSynthFxP::new(ContextFxP::new_480()))
-            } else {
-                Box::new(MonoSynth::new(Context::new(buffer_config.sample_rate)))
-            };
+        let mut voice_alloc: Box<dyn VoiceAllocator> = if buffer_config.sample_rate == 44100f32 {
+            Box::new(MonoSynthFxP::new(ContextFxP::new_441()))
+        } else if buffer_config.sample_rate == 48000f32 {
+            Box::new(MonoSynthFxP::new(ContextFxP::new_480()))
+        } else {
+            Box::new(MonoSynth::new(Context::new(buffer_config.sample_rate)))
+        };
         voice_alloc.initialize(bufsz as usize);
         let ctx = voice_alloc.get_context();
         self.update_sample_rate(ctx.sample_rate(), ctx.is_fixed_point());

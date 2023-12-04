@@ -2,11 +2,12 @@
 //! and having it "decide" how to handle the notes based on the polyphony mode,
 //! selected logic form (fixed, float32, float64), etc.
 
-use crate::parambuf::{EnvParamBuffer, FiltParamBuffer, GlobalParamBuffer,
-    OscParamBuffer, RingModParamBuffer};
-use janus::{NoteFxP, SampleFxP, ScalarFxP};
-use janus::voice::{Voice, VoiceFxP};
+use crate::parambuf::{
+    EnvParamBuffer, FiltParamBuffer, GlobalParamBuffer, OscParamBuffer, RingModParamBuffer,
+};
 use janus::context::{Context, ContextFxP, GenericContext};
+use janus::voice::{Voice, VoiceFxP};
+use janus::{NoteFxP, SampleFxP, ScalarFxP};
 use nih_plug::nih_trace;
 
 /// This trait is the main abstraction for this module - the plugin may send it
@@ -29,7 +30,7 @@ pub trait VoiceAllocator: Send {
     /// Process all of the note on/off events within the buffer, taking the
     /// parameter buffers as input and returning a reference to an internal
     /// buffer holding the corresponding audio sample output
-    /// 
+    ///
     /// If `self.get_context().is_fixed_point()` then callers must call
     /// `conv_float()` on all parameter buffers before calling this function.
     ///
@@ -136,7 +137,6 @@ impl VoiceAllocator for MonoSynthFxP {
         &self.ctx
     }
 }
-
 
 /// A monosynth utilizing floating point logic internally
 #[derive(Default)]

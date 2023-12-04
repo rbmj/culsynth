@@ -1,5 +1,5 @@
-use crate::ScalarFxP;
 use crate::devices::Float;
+use crate::ScalarFxP;
 
 pub trait GenericContext {
     fn sample_rate(&self) -> u32;
@@ -7,7 +7,7 @@ pub trait GenericContext {
 }
 
 pub struct Context<Smp: Float> {
-    pub sample_rate : Smp,
+    pub sample_rate: Smp,
 }
 
 impl<Smp: Float> Context<Smp> {
@@ -33,21 +33,24 @@ impl<Smp: Float> GenericContext for Context<Smp> {
 
 #[derive(Default)]
 pub struct ContextFxP {
-    pub sample_rate : FixedSampleRate,
+    pub sample_rate: FixedSampleRate,
 }
 
 impl ContextFxP {
     pub fn new_441() -> Self {
-        Self { sample_rate: FixedSampleRate::Khz44_1 }
+        Self {
+            sample_rate: FixedSampleRate::Khz44_1,
+        }
     }
     pub fn new_480() -> Self {
-        Self { sample_rate: FixedSampleRate::Khz48_0 }
+        Self {
+            sample_rate: FixedSampleRate::Khz48_0,
+        }
     }
     pub fn maybe_create(value: u32) -> Option<Self> {
         if let Ok(val) = FixedSampleRate::try_from(value) {
             Some(Self { sample_rate: val })
-        }
-        else {
+        } else {
             None
         }
     }

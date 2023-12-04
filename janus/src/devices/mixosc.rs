@@ -53,7 +53,12 @@ impl<Smp: Float> MixOsc<Smp> {
             osc: Default::default(),
         }
     }
-    pub fn process(&mut self, ctx: &Context<Smp>, note: &[Smp], params: MixOscParams<Smp>) -> &[Smp] {
+    pub fn process(
+        &mut self,
+        ctx: &Context<Smp>,
+        note: &[Smp],
+        params: MixOscParams<Smp>,
+    ) -> &[Smp] {
         let osc_out = self.osc.process(
             ctx,
             note,
@@ -61,7 +66,7 @@ impl<Smp: Float> MixOsc<Smp> {
                 tune: params.tune,
                 shape: params.shape,
                 sync: params.sync,
-            }
+            },
         );
         let numsamples = osc_out.len();
         for i in 0..numsamples {
@@ -133,7 +138,12 @@ impl MixOscFxP {
             osc: Default::default(),
         }
     }
-    pub fn process(&mut self, ctx: &ContextFxP, note: &[NoteFxP], params: MixOscParamsFxP) -> &[SampleFxP] {
+    pub fn process(
+        &mut self,
+        ctx: &ContextFxP,
+        note: &[NoteFxP],
+        params: MixOscParamsFxP,
+    ) -> &[SampleFxP] {
         let osc_out = self.osc.process(
             ctx,
             note,

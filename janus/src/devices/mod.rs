@@ -9,14 +9,15 @@ mod modfilt;
 mod osc;
 mod ringmod;
 
-use super::{fixedmath, EnvParamFxP, LfoFreqFxP, NoteFxP, SampleFxP, ScalarFxP,
-    SignedNoteFxP, USampleFxP};
+use super::{
+    fixedmath, EnvParamFxP, LfoFreqFxP, NoteFxP, SampleFxP, ScalarFxP, SignedNoteFxP, USampleFxP,
+};
 
-use super::BufferT;
-use super::STATIC_BUFFER_SIZE;
 use super::context::Context;
 use super::context::ContextFxP;
 use super::min_size;
+use super::BufferT;
+use super::STATIC_BUFFER_SIZE;
 
 /// Types must implement this trait to instantiate any of the generic devices
 /// in this module.  Implementations are provided for `f32` and `f64`.

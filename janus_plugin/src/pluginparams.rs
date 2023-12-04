@@ -65,7 +65,10 @@ impl Default for LfoPluginParams {
             wave: IntParam::new(
                 "Wave",
                 LfoWave::Sine as i32,
-                IntRange::Linear{ min: LfoWave::Sine as i32, max: LfoWave::SampleGlide as i32}
+                IntRange::Linear {
+                    min: LfoWave::Sine as i32,
+                    max: LfoWave::SampleGlide as i32,
+                },
             ),
             retrigger: BoolParam::new("Retrigger", true),
             bipolar: BoolParam::new("Bipolar", true),
