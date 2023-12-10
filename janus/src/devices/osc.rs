@@ -114,8 +114,8 @@ pub struct OscParams<'a, Smp> {
 impl<'a, Smp> OscParams<'a, Smp> {
     /// The length of the input parameters.
     pub fn len(&self) -> usize {
-        let x = std::cmp::min(self.shape.len(), self.tune.len());
-        self.sync.len().map_or(x, |y| std::cmp::min(x, y))
+        let x = core::cmp::min(self.shape.len(), self.tune.len());
+        self.sync.len().map_or(x, |y| core::cmp::min(x, y))
     }
     pub fn is_empty(&self) -> bool {
         self.len() == 0
@@ -290,8 +290,8 @@ pub struct OscParamsFxP<'a> {
 
 impl<'a> OscParamsFxP<'a> {
     pub fn len(&self) -> usize {
-        let x = std::cmp::min(self.shape.len(), self.tune.len());
-        self.sync.len().map_or(x, |y| std::cmp::min(x, y))
+        let x = core::cmp::min(self.shape.len(), self.tune.len());
+        self.sync.len().map_or(x, |y| core::cmp::min(x, y))
     }
     pub fn is_empty(&self) -> bool {
         self.len() == 0
@@ -703,133 +703,6 @@ mod test {
             let x = ScalarFxP::from_bits(i as u16);
             let (_pos, _) = fixedmath::one_over_one_plus_highacc(x);
             let _neg = one_over_one_minus_x(x);
-        }
-    }
-}
-
-mod bindings {
-    use super::*;
-
-    #[no_mangle]
-    pub extern "C" fn janus_osc_u16_new() -> *mut OscFxP {
-        Box::into_raw(Box::new(OscFxP::new()))
-    }
-
-    #[no_mangle]
-    pub extern "C" fn janus_osc_u16_free(p: *mut OscFxP) {
-        if !p.is_null() {
-            let _ = unsafe { Box::from_raw(p) };
-        }
-    }
-
-    #[no_mangle]
-    pub extern "C" fn janus_osc_u16_process(
-        p: *mut OscFxP,
-        samples: u32,
-        note: *const u16,
-        tune: *const i16,
-        shape: *const u16,
-        sin: *mut *const i16,
-        tri: *mut *const i16,
-        sq: *mut *const i16,
-        saw: *mut *const i16,
-        offset: u32,
-    ) -> i32 {
-        if p.is_null()
-            || tune.is_null()
-            || note.is_null()
-            || shape.is_null()
-            || sin.is_null()
-            || tri.is_null()
-            || sq.is_null()
-        {
-            return -1;
-        }
-        unsafe {
-            let note_s = std::slice::from_raw_parts(
-                note.offset(offset as isize).cast::<NoteFxP>(),
-                samples as usize,
-            );
-            let shape_s = std::slice::from_raw_parts(
-                shape.offset(offset as isize).cast::<ScalarFxP>(),
-                samples as usize,
-            );
-            let tune_s = std::slice::from_raw_parts(
-                tune.offset(offset as isize).cast::<SignedNoteFxP>(),
-                samples as usize,
-            );
-            let params = OscParamsFxP {
-                tune: tune_s,
-                shape: shape_s,
-                sync: OscSync::Off,
-            };
-            //FIXME
-            let ctx = ContextFxP::default();
-            let out = (*p).process(&ctx, note_s, params);
-            *sin = out.sin.as_ptr().cast();
-            *tri = out.tri.as_ptr().cast();
-            *sq = out.sq.as_ptr().cast();
-            *saw = out.saw.as_ptr().cast();
-            out.sin.len() as i32
-        }
-    }
-
-    #[no_mangle]
-    pub extern "C" fn janus_osc_f32_new() -> *mut Osc<f32> {
-        Box::into_raw(Box::new(Osc::<f32>::new()))
-    }
-
-    #[no_mangle]
-    pub extern "C" fn janus_osc_f32_free(p: *mut Osc<f32>) {
-        if !p.is_null() {
-            let _ = unsafe { Box::from_raw(p) };
-        }
-    }
-
-    #[no_mangle]
-    pub extern "C" fn janus_osc_f32_process(
-        p: *mut Osc<f32>,
-        samples: u32,
-        note: *const f32,
-        tune: *const f32,
-        shape: *const f32,
-        sin: *mut *const f32,
-        tri: *mut *const f32,
-        sq: *mut *const f32,
-        saw: *mut *const f32,
-        offset: u32,
-    ) -> i32 {
-        if p.is_null()
-            || tune.is_null()
-            || note.is_null()
-            || shape.is_null()
-            || sin.is_null()
-            || tri.is_null()
-            || sq.is_null()
-            || saw.is_null()
-        {
-            return -1;
-        }
-        unsafe {
-            let note_s = std::slice::from_raw_parts(note.offset(offset as isize), samples as usize);
-            let shape_s =
-                std::slice::from_raw_parts(shape.offset(offset as isize), samples as usize);
-            let tune_s = std::slice::from_raw_parts(tune.offset(offset as isize), samples as usize);
-            let params = OscParams::<f32> {
-                tune: tune_s,
-                shape: shape_s,
-                sync: OscSync::Off,
-            };
-            //FIXME
-            let ctx = Context::<f32> {
-                sample_rate: 44100f32,
-            };
-            let out = (*p).process(&ctx, note_s, params);
-            *sin = out.sin.as_ptr().cast();
-            *tri = out.tri.as_ptr().cast();
-            *sq = out.sq.as_ptr().cast();
-            *saw = out.saw.as_ptr().cast();
-            out.sin.len() as i32
         }
     }
 }

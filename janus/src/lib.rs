@@ -15,6 +15,8 @@
 //! preserve information about the location of the decimal place within the type
 //! system, but does require some duplication of code throughout the crate.
 
+#![no_std]
+
 mod fixedmath;
 mod util;
 

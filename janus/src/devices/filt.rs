@@ -22,7 +22,7 @@ impl<'a, Smp> FiltParams<'a, Smp> {
     /// The length of the input parameters, defined as the length of the shortest
     /// input slice.
     pub fn len(&self) -> usize {
-        std::cmp::min(self.cutoff.len(), self.resonance.len())
+        core::cmp::min(self.cutoff.len(), self.resonance.len())
     }
     pub fn is_empty(&self) -> bool {
         self.len() == 0
@@ -70,8 +70,11 @@ impl<Smp: Float> Filt<Smp> {
     ) -> FiltOutput<Smp> {
         let cutoff = params.cutoff;
         let resonance = params.resonance;
-        let numsamples =
-            std::cmp::min(STATIC_BUFFER_SIZE, std::cmp::min(input.len(), params.len()));
+        let numsamples = min_size(&[
+            input.len(),
+            params.len(),
+            STATIC_BUFFER_SIZE,
+        ]);
         for i in 0..numsamples {
             let res = Smp::ONE
                 - if resonance[i] < Smp::RES_MAX {
@@ -126,7 +129,7 @@ pub struct FiltParamsFxP<'a> {
 impl<'a> FiltParamsFxP<'a> {
     /// The length of the parameters, defined as the length of the shortest slice.
     pub fn len(&self) -> usize {
-        std::cmp::min(self.cutoff.len(), self.resonance.len())
+        core::cmp::min(self.cutoff.len(), self.resonance.len())
     }
     pub fn is_empty(&self) -> bool {
         self.len() == 0
@@ -180,12 +183,14 @@ impl FiltFxP {
     ) -> FiltOutputFxP {
         let cutoff = params.cutoff;
         let resonance = params.resonance;
-        let numsamples = std::cmp::min(
-            std::cmp::min(input.len(), cutoff.len()),
-            std::cmp::min(resonance.len(), STATIC_BUFFER_SIZE),
-        );
+        let numsamples = min_size(&[
+            input.len(),
+            cutoff.len(),
+            resonance.len(),
+            STATIC_BUFFER_SIZE,
+        ]);
         for i in 0..numsamples {
-            let res = ScalarFxP::MAX - std::cmp::min(resonance[i], Self::RES_MAX);
+            let res = ScalarFxP::MAX - core::cmp::min(resonance[i], Self::RES_MAX);
             // include type annotations to make the fixed point logic more explicit
             let gain: fixedmath::U1F15 = Self::prewarped_gain(ctx, cutoff[i]);
             let gain2 = fixedmath::U3F29::from_num(gain.wide_mul(gain));
@@ -231,121 +236,3 @@ impl Default for FiltFxP {
     }
 }
 
-mod bindings {
-    use super::*;
-
-    #[no_mangle]
-    pub extern "C" fn janus_filt_u16_new() -> *mut FiltFxP {
-        Box::into_raw(Box::new(FiltFxP::new()))
-    }
-
-    #[no_mangle]
-    pub extern "C" fn janus_filt_u16_free(p: *mut FiltFxP) {
-        if !p.is_null() {
-            let _ = unsafe { Box::from_raw(p) };
-        }
-    }
-
-    #[no_mangle]
-    pub extern "C" fn janus_filt_u16_process(
-        p: *mut FiltFxP,
-        samples: u32,
-        input: *const i16,
-        cutoff: *const u16,
-        resonance: *const u16,
-        low: *mut *const i16,
-        band: *mut *const i16,
-        high: *mut *const i16,
-        offset: u32,
-    ) -> i32 {
-        if p.is_null()
-            || input.is_null()
-            || cutoff.is_null()
-            || resonance.is_null()
-            || low.is_null()
-            || band.is_null()
-            || high.is_null()
-        {
-            return -1;
-        }
-        unsafe {
-            let i = std::slice::from_raw_parts(
-                input.offset(offset as isize).cast::<SampleFxP>(),
-                samples as usize,
-            );
-            let c = std::slice::from_raw_parts(
-                cutoff.offset(offset as isize).cast::<NoteFxP>(),
-                samples as usize,
-            );
-            let r = std::slice::from_raw_parts(
-                resonance.offset(offset as isize).cast::<ScalarFxP>(),
-                samples as usize,
-            );
-            let params = FiltParamsFxP {
-                cutoff: c,
-                resonance: r,
-            };
-            //FIXME
-            let ctx = ContextFxP::default();
-            let out = (*p).process(&ctx, i, params);
-            *low = out.low.as_ptr().cast();
-            *band = out.band.as_ptr().cast();
-            *high = out.high.as_ptr().cast();
-            out.low.len() as i32
-        }
-    }
-
-    #[no_mangle]
-    pub extern "C" fn janus_filt_f32_new() -> *mut Filt<f32> {
-        Box::into_raw(Box::new(Filt::new()))
-    }
-
-    #[no_mangle]
-    pub extern "C" fn janus_filt_f32_free(p: *mut Filt<f32>) {
-        if !p.is_null() {
-            let _ = unsafe { Box::from_raw(p) };
-        }
-    }
-
-    #[no_mangle]
-    pub extern "C" fn janus_filt_f32_process(
-        p: *mut Filt<f32>,
-        samples: u32,
-        input: *const f32,
-        cutoff: *const f32,
-        resonance: *const f32,
-        low: *mut *const f32,
-        band: *mut *const f32,
-        high: *mut *const f32,
-        offset: u32,
-    ) -> i32 {
-        if p.is_null()
-            || input.is_null()
-            || cutoff.is_null()
-            || resonance.is_null()
-            || low.is_null()
-            || band.is_null()
-            || high.is_null()
-        {
-            return -1;
-        }
-        unsafe {
-            let i = std::slice::from_raw_parts(input.offset(offset as isize), samples as usize);
-            let c = std::slice::from_raw_parts(cutoff.offset(offset as isize), samples as usize);
-            let r = std::slice::from_raw_parts(resonance.offset(offset as isize), samples as usize);
-            let params = FiltParams::<f32> {
-                cutoff: c,
-                resonance: r,
-            };
-            //FIXME
-            let ctx = Context::<f32> {
-                sample_rate: 44100f32,
-            };
-            let out = (*p).process(&ctx, i, params);
-            *low = out.low.as_ptr().cast();
-            *band = out.band.as_ptr().cast();
-            *high = out.high.as_ptr().cast();
-            out.low.len() as i32
-        }
-    }
-}

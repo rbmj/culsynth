@@ -345,7 +345,7 @@ mod tests {
         let numsteps = 2000;
         let mut error = 0.0;
         for i in 0..=numsteps {
-            let x = (std::f32::consts::TAU * i as f32) / (numsteps as f32) - std::f32::consts::PI;
+            let x = (core::f32::consts::TAU * i as f32) / (numsteps as f32) - core::f32::consts::PI;
             let fixed = sin_fixed(Sample::from_num(x));
             let float = x.sin();
             let this_error = float - fixed.to_num::<f32>();
@@ -374,7 +374,7 @@ mod tests {
         let numsteps = 2000;
         let mut error = 0.0;
         for i in 0..=numsteps {
-            let x = (std::f32::consts::TAU * i as f32) / (numsteps as f32) - std::f32::consts::PI;
+            let x = (core::f32::consts::TAU * i as f32) / (numsteps as f32) - core::f32::consts::PI;
             let fixed = cos_fixed(Sample::from_num(x));
             let float = x.cos();
             let this_error = float - fixed.to_num::<f32>();

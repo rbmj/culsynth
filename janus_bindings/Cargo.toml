@@ -1,0 +1,12 @@
+[package]
+name = "janus_bindings"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "janus"
+path = "src/lib.rs"
+crate_type = ["cdylib"]
+
+[dependencies]
+janus = { path = "../janus" }

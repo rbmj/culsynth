@@ -28,7 +28,7 @@ impl<'a, Smp> MixOscParams<'a, Smp> {
         .iter()
         .min()
         .unwrap_or(&0);
-        self.sync.len().map_or(x, |y| std::cmp::min(x, y))
+        self.sync.len().map_or(x, |y| core::cmp::min(x, y))
     }
     pub fn is_empty(&self) -> bool {
         self.len() == 0
@@ -80,7 +80,7 @@ impl<'a, Smp: Float> MutMixOscParams<'a, Smp> {
             self.tri.len(),
             self.saw.len(),
         ]);
-        self.sync.len().map_or(x, |y| std::cmp::min(x, y))
+        self.sync.len().map_or(x, |y| core::cmp::min(x, y))
     }
     pub fn is_empty(&self) -> bool {
         self.len() == 0
@@ -160,7 +160,7 @@ impl<'a> MixOscParamsFxP<'a> {
         .iter()
         .min()
         .unwrap_or(&0);
-        self.sync.len().map_or(x, |y| std::cmp::min(x, y))
+        self.sync.len().map_or(x, |y| core::cmp::min(x, y))
     }
     pub fn is_empty(&self) -> bool {
         self.len() == 0
@@ -207,7 +207,7 @@ impl<'a> MutMixOscParamsFxP<'a> {
             self.tri.len(),
             self.saw.len(),
         ]);
-        self.sync.len().map_or(x, |y| std::cmp::min(x, y))
+        self.sync.len().map_or(x, |y| core::cmp::min(x, y))
     }
     pub fn is_empty(&self) -> bool {
         self.len() == 0

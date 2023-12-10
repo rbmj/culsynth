@@ -4,6 +4,7 @@ resolver = "2"
 members = [
     "janus",
     "janus_plugin",
+    "janus_bindings",
 ]
 
 [profile.dev]

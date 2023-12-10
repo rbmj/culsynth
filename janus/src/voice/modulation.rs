@@ -301,7 +301,7 @@ impl<'a> ModulatorFxP<'a> {
         if non_lfos_filt.is_empty() && lfos_filt.is_empty() {
             return false;
         }
-        for i in 0..std::cmp::min(self.len(), buf.len()) {
+        for i in 0..core::cmp::min(self.len(), buf.len()) {
             // All of the modulations for this sample, chain()ed together
             let modulations = non_lfos_filt.into_iter()
                 .map(|(slc, val)| slc[i].wide_mul_signed(val))
@@ -353,7 +353,7 @@ impl<'a> ModulatorFxP<'a> {
         if non_lfos_filt.is_empty() && lfos_filt.is_empty() {
             return false;
         }
-        for i in 0..std::cmp::min(self.len(), buf.len()) {
+        for i in 0..core::cmp::min(self.len(), buf.len()) {
             // All of the modulations for this sample, chain()ed together
             let modulations = non_lfos_filt.into_iter()
                 .map(|(slc, val)| slc[i].wide_mul_signed(val))
@@ -394,7 +394,7 @@ impl<'a> ModulatorFxP<'a> {
         osc_mod_applied |= self.apply_signed(dest.course, &mut buf);
         // Apply the modulation ourselves now
         if osc_mod_applied {
-            for (smp, amt) in std::iter::zip(params.tune.iter_mut(), buf.iter()) {
+            for (smp, amt) in core::iter::zip(params.tune.iter_mut(), buf.iter()) {
                 *smp = smp.saturating_add(amt >> 1);
             }
         }
@@ -554,7 +554,7 @@ impl<'a, Smp: Float> Modulator<'a, Smp> {
         if mod_params_filt.is_empty() {
             return false;
         }
-        for i in 0..std::cmp::min(self.len(), buf.len()) {
+        for i in 0..core::cmp::min(self.len(), buf.len()) {
             // All of the modulations for this sample
             let modulations = mod_params_filt.into_iter().map(|(slc, val)| slc[i] * val);
             // FIXME: Add scaling!!
@@ -585,7 +585,7 @@ impl<'a, Smp: Float> Modulator<'a, Smp> {
         osc_mod_applied |= self.apply(dest.course, &mut buf);
         // Apply the modulation ourselves now
         if osc_mod_applied {
-            for (smp, amt) in std::iter::zip(params.tune.iter_mut(), buf.iter()) {
+            for (smp, amt) in core::iter::zip(params.tune.iter_mut(), buf.iter()) {
                 *smp = *smp + (*amt / Smp::TWO);
             }
         }
