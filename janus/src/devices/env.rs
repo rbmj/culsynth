@@ -33,18 +33,53 @@ impl<'a, Smp> EnvParams<'a, Smp> {
     /// The length of this parameter pack, defined as the shortest length
     /// among all the constituent slices.
     pub fn len(&self) -> usize {
-        *[
+        min_size(&[
             self.attack.len(),
             self.decay.len(),
             self.sustain.len(),
             self.release.len(),
-        ]
-        .iter()
-        .min()
-        .unwrap_or(&0)
+        ])
     }
     pub fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+}
+
+pub struct MutEnvParams<'a, Smp> {
+    /// The attack (rise to peak) time of the envelope, in seconds.
+    pub attack: &'a mut [Smp],
+    /// The decay (fall from peak to steady state) time of the envelope, in seconds.
+    pub decay: &'a mut [Smp],
+    /// The sustain level of the envelops, as a number between 0 and 1.
+    pub sustain: &'a mut [Smp],
+    /// The release time of the envelope, in seconds.
+    pub release: &'a mut [Smp],
+}
+
+impl<'a, Smp> MutEnvParams<'a, Smp> {
+    /// The length of this parameter pack, defined as the shortest length
+    /// among all the constituent slices.
+    pub fn len(&self) -> usize {
+        min_size(&[
+            self.attack.len(),
+            self.decay.len(),
+            self.sustain.len(),
+            self.release.len(),
+        ])
+    }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
+impl<'a, Smp: Float> From<MutEnvParams<'a, Smp>> for EnvParams<'a, Smp> {
+    fn from(value: MutEnvParams<'a, Smp>) -> Self {
+        Self {
+            attack: value.attack,
+            decay: value.decay,
+            sustain: value.sustain,
+            release: value.release,
+        }
     }
 }
 
@@ -156,19 +191,59 @@ impl<'a> EnvParamsFxP<'a> {
     /// The length of this parameter pack, defined as the shortest length
     /// among all the constituent slices.
     pub fn len(&self) -> usize {
-        let l = *[
+        min_size(&[
             self.attack.len(),
             self.decay.len(),
             self.sustain.len(),
             self.release.len(),
-        ]
-        .iter()
-        .min()
-        .unwrap_or(&0);
-        l
+        ])
     }
     pub fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+}
+
+pub struct MutEnvParamsFxP<'a> {
+    /// The attack (rise) time of the envelope, in seconds, as a fixed point number
+    /// (see [EnvParamFxP]).
+    pub attack: &'a mut [EnvParamFxP],
+    /// The decay (fall from peak to steady state) time of the envelope, in seconds,
+    /// as a fixed point number (see [EnvParamFxP]).
+    pub decay: &'a mut [EnvParamFxP],
+    /// The steady state sustain level of the envelope, as a fixed point number
+    /// between zero and one.  Note that while zero is included in this interval
+    /// one is not - so there will technically be a very, very small loss in signal
+    /// associated with the envelope (approximately 0.00013dB... I'm not worried)
+    pub sustain: &'a mut [ScalarFxP],
+    /// The release (fall from steady state to zero) time of the envelope, in seconds,
+    /// as a fixed point number (see [EnvParamFxP]).
+    pub release: &'a mut [EnvParamFxP],
+}
+
+impl<'a> MutEnvParamsFxP<'a> {
+    /// The length of this parameter pack, defined as the shortest length
+    /// among all the constituent slices.
+    pub fn len(&self) -> usize {
+        min_size(&[
+            self.attack.len(),
+            self.decay.len(),
+            self.sustain.len(),
+            self.release.len(),
+        ])
+    }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
+impl<'a> From<MutEnvParamsFxP<'a>> for EnvParamsFxP<'a> {
+    fn from(value: MutEnvParamsFxP<'a>) -> Self {
+        Self {
+            attack: value.attack,
+            decay: value.decay,
+            sustain: value.sustain,
+            release: value.release,
+        }
     }
 }
 
@@ -212,13 +287,14 @@ impl EnvFxP {
         let decay = params.decay;
         let sustain = params.sustain;
         let release = params.release;
-        let numsamples = std::cmp::min(
-            std::cmp::min(
-                std::cmp::min(attack.len(), decay.len()),
-                std::cmp::min(sustain.len(), release.len()),
-            ),
-            std::cmp::min(STATIC_BUFFER_SIZE, gate.len()),
-        );
+        let numsamples = min_size(&[
+            attack.len(),
+            decay.len(),
+            sustain.len(),
+            release.len(),
+            gate.len(),
+            STATIC_BUFFER_SIZE,
+        ]);
         let setpoint_old = self.setpoint;
         for i in 0..numsamples {
             if gate[i] <= Self::GATE_THRESHOLD {

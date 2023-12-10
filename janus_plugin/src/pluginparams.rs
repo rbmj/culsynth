@@ -1,5 +1,5 @@
-use janus::devices::{LfoParam, LfoWave};
-use janus::{EnvParamFxP, NoteFxP, ScalarFxP};
+use janus::devices::{LfoOptions, LfoWave};
+use janus::{EnvParamFxP, NoteFxP, ScalarFxP, LfoFreqFxP};
 use nih_plug::prelude::*;
 use nih_plug_egui::EguiState;
 
@@ -10,9 +10,11 @@ use crate::fixedparam::{new_fixed_param, new_fixed_param_freq, new_fixed_param_p
 /// Contains all of the parameters for an oscillator within the plugin
 #[derive(Params)]
 pub struct OscPluginParams {
+    /// Course tuning: -32 to +32 semitones
     #[id = "course"]
     pub course: IntParam,
 
+    /// Fine tuning: -1024 to 1024 mapping to -2 to +2 semitones
     #[id = "fine"]
     pub fine: IntParam,
 
@@ -35,8 +37,8 @@ pub struct OscPluginParams {
 impl Default for OscPluginParams {
     fn default() -> Self {
         Self {
-            course: IntParam::new("Course", 0, IntRange::Linear{ min: -36, max: 36}),
-            fine: IntParam::new("Fine", 0, IntRange::Linear{ min: -512, max: 512}),
+            course: IntParam::new("Course", 0, IntRange::Linear{ min: -32, max: 32}),
+            fine: IntParam::new("Fine", 0, IntRange::Linear{ min: -1024, max: 1024}),
             shape: new_fixed_param("Shape", ScalarFxP::ZERO),
             sin: new_fixed_param_percent("Sin", ScalarFxP::ZERO),
             saw: new_fixed_param_percent("Saw", ScalarFxP::MAX),
@@ -49,6 +51,12 @@ impl Default for OscPluginParams {
 /// Contains all of the parameters for an LFO within the plugin
 #[derive(Params)]
 pub struct LfoPluginParams {
+    #[id = "freq"]
+    pub rate: IntParam,
+
+    #[id = "depth"]
+    pub depth: IntParam,
+
     #[id = "wave"]
     pub wave: IntParam,
 
@@ -59,26 +67,28 @@ pub struct LfoPluginParams {
     pub bipolar: BoolParam,
 }
 
-impl Default for LfoPluginParams {
-    fn default() -> Self {
+impl LfoPluginParams {
+    fn new(name: &str) -> Self {
         Self {
             wave: IntParam::new(
-                "Wave",
+                name.to_owned() + " Wave",
                 LfoWave::Sine as i32,
                 IntRange::Linear {
                     min: LfoWave::Sine as i32,
                     max: LfoWave::SampleGlide as i32,
                 },
             ),
-            retrigger: BoolParam::new("Retrigger", true),
-            bipolar: BoolParam::new("Bipolar", true),
+            rate: new_fixed_param(name.to_owned() + " Rate", LfoFreqFxP::ONE),
+            depth: new_fixed_param_percent(name.to_owned() + " Depth", ScalarFxP::MAX),
+            retrigger: BoolParam::new(name.to_owned() + " Retrigger", true),
+            bipolar: BoolParam::new(name.to_owned() + " Bipolar", true),
         }
     }
 }
 
-impl From<&LfoPluginParams> for LfoParam {
+impl From<&LfoPluginParams> for LfoOptions {
     fn from(param: &LfoPluginParams) -> Self {
-        LfoParam::new(
+        LfoOptions::new(
             LfoWave::try_from(param.wave.value() as u8).unwrap_or_default(),
             param.bipolar.value(),
             param.retrigger.value(),
@@ -205,11 +215,23 @@ pub struct JanusParams {
     #[nested(group = "filt")]
     pub filt: FiltPluginParams,
 
-    #[nested(id_prefix = "env1", group = "envvca")]
+    #[nested(id_prefix = "envA", group = "envvca")]
     pub env_vca: EnvPluginParams,
 
-    #[nested(id_prefix = "env2", group = "envvcf")]
+    #[nested(id_prefix = "envF", group = "envvcf")]
     pub env_vcf: EnvPluginParams,
+
+    #[nested(id_prefix = "lf1", group = "lfo1")]
+    pub lfo1: LfoPluginParams,
+
+    #[nested(id_prefix = "lf2", group = "lfo2")]
+    pub lfo2: LfoPluginParams,
+
+    #[nested(id_prefix = "env1", group = "envmd1")]
+    pub env1: EnvPluginParams,
+
+    #[nested(id_prefix = "env2", group = "envmd2")]
+    pub env2: EnvPluginParams,
 }
 
 impl Default for JanusParams {
@@ -223,6 +245,10 @@ impl Default for JanusParams {
             filt: Default::default(),
             env_vca: EnvPluginParams::new("VCA Envelope"),
             env_vcf: EnvPluginParams::new("VCF Envelope"),
+            lfo1: LfoPluginParams::new("LFO1"),
+            lfo2: LfoPluginParams::new("LFO2"),
+            env1: EnvPluginParams::new("Mod Envelope 1"),
+            env2: EnvPluginParams::new("Mod Envelope 2"),
         }
     }
 }

@@ -3,12 +3,11 @@
 //! selected logic form (fixed, float32, float64), etc.
 
 use crate::parambuf::{
-    EnvParamBuffer, FiltParamBuffer, GlobalParamBuffer, OscParamBuffer, RingModParamBuffer,
+    EnvParamBuffer, FiltParamBuffer, GlobalParamBuffer, OscParamBuffer, RingModParamBuffer, LfoParamBuffer,
 };
 use janus::context::{Context, ContextFxP, GenericContext};
 use janus::voice::{Voice, VoiceFxP};
 use janus::{NoteFxP, SampleFxP, ScalarFxP};
-use nih_plug::nih_trace;
 
 /// This trait is the main abstraction for this module - the plugin may send it
 /// note on/off events and it will assign those events to voices, stealing if
@@ -27,6 +26,8 @@ pub trait VoiceAllocator: Send {
     ///
     /// Note:  Most implementations will ignore note off velocity
     fn note_off(&mut self, n: u8, v: u8);
+    fn aftertouch(&mut self, v: u8);
+    fn modwheel(&mut self, v: u8);
     /// Process all of the note on/off events within the buffer, taking the
     /// parameter buffers as input and returning a reference to an internal
     /// buffer holding the corresponding audio sample output
@@ -45,6 +46,10 @@ pub trait VoiceAllocator: Send {
         fp: &FiltParamBuffer,
         efp: &EnvParamBuffer,
         eap: &EnvParamBuffer,
+        l1p: &LfoParamBuffer,
+        l2p: &mut LfoParamBuffer,
+        e1p: &EnvParamBuffer,
+        e2p: &mut EnvParamBuffer,
     ) -> &[f32];
     /// Get the process context for this voice allocator.
     fn get_context(&self) -> &dyn GenericContext;
@@ -58,18 +63,23 @@ pub struct MonoSynthFxP {
     notebuf: Vec<NoteFxP>,
     gatebuf: Vec<SampleFxP>,
     velbuf: Vec<ScalarFxP>,
+    aftertouchbuf: Vec<ScalarFxP>,
+    modwheelbuf: Vec<ScalarFxP>,
     ctx: ContextFxP,
     index: usize,
     note: NoteFxP,
     gate: SampleFxP,
     velocity: ScalarFxP,
+    aftertouch: ScalarFxP,
+    modwheel: ScalarFxP,
 }
 
 impl MonoSynthFxP {
     pub fn new(ctx: ContextFxP) -> Self {
-        let mut ret = Self::default();
-        ret.ctx = ctx;
-        ret
+        Self {
+            ctx,
+            ..Default::default()
+        }
     }
 }
 
@@ -79,6 +89,8 @@ impl VoiceAllocator for MonoSynthFxP {
         self.notebuf.resize(sz, NoteFxP::ZERO);
         self.gatebuf.resize(sz, SampleFxP::ZERO);
         self.velbuf.resize(sz, ScalarFxP::ZERO);
+        self.aftertouchbuf.resize(sz, ScalarFxP::ZERO);
+        self.modwheelbuf.resize(sz, ScalarFxP::ZERO);
         self.index = 0;
         self.note = NoteFxP::lit("69"); //A440, nice
         self.gate = SampleFxP::ZERO;
@@ -87,18 +99,24 @@ impl VoiceAllocator for MonoSynthFxP {
         self.notebuf[self.index] = self.note;
         self.gatebuf[self.index] = self.gate;
         self.velbuf[self.index] = self.velocity;
+        self.aftertouchbuf[self.index] = self.aftertouch;
+        self.modwheelbuf[self.index] = self.modwheel;
         self.index += 1;
     }
     fn note_on(&mut self, note: u8, velocity: u8) {
-        nih_trace!("Received Note On");
         self.note = NoteFxP::from_num(note);
         self.gate = SampleFxP::ONE;
         self.velocity = ScalarFxP::from_bits((velocity as u16) << 8);
     }
     fn note_off(&mut self, _note: u8, velocity: u8) {
-        nih_trace!("Received Note Off");
         self.gate = SampleFxP::ZERO;
         self.velocity = ScalarFxP::from_bits((velocity as u16) << 8);
+    }
+    fn aftertouch(&mut self, value: u8) {
+        self.aftertouch = ScalarFxP::from_bits((value as u16) << 8);
+    }
+    fn modwheel(&mut self, value: u8) {
+        self.modwheel = ScalarFxP::from_bits((value as u16) << 8);
     }
     fn process(
         &mut self,
@@ -109,6 +127,10 @@ impl VoiceAllocator for MonoSynthFxP {
         filt_p: &FiltParamBuffer,
         filt_env_p: &EnvParamBuffer,
         amp_env_p: &EnvParamBuffer,
+        lfo1_p: &LfoParamBuffer,
+        lfo2_p: &mut LfoParamBuffer,
+        env1_p: &EnvParamBuffer,
+        env2_p: &mut EnvParamBuffer,
     ) -> &[f32] {
         let mut processed: usize = 0;
         while processed < self.index {
@@ -117,6 +139,8 @@ impl VoiceAllocator for MonoSynthFxP {
                 &self.notebuf[processed..self.index],
                 &self.gatebuf[processed..self.index],
                 &self.velbuf[processed..self.index],
+                &self.aftertouchbuf[processed..self.index],
+                &self.modwheelbuf[processed..self.index],
                 glob_p.sync(processed, self.index),
                 osc1_p.params(processed, self.index),
                 osc2_p.params(processed, self.index),
@@ -124,6 +148,10 @@ impl VoiceAllocator for MonoSynthFxP {
                 filt_p.params(processed, self.index),
                 filt_env_p.params(processed, self.index),
                 amp_env_p.params(processed, self.index),
+                lfo1_p.params(processed, self.index),
+                lfo2_p.params_mut(processed, self.index),
+                env1_p.params(processed, self.index),
+                env2_p.params_mut(processed, self.index),
             );
             for smp in thisiter {
                 self.outbuf[processed] = smp.to_num::<f32>();
@@ -146,18 +174,23 @@ pub struct MonoSynth {
     notebuf: Vec<f32>,
     gatebuf: Vec<f32>,
     velbuf: Vec<f32>,
+    aftertouchbuf: Vec<f32>,
+    modwheelbuf: Vec<f32>,
     ctx: Context<f32>,
     index: usize,
     note: f32,
     gate: f32,
     velocity: f32,
+    aftertouch: f32,
+    modwheel: f32,
 }
 
 impl MonoSynth {
     pub fn new(ctx: Context<f32>) -> Self {
-        let mut ret = Self::default();
-        ret.ctx = ctx;
-        ret
+        Self {
+            ctx,
+            ..Default::default()
+        }
     }
 }
 
@@ -167,6 +200,8 @@ impl VoiceAllocator for MonoSynth {
         self.notebuf.resize(sz, 0f32);
         self.gatebuf.resize(sz, 0f32);
         self.velbuf.resize(sz, 0f32);
+        self.aftertouchbuf.resize(sz, 0f32);
+        self.modwheelbuf.resize(sz, 0f32);
         self.index = 0;
         self.note = 69f32; //A440, nice
         self.gate = 0f32;
@@ -175,18 +210,24 @@ impl VoiceAllocator for MonoSynth {
         self.notebuf[self.index] = self.note;
         self.gatebuf[self.index] = self.gate;
         self.velbuf[self.index] = self.velocity;
+        self.aftertouchbuf[self.index] = self.aftertouch;
+        self.modwheelbuf[self.index] = self.modwheel;
         self.index += 1;
     }
     fn note_on(&mut self, note: u8, velocity: u8) {
-        nih_trace!("Received Note On");
         self.note = f32::from(note);
         self.gate = 1f32;
-        self.velocity = f32::from((velocity as u16) << 8);
+        self.velocity = f32::from(velocity) / 127f32;
     }
     fn note_off(&mut self, _note: u8, velocity: u8) {
-        nih_trace!("Received Note Off");
         self.gate = 0f32;
-        self.velocity = f32::from((velocity as u16) << 8);
+        self.velocity = f32::from(velocity) / 127f32;
+    }
+    fn aftertouch(&mut self, value: u8) {
+        self.aftertouch = f32::from(value) / 127f32;
+    }
+    fn modwheel(&mut self, value: u8) {
+        self.modwheel = f32::from(value) / 127f32;
     }
     fn process(
         &mut self,
@@ -197,6 +238,10 @@ impl VoiceAllocator for MonoSynth {
         filt_p: &FiltParamBuffer,
         filt_env_p: &EnvParamBuffer,
         amp_env_p: &EnvParamBuffer,
+        lfo1_p: &LfoParamBuffer,
+        lfo2_p: &mut LfoParamBuffer,
+        env1_p: &EnvParamBuffer,
+        env2_p: &mut EnvParamBuffer,
     ) -> &[f32] {
         let mut processed: usize = 0;
         while processed < self.index {
@@ -212,6 +257,10 @@ impl VoiceAllocator for MonoSynth {
                 filt_p.params_float(processed, self.index),
                 filt_env_p.params_float(processed, self.index),
                 amp_env_p.params_float(processed, self.index),
+                lfo1_p.params_float(processed, self.index),
+                lfo2_p.params_float_mut(processed, self.index),
+                env1_p.params_float(processed, self.index),
+                env2_p.params_float_mut(processed, self.index),
             );
             for smp in thisiter {
                 self.outbuf[processed] = *smp;

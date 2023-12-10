@@ -46,6 +46,53 @@ impl<'a, Smp> MixOscParams<'a, Smp> {
     }
 }
 
+pub struct MutMixOscParams<'a, Smp> {
+    pub tune: &'a mut [Smp],
+    pub shape: &'a mut [Smp],
+    pub sync: OscSync<'a, Smp>,
+    pub sin: &'a mut [Smp],
+    pub sq: &'a mut [Smp],
+    pub tri: &'a mut [Smp],
+    pub saw: &'a mut [Smp],
+}
+
+impl<'a, Smp> From<MutMixOscParams<'a, Smp>> for MixOscParams<'a, Smp> {
+    fn from(value: MutMixOscParams<'a, Smp>) -> Self {
+        Self {
+            tune: value.tune,
+            shape: value.shape,
+            sync: value.sync,
+            sin: value.sin,
+            sq: value.sq,
+            tri: value.tri,
+            saw: value.saw,
+        }
+    }
+}
+
+impl<'a, Smp: Float> MutMixOscParams<'a, Smp> {
+    pub fn len(&self) -> usize {
+        let x = min_size(&[
+            self.tune.len(),
+            self.shape.len(),
+            self.sin.len(),
+            self.sq.len(),
+            self.tri.len(),
+            self.saw.len(),
+        ]);
+        self.sync.len().map_or(x, |y| std::cmp::min(x, y))
+    }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+    pub fn with_sync(self, s: OscSync<'a, Smp>) -> Self {
+        Self {
+            sync: s,
+            ..self
+        }
+    }
+}
+
 impl<Smp: Float> MixOsc<Smp> {
     pub fn new() -> Self {
         Self {
@@ -120,13 +167,55 @@ impl<'a> MixOscParamsFxP<'a> {
     }
     pub fn with_sync(self, s: OscSync<'a, ScalarFxP>) -> Self {
         Self {
-            tune: self.tune,
-            shape: self.shape,
             sync: s,
-            sin: self.sin,
-            sq: self.sq,
-            tri: self.tri,
-            saw: self.saw,
+            ..self
+        }
+    }
+}
+
+pub struct MutMixOscParamsFxP<'a> {
+    pub tune: &'a mut [SignedNoteFxP],
+    pub shape: &'a mut [ScalarFxP],
+    pub sync: OscSync<'a, ScalarFxP>,
+    pub sin: &'a mut [ScalarFxP],
+    pub sq: &'a mut [ScalarFxP],
+    pub tri: &'a mut [ScalarFxP],
+    pub saw: &'a mut [ScalarFxP],
+}
+
+impl<'a> From<MutMixOscParamsFxP<'a>> for MixOscParamsFxP<'a> {
+    fn from(value: MutMixOscParamsFxP<'a>) -> Self {
+        Self {
+            tune: value.tune,
+            shape: value.shape,
+            sync: value.sync,
+            sin: value.sin,
+            sq: value.sq,
+            tri: value.tri,
+            saw: value.saw,
+        }
+    }
+}
+
+impl<'a> MutMixOscParamsFxP<'a> {
+    pub fn len(&self) -> usize {
+        let x = min_size(&[
+            self.tune.len(),
+            self.shape.len(),
+            self.sin.len(),
+            self.sq.len(),
+            self.tri.len(),
+            self.saw.len(),
+        ]);
+        self.sync.len().map_or(x, |y| std::cmp::min(x, y))
+    }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+    pub fn with_sync(self, s: OscSync<'a, ScalarFxP>) -> Self {
+        Self {
+            sync: s,
+            ..self
         }
     }
 }

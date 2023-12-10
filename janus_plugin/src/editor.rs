@@ -47,28 +47,62 @@ trait PluginWidget {
     fn draw_on(&self, ui: &mut egui::Ui, setter: &ParamSetter, label: &str);
 }
 
+fn draw_osc(
+    osc: &OscPluginParams,
+    ui: &mut egui::Ui,
+    setter: &ParamSetter,
+    label: &str,
+    draw_sync: bool,
+    sync_on: bool
+) -> bool {
+    let mut sync_clicked = false;
+    ui.vertical(|ui| {
+        if draw_sync {
+            ui.horizontal(|ui| {
+                ui.label(label);
+                ui.label(" - ");
+                let sync_str = if sync_on {
+                    "Sync On"
+                } else {
+                    "Click to Enable Sync"
+                };
+                sync_clicked = ui.selectable_label(sync_on, sync_str).clicked();
+            });
+        } else {
+            ui.label(label);
+        }
+        egui::Grid::new(label).show(ui, |ui| {
+            ui.add(param_slider(setter, &osc.course).vertical());
+            ui.add(param_slider(setter, &osc.fine).vertical());
+            ui.add(param_slider(setter, &osc.shape).vertical());
+            ui.add(param_slider(setter, &osc.sin).vertical());
+            ui.add(param_slider(setter, &osc.tri).vertical());
+            ui.add(param_slider(setter, &osc.sq).vertical());
+            ui.add(param_slider(setter, &osc.saw).vertical());
+            ui.end_row();
+            ui.label("Course");
+            ui.label("Fine");
+            ui.label("Shape");
+            ui.label("Sine");
+            ui.label("Tri");
+            ui.label("Square");
+            ui.label("Saw");
+        });
+    });
+    sync_clicked
+}
+
 impl PluginWidget for OscPluginParams {
     fn draw_on(&self, ui: &mut egui::Ui, setter: &ParamSetter, label: &str) {
-        ui.vertical(|ui| {
-            ui.label(label);
-            egui::Grid::new(label).show(ui, |ui| {
-                ui.add(param_slider(setter, &self.course).vertical());
-                ui.add(param_slider(setter, &self.fine).vertical());
-                ui.add(param_slider(setter, &self.shape).vertical());
-                ui.add(param_slider(setter, &self.sin).vertical());
-                ui.add(param_slider(setter, &self.tri).vertical());
-                ui.add(param_slider(setter, &self.sq).vertical());
-                ui.add(param_slider(setter, &self.saw).vertical());
-                ui.end_row();
-                ui.label("Course");
-                ui.label("Fine");
-                ui.label("Shape");
-                ui.label("Sine");
-                ui.label("Tri");
-                ui.label("Square");
-                ui.label("Saw");
-            });
-        });
+        draw_osc(self, ui, setter, label, false, false);
+    }
+}
+
+impl<T: Fn() -> ()> PluginWidget for (&OscPluginParams, bool, T) {
+    fn draw_on(&self, ui: &mut egui::Ui, setter: &ParamSetter, label: &str) {
+        if draw_osc(self.0, ui, setter, label, true, self.1) {
+            self.2()
+        }
     }
 }
 
@@ -77,23 +111,22 @@ impl PluginWidget for LfoPluginParams {
         ui.vertical(|ui| {
             ui.label(label);
             ui.horizontal(|ui| {
+                egui::Grid::new(label).show(ui, |ui| {
+                    ui.add(param_slider(setter, &self.rate).vertical());
+                    ui.add(param_slider(setter, &self.depth).vertical());
+                    ui.end_row();
+                    ui.label("Rate");
+                    ui.label("Depth");
+                });
                 ui.vertical(|ui| {
                     let cur_wave = self.wave.value();
-                    for wave in [
-                        LfoWave::Sine,
-                        LfoWave::Saw,
-                        LfoWave::Square,
-                        LfoWave::Triangle,
-                        LfoWave::SampleHold,
-                        LfoWave::SampleGlide,
-                    ] {
-                        let wave_str: &str = wave.into();
-                        if ui
-                            .selectable_label(cur_wave == wave as i32, wave_str)
-                            .clicked()
-                        {
+                    for wave in LfoWave::waves() {
+                        if ui.selectable_label(
+                            cur_wave == *wave as i32,
+                            wave.to_str_short()
+                        ).clicked() {
                             setter.begin_set_parameter(&self.wave);
-                            setter.set_parameter(&self.wave, wave as i32);
+                            setter.set_parameter(&self.wave, *wave as i32);
                             setter.end_set_parameter(&self.wave);
                         }
                     }
@@ -210,7 +243,7 @@ fn key_to_notenum(k: egui::Key) -> Option<i8> {
 
 // Makes sense to also define this here, makes it a bit easier to keep track of
 pub(crate) fn default_state() -> Arc<EguiState> {
-    EguiState::from_size(1000, 600)
+    EguiState::from_size(1200, 800)
 }
 
 /// Struct to hold the global state information for the plugin editor (GUI).
@@ -348,7 +381,7 @@ impl JanusEditor {
         );
         let pointer = response.interact_pointer_pos();
         let mut new_note: Option<i8> = None;
-        let cursor = response.rect.min;
+        let cursor = response.rect.left_top();
         for (i, k) in kbd.iter().enumerate() {
             match k {
                 Element::WhiteKey { wide, small, blind } => {
@@ -513,33 +546,66 @@ impl JanusEditor {
         self.draw_status_bar(egui_ctx);
         self.draw_kbd_panel(egui_ctx);
         egui::CentralPanel::default().show(egui_ctx, |ui| {
+            ui.spacing_mut().slider_width = 130f32;
             ui.vertical(|ui| {
                 ui.horizontal(|ui| {
                     self.params.osc1.draw_on(ui, setter, "Oscillator 1");
                     ui.separator();
-                    self.params.osc2.draw_on(ui, setter, "Oscillator 2");
                     let sync_on = self.params.osc_sync.value();
-                    if ui.selectable_label(sync_on, "Osc Sync").clicked() {
+                    (&self.params.osc2, sync_on, || {
                         setter.begin_set_parameter(&self.params.osc_sync);
                         setter.set_parameter(&self.params.osc_sync, !sync_on);
                         setter.end_set_parameter(&self.params.osc_sync);
-                    }
+                    }).draw_on(ui, setter, "Oscillator 2");
                     ui.separator();
                     self.params.ringmod.draw_on(ui, setter, "Mixer/Ring Modulator");
                 });
                 ui.horizontal(|ui| {
                     self.params.filt.draw_on(ui, setter, "Filter");
                     ui.separator();
+                    self.params.lfo1.draw_on(ui, setter, "LFO 1");
+                    ui.separator();
+                    self.params.lfo2.draw_on(ui, setter, "LFO 2");
+                });
+                ui.horizontal(|ui| {
                     self.params.env_vcf.draw_on(ui, setter, "Filter Envelope");
                     ui.separator();
                     self.params.env_vca.draw_on(ui, setter, "Amplifier Envelope");
+                    ui.separator();
+                    self.params.env1.draw_on(ui, setter, "Mod Envelope 1");
+                    ui.separator();
+                    self.params.env2.draw_on(ui, setter, "Mod Envelope 2");
                 });
             });
         });
     }
-    /// Helper function to be passed as a callback to `create_egui_editor`
-    pub fn update_helper(egui_ctx: &egui::Context, setter: &ParamSetter, state: &mut Self) {
-        state.update(egui_ctx, setter)
+    pub fn initialize(&mut self, egui_ctx: &egui::Context) {
+        let mut fonts = egui::FontDefinitions::default();
+        fonts.font_data.insert(
+            "janus_noto_sans_math".to_owned(),
+            egui::FontData::from_static(
+                include_bytes!("../../resources/fonts/NotoSansMath-Regular.ttf"),
+            ),
+        );
+        fonts.font_data.insert(
+            "janus_noto_sans_sym".to_owned(),
+            egui::FontData::from_static(
+                include_bytes!("../../resources/fonts/NotoSansSymbols-Regular.ttf"),
+            ),
+        );
+        fonts.font_data.insert(
+            "janus_noto_sans_math".to_owned(),
+            egui::FontData::from_static(
+                include_bytes!("../../resources/fonts/NotoSansMath-Regular.ttf"),
+            ),
+        );
+        fonts.families.get_mut(&egui::FontFamily::Proportional).unwrap()
+            .extend_from_slice(&[
+                "janus_noto_sans_math".to_owned(),
+                "janus_noto_sans_sym".to_owned(),
+            ]);
+        
+        egui_ctx.set_fonts(fonts);
     }
 }
 
@@ -552,7 +618,7 @@ pub fn create(
     create_egui_editor(
         params.editor_state.clone(),
         JanusEditor::new(params, midi_tx, synth_tx, context),
-        |_, _| {},
-        JanusEditor::update_helper,
+        |ctx, editor| editor.initialize(ctx),
+        |ctx, setter, editor| editor.update(ctx, setter),
     )
 }

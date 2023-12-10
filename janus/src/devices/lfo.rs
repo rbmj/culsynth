@@ -9,11 +9,12 @@ use rand::{rngs::SmallRng, RngCore, SeedableRng};
 const RANDOM_SEED: u64 = 0xce607a9d25ec3d88u64; //random 64 bit integer
 
 #[repr(transparent)]
-pub struct LfoParam {
+#[derive(Clone, Copy)]
+pub struct LfoOptions {
     bits: u16,
 }
 
-impl LfoParam {
+impl LfoOptions {
     const BIPOLAR: u16 = 1 << 8;
     const RETRIGGER: u16 = 1 << 9;
     pub fn wave(&self) -> Option<LfoWave> {
@@ -27,11 +28,17 @@ impl LfoParam {
         self.bits & Self::RETRIGGER != 0
     }
     pub fn new(wave: LfoWave, bipolar: bool, retrigger: bool) -> Self {
-        LfoParam {
+        LfoOptions {
             bits: (wave as u16)
                 | if bipolar { Self::BIPOLAR } else { 0 }
                 | if retrigger { Self::RETRIGGER } else { 0 },
         }
+    }
+}
+
+impl Default for LfoOptions {
+    fn default() -> Self {
+        Self::new(LfoWave::Sine, true, true)
     }
 }
 
@@ -47,8 +54,19 @@ pub enum LfoWave {
     SampleGlide,
 }
 
-impl From<LfoWave> for &'static str {
-    fn from(value: LfoWave) -> Self {
+impl LfoWave {
+    const ELEM: [LfoWave; 6] = [
+        Self::Sine,
+        Self::Square,
+        Self::Triangle,
+        Self::Saw,
+        Self::SampleHold,
+        Self::SampleGlide,
+    ];
+    pub const fn waves() -> &'static [LfoWave] {
+        &Self::ELEM
+    }
+    pub const fn to_str(&self) -> &'static str {
         [
             "Sine",
             "Square",
@@ -56,7 +74,23 @@ impl From<LfoWave> for &'static str {
             "Saw",
             "Sample & Hold",
             "Sample & Glide",
-        ][value as usize]
+        ][*self as usize]
+    }
+    pub const fn to_str_short(&self) -> &'static str {
+        [
+            "\u{223F}",
+            "\u{238D}",
+            "\u{039B}",
+            "\u{2A58}",
+            "S+H",
+            "S+G",
+        ][*self as usize]
+    }
+}
+
+impl From<LfoWave> for &'static str {
+    fn from(value: LfoWave) -> Self {
+        value.to_str()
     }
 }
 
@@ -67,6 +101,40 @@ impl TryFrom<u8> for LfoWave {
             unsafe { Ok(transmute::<u8, LfoWave>(value)) }
         } else {
             Err("Conversion of u8 to LfoWave Overflowed")
+        }
+    }
+}
+
+pub struct LfoParams<'a, Smp: Float> {
+    pub freq: &'a [Smp],
+    pub depth: &'a [Smp],
+    pub opts: &'a [LfoOptions],
+}
+
+impl<'a, Smp: Float> LfoParams<'a, Smp> {
+    pub fn len(&self) -> usize {
+        min_size(&[self.freq.len(), self.depth.len(), self.opts.len()])
+    }
+}
+
+pub struct MutLfoParams<'a, Smp: Float> {
+    pub freq: &'a mut [Smp],
+    pub depth: &'a mut [Smp],
+    pub opts: &'a mut [LfoOptions],
+}
+
+impl<'a, Smp: Float> MutLfoParams<'a, Smp> {
+    pub fn len(&self) -> usize {
+        min_size(&[self.freq.len(), self.depth.len(), self.opts.len()])
+    }
+}
+
+impl<'a, Smp: Float> From<MutLfoParams<'a, Smp>> for LfoParams<'a, Smp> {
+    fn from(value: MutLfoParams<'a, Smp>) -> Self {
+        Self {
+            freq: value.freq,
+            depth: value.depth,
+            opts: value.opts,
         }
     }
 }
@@ -107,20 +175,22 @@ impl<Smp: Float> Lfo<Smp> {
     pub fn process(
         &mut self,
         ctx: &Context<Smp>,
-        freq: &[Smp],
         gate: &[Smp],
-        params: &[LfoParam],
+        params: LfoParams<Smp>,
     ) -> &[Smp] {
-        let numsamples = min_size(&[freq.len(), gate.len(), params.len(), STATIC_BUFFER_SIZE]);
+        let freq = params.freq;
+        let depth = params.depth;
+        let opts = params.opts;
+        let numsamples = min_size(&[freq.len(), gate.len(), opts.len(), depth.len(), STATIC_BUFFER_SIZE]);
         for i in 0..numsamples {
             let this_gate = gate[i] > Smp::ONE_HALF;
-            if params[i].retrigger() && this_gate && !self.last_gate {
+            if opts[i].retrigger() && this_gate && !self.last_gate {
                 self.phase = Smp::ZERO;
             }
             self.last_gate = this_gate;
             //generate waveforms (piecewise defined)
             let frac_2phase_pi = (self.phase + self.phase) / Smp::PI();
-            let mut value = match params[i].wave().unwrap_or_default() {
+            let mut value = match opts[i].wave().unwrap_or_default() {
                 LfoWave::Saw => frac_2phase_pi / Smp::TWO,
                 LfoWave::Square => {
                     if self.phase < Smp::ZERO {
@@ -157,10 +227,10 @@ impl<Smp: Float> Lfo<Smp> {
                     self.rand_smps[0] + (frac_2phase_pi * (self.rand_smps[1] - self.rand_smps[0]))
                 }
             };
-            if !params[i].bipolar() {
+            if !opts[i].bipolar() {
                 value = (value + Smp::ONE) / Smp::TWO;
             }
-            self.outbuf[i] = value;
+            self.outbuf[i] = value*depth[i];
             let phase_per_sample = (freq[i] * Smp::TAU()) / ctx.sample_rate;
             self.phase = self.phase + phase_per_sample;
             // Check if we've crossed from positive phase back to negative:
@@ -176,6 +246,28 @@ impl<Smp: Float> Lfo<Smp> {
 impl<Smp: Float> Default for Lfo<Smp> {
     fn default() -> Self {
         Self::new(RANDOM_SEED)
+    }
+}
+
+pub struct LfoParamsFxP<'a> {
+    pub freq: &'a [LfoFreqFxP],
+    pub depth: &'a [ScalarFxP],
+    pub opts: &'a [LfoOptions],
+}
+
+pub struct MutLfoParamsFxP<'a> {
+    pub freq: &'a mut [LfoFreqFxP],
+    pub depth: &'a mut [ScalarFxP],
+    pub opts: &'a mut [LfoOptions],
+}
+
+impl<'a> From<MutLfoParamsFxP<'a>> for LfoParamsFxP<'a> {
+    fn from(value: MutLfoParamsFxP<'a>) -> Self {
+        Self {
+            freq: value.freq,
+            depth: value.depth,
+            opts: value.opts,
+        }
     }
 }
 
@@ -217,21 +309,23 @@ impl LfoFxP {
     pub fn process(
         &mut self,
         ctx: &ContextFxP,
-        freq: &[LfoFreqFxP],
         gate: &[SampleFxP],
-        params: &[LfoParam],
+        params: LfoParamsFxP,
     ) -> &[SampleFxP] {
-        let numsamples = min_size(&[freq.len(), gate.len(), params.len(), STATIC_BUFFER_SIZE]);
+        let freq = params.freq;
+        let depth = params.depth;
+        let opts = params.opts;
+        let numsamples = min_size(&[freq.len(), gate.len(), opts.len(), depth.len(), STATIC_BUFFER_SIZE]);
         const FRAC_2_PI: ScalarFxP = ScalarFxP::lit("0x0.a2fa");
         for i in 0..numsamples {
             let this_gate = gate[i] > SampleFxP::lit("0.5");
-            if params[i].retrigger() && this_gate && !self.last_gate {
+            if opts[i].retrigger() && this_gate && !self.last_gate {
                 self.phase = PhaseFxP::ZERO;
             }
             self.last_gate = this_gate;
             //generate waveforms (piecewise defined)
             let frac_2phase_pi = apply_scalar_i(SampleFxP::from_num(self.phase), FRAC_2_PI);
-            let mut value = match params[i].wave().unwrap_or_default() {
+            let mut value = match opts[i].wave().unwrap_or_default() {
                 LfoWave::Saw => frac_2phase_pi.unwrapped_shr(1),
                 LfoWave::Square => {
                     if self.phase < 0 {
@@ -273,10 +367,10 @@ impl LfoFxP {
                         )
                 }
             };
-            if !params[i].bipolar() {
+            if !opts[i].bipolar() {
                 value = (value + SampleFxP::ONE).unwrapped_shr(1);
             }
-            self.outbuf[i] = value;
+            self.outbuf[i] = SampleFxP::from_num(value.wide_mul_unsigned(depth[i]));
             let phase_per_sample = PhaseFxP::from_num(
                 freq[i]
                     .wide_mul(ctx.sample_rate.frac_2pi4096_sr())

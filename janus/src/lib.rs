@@ -52,6 +52,7 @@ pub type EnvParamFxP = fixedmath::U3F13;
 ///
 /// TODO: should this be a newtype?
 pub type LfoFreqFxP = fixedmath::U7F9;
+pub type IScalarFxP = fixedmath::I1F15;
 
 fn min_size(sizes: &[usize]) -> usize {
     *sizes.iter().min().unwrap_or(&0)

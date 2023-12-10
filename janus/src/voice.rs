@@ -6,6 +6,8 @@ use crate::devices::*;
 use crate::{min_size, BufferT, STATIC_BUFFER_SIZE};
 use crate::{NoteFxP, SampleFxP, ScalarFxP};
 
+pub mod modulation;
+
 /// This struct encapsulates a single voice unit, containing a single oscillator,
 /// a single VCF (with modulation inputs and mixing of low/band/high pass outputs),
 /// a VCA, and two envelopes (one for the VCA and one for the VCF).
@@ -19,6 +21,7 @@ pub struct VoiceFxP {
     env_amp: EnvFxP,
     env_filt: EnvFxP,
     vca: AmpFxP,
+    modmatrix: modulation::ModMatrixFxP,
 
     vcabuf: BufferT<SampleFxP>,
 }
@@ -27,14 +30,15 @@ impl VoiceFxP {
     /// Constructor
     pub fn new() -> Self {
         Self {
-            osc1: MixOscFxP::new(),
-            osc2: MixOscFxP::new(),
-            ringmod: RingModFxP::new(),
-            filt: ModFiltFxP::new(),
-            env_amp: EnvFxP::new(),
-            env_filt: EnvFxP::new(),
-            vca: AmpFxP::new(),
             vcabuf: [SampleFxP::ZERO; STATIC_BUFFER_SIZE],
+            osc1: Default::default(),
+            osc2: Default::default(),
+            ringmod: Default::default(),
+            filt: Default::default(),
+            env_amp: Default::default(),
+            env_filt: Default::default(),
+            vca: Default::default(),
+            modmatrix: Default::default(),
         }
     }
     /// Process the note/gate inputs, passing the parameters to the relevant
@@ -58,6 +62,8 @@ impl VoiceFxP {
         note: &[NoteFxP],
         gate: &[SampleFxP],
         vel: &[ScalarFxP],
+        aftertouch: &[ScalarFxP],
+        modwheel: &[ScalarFxP],
         sync: &mut [ScalarFxP],
         osc1_p: MixOscParamsFxP,
         osc2_p: MixOscParamsFxP,
@@ -65,6 +71,10 @@ impl VoiceFxP {
         filt_p: ModFiltParamsFxP,
         filt_env_p: EnvParamsFxP,
         amp_env_p: EnvParamsFxP,
+        lfo1_p: LfoParamsFxP,
+        lfo2_p: MutLfoParamsFxP,
+        env1_p: EnvParamsFxP,
+        env2_p: MutEnvParamsFxP,
     ) -> &[SampleFxP] {
         let numsamples = min_size(&[
             note.len(),
@@ -79,6 +89,16 @@ impl VoiceFxP {
             amp_env_p.len(),
             STATIC_BUFFER_SIZE,
         ]);
+        let modparams = modulation::ModMatrixParamsFxP {
+            velocity: vel,
+            aftertouch,
+            modwheel,
+            lfo1_params: lfo1_p,
+            lfo2_params: lfo2_p,
+            env1_params: env1_p,
+            env2_params: env2_p,
+        };
+        let modulation = self.modmatrix.process(ctx, gate, modparams);
         let osc1_out = self.osc1.process(
             ctx,
             &note[0..numsamples],
@@ -164,6 +184,10 @@ impl<Smp: Float> Voice<Smp> {
         filt_p: ModFiltParams<Smp>,
         filt_env_p: EnvParams<Smp>,
         amp_env_p: EnvParams<Smp>,
+        lfo1_p: LfoParams<Smp>,
+        lfo2_p: MutLfoParams<Smp>,
+        env1_p: EnvParams<Smp>,
+        env2_p: MutEnvParams<Smp>,
     ) -> &[Smp] {
         let numsamples = min_size(&[
             note.len(),
@@ -176,6 +200,10 @@ impl<Smp: Float> Voice<Smp> {
             filt_p.len(),
             filt_env_p.len(),
             amp_env_p.len(),
+            lfo1_p.len(),
+            lfo2_p.len(),
+            env1_p.len(),
+            env2_p.len(),
             STATIC_BUFFER_SIZE,
         ]);
         let osc1_out = self.osc1.process(

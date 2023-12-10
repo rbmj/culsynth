@@ -1,11 +1,11 @@
 use crate::pluginparams::{
-    EnvPluginParams, FiltPluginParams, OscPluginParams, RingModPluginParams,
+    EnvPluginParams, FiltPluginParams, OscPluginParams, RingModPluginParams, LfoPluginParams,
 };
 use janus::devices::{
     EnvParams, EnvParamsFxP, MixOscParams, MixOscParamsFxP, ModFiltParams, ModFiltParamsFxP,
-    RingModParams, RingModParamsFxP,
+    RingModParams, RingModParamsFxP, LfoOptions, LfoParamsFxP, LfoParams, MutEnvParams, MutEnvParamsFxP, MutLfoParams, MutLfoParamsFxP,
 };
-use janus::{EnvParamFxP, NoteFxP, ScalarFxP, SignedNoteFxP};
+use janus::{EnvParamFxP, NoteFxP, ScalarFxP, SignedNoteFxP, LfoFreqFxP};
 
 #[derive(Default)]
 pub struct EnvParamBuffer {
@@ -66,12 +66,28 @@ impl EnvParamBuffer {
             release: &self.release[base..end],
         }
     }
+    pub fn params_float_mut(&mut self, base: usize, end: usize) -> MutEnvParams<f32> {
+        MutEnvParams {
+            attack: &mut self.attack[base..end],
+            decay: &mut self.decay[base..end],
+            sustain: &mut self.sustain[base..end],
+            release: &mut self.release[base..end],
+        }
+    }
     pub fn params(&self, base: usize, end: usize) -> EnvParamsFxP {
         EnvParamsFxP {
             attack: &self.attack_fxp[base..end],
             decay: &self.decay_fxp[base..end],
             sustain: &self.sustain_fxp[base..end],
             release: &self.release_fxp[base..end],
+        }
+    }
+    pub fn params_mut(&mut self, base: usize, end: usize) -> MutEnvParamsFxP {
+        MutEnvParamsFxP {
+            attack: &mut self.attack_fxp[base..end],
+            decay: &mut self.decay_fxp[base..end],
+            sustain: &mut self.sustain_fxp[base..end],
+            release: &mut self.release_fxp[base..end],
         }
     }
     pub fn a(&self) -> &[EnvParamFxP] {
@@ -393,6 +409,100 @@ impl OscParamBuffer {
         self.tune_fxp[idx] = SignedNoteFxP::from_bits(
             ((p.course.smoothed.next() << 9) + p.fine.smoothed.next()) as i16,
         )
+    }
+}
+
+#[derive(Default)]
+pub struct LfoParamBuffer {
+    freq: Vec<f32>,
+    depth: Vec<f32>,
+    opts: Vec<LfoOptions>,
+    freq_fxp: Vec<LfoFreqFxP>,
+    depth_fxp: Vec<ScalarFxP>,
+}
+
+impl LfoParamBuffer {
+    pub fn new() -> Self {
+        Self::default()
+    }
+    pub fn len(&self) -> usize {
+        self.freq.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+    pub fn allocate(&mut self, sz: u32) {
+        if self.len() >= sz as usize {
+            return;
+        }
+        self.freq.resize(sz as usize, 0f32);
+        self.depth.resize(sz as usize, 0f32);
+        self.opts.resize(sz as usize, Default::default());
+        self.freq_fxp.resize(sz as usize, LfoFreqFxP::ONE);
+        self.depth_fxp.resize(sz as usize, ScalarFxP::MAX);
+    }
+    pub fn conv_float(&mut self) {
+        for i in 0..self.len() {
+            self.freq[i] = self.freq_fxp[i].to_num();
+            self.depth[i] = self.depth_fxp[i].to_num();
+        }
+    }
+    pub fn params_float(&self, base: usize, end: usize) -> LfoParams<f32> {
+        LfoParams {
+            freq: &self.freq[base..end],
+            depth: &self.depth[base..end],
+            opts: &self.opts[base..end],
+        }
+    }
+    pub fn params_float_mut(&mut self, base: usize, end: usize) -> MutLfoParams<f32> {
+        MutLfoParams {
+            freq: &mut self.freq[base..end],
+            depth: &mut self.depth[base..end],
+            opts: &mut self.opts[base..end],
+        }
+    }
+    pub fn params(&self, base: usize, end: usize) -> LfoParamsFxP {
+        LfoParamsFxP {
+            freq: &self.freq_fxp[base..end],
+            depth: &self.depth_fxp[base..end],
+            opts: &self.opts[base..end],
+        }
+    }
+    pub fn params_mut(&mut self, base: usize, end: usize) -> MutLfoParamsFxP {
+        MutLfoParamsFxP {
+            freq: &mut self.freq_fxp[base..end],
+            depth: &mut self.depth_fxp[base..end],
+            opts: &mut self.opts[base..end],
+        }
+    }
+    pub fn freq(&self) -> &[LfoFreqFxP] {
+        self.freq_fxp.as_slice()
+    }
+    pub fn freq_mut(&mut self) -> &mut [LfoFreqFxP] {
+        self.freq_fxp.as_mut_slice()
+    }
+    pub fn freq_float(&self) -> &[f32] {
+        self.freq.as_slice()
+    }
+    pub fn depth(&self) -> &[ScalarFxP] {
+        self.depth_fxp.as_slice()
+    }
+    pub fn depth_mut(&mut self) -> &mut [ScalarFxP] {
+        self.depth_fxp.as_mut_slice()
+    }
+    pub fn depth_float(&self) -> &[f32] {
+        self.depth.as_slice()
+    }
+    pub fn opts(&self) -> &[LfoOptions] {
+        self.opts.as_slice()
+    }
+    pub fn opts_mut(&mut self) -> &mut [LfoOptions] {
+        self.opts.as_mut_slice()
+    }
+    pub fn update_index(&mut self, idx: usize, p: &LfoPluginParams) {
+        self.freq_fxp[idx] = LfoFreqFxP::from_bits(p.rate.smoothed.next() as u16);
+        self.depth_fxp[idx] = ScalarFxP::from_bits(p.depth.smoothed.next() as u16);
+        self.opts[idx] = LfoOptions::from(p);
     }
 }
 

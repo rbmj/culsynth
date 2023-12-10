@@ -13,7 +13,7 @@ mod fixedparam;
 
 pub mod parambuf;
 use parambuf::{
-    EnvParamBuffer, FiltParamBuffer, GlobalParamBuffer, OscParamBuffer, RingModParamBuffer,
+    EnvParamBuffer, FiltParamBuffer, GlobalParamBuffer, OscParamBuffer, RingModParamBuffer, LfoParamBuffer
 };
 
 pub mod pluginparams;
@@ -75,6 +75,10 @@ pub struct JanusPlugin {
     filt_params: FiltParamBuffer,
     env_amp_params: EnvParamBuffer,
     env_filt_params: EnvParamBuffer,
+    lfo1_params: LfoParamBuffer,
+    lfo2_params: LfoParamBuffer,
+    env1_params: EnvParamBuffer,
+    env2_params: EnvParamBuffer,
 
     /// Used by the GUI thread to send MIDI events to the audio thread when,
     /// for example, a user presses a key on a on screen virtual keyboard.
@@ -137,6 +141,10 @@ impl Default for JanusPlugin {
             filt_params: Default::default(),
             env_amp_params: Default::default(),
             env_filt_params: Default::default(),
+            lfo1_params: Default::default(),
+            lfo2_params: Default::default(),
+            env1_params: Default::default(),
+            env2_params: Default::default(),
             midi_tx,
             midi_rx,
             synth_tx,
@@ -205,6 +213,10 @@ impl Plugin for JanusPlugin {
         self.filt_params.allocate(bufsz);
         self.env_amp_params.allocate(bufsz);
         self.env_filt_params.allocate(bufsz);
+        self.lfo1_params.allocate(bufsz);
+        self.lfo2_params.allocate(bufsz);
+        self.env1_params.allocate(bufsz);
+        self.env2_params.allocate(bufsz);
         let mut voice_alloc: Box<dyn VoiceAllocator> = if buffer_config.sample_rate == 44100f32 {
             Box::new(MonoSynthFxP::new(ContextFxP::new_441()))
         } else if buffer_config.sample_rate == 48000f32 {
@@ -280,6 +292,10 @@ impl Plugin for JanusPlugin {
             self.filt_params.conv_float();
             self.env_amp_params.conv_float();
             self.env_filt_params.conv_float();
+            self.lfo1_params.conv_float();
+            self.lfo2_params.conv_float();
+            self.env1_params.conv_float();
+            self.env2_params.conv_float();
         }
         let output = voices.process(
             &mut self.glob_params,
@@ -289,6 +305,10 @@ impl Plugin for JanusPlugin {
             &self.filt_params,
             &self.env_filt_params,
             &self.env_amp_params,
+            &self.lfo1_params,
+            &mut self.lfo2_params,
+            &self.env1_params,
+            &mut self.env2_params,
         );
         index = 0;
         for channel_samples in buffer.iter_samples() {

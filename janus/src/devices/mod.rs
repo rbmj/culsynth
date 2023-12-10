@@ -21,7 +21,7 @@ use super::STATIC_BUFFER_SIZE;
 
 /// Types must implement this trait to instantiate any of the generic devices
 /// in this module.  Implementations are provided for `f32` and `f64`.
-pub trait Float: num_traits::Float + num_traits::FloatConst + From<u16> {
+pub trait Float: num_traits::Float + num_traits::FloatConst + From<u16> + Default + Copy {
     const ZERO: Self;
     const ONE: Self;
     const TWO: Self;
@@ -69,10 +69,10 @@ fn midi_note_to_frequency<T: Float>(note: T) -> T {
 }
 
 pub use amp::{Amp, AmpFxP};
-pub use env::{Env, EnvFxP, EnvParams, EnvParamsFxP};
+pub use env::{Env, EnvFxP, EnvParams, EnvParamsFxP, MutEnvParams, MutEnvParamsFxP};
 pub use filt::{Filt, FiltFxP, FiltOutput, FiltOutputFxP, FiltParams, FiltParamsFxP};
-pub use lfo::{Lfo, LfoFxP, LfoParam, LfoWave};
-pub use mixosc::{MixOsc, MixOscFxP, MixOscParams, MixOscParamsFxP};
+pub use lfo::{Lfo, LfoFxP, LfoOptions, LfoParams, LfoParamsFxP, LfoWave, MutLfoParams, MutLfoParamsFxP};
+pub use mixosc::{MixOsc, MixOscFxP, MixOscParams, MixOscParamsFxP, MutMixOscParamsFxP, MutMixOscParams};
 pub use modfilt::{ModFilt, ModFiltFxP, ModFiltParams, ModFiltParamsFxP};
 pub use osc::{Osc, OscFxP, OscOutput, OscParams, OscParamsFxP, OscSync};
 pub use ringmod::{RingMod, RingModFxP, RingModParams, RingModParamsFxP};
