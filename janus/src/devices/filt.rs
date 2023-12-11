@@ -136,6 +136,34 @@ impl<'a> FiltParamsFxP<'a> {
     }
 }
 
+/// Mutable Parameters for a [FiltFxP]
+pub struct MutFiltParamsFxP<'a> {
+    /// The cutoff frequency of the filter, expressed as a fixed-point MIDI
+    /// note number (see [NoteFxP])
+    pub cutoff: &'a mut [NoteFxP],
+    /// The resonance of the filter, expressed as a number in `[0, 1)`
+    pub resonance: &'a mut [ScalarFxP],
+}
+
+impl<'a> MutFiltParamsFxP<'a> {
+    /// The length of the parameters, defined as the length of the shortest slice.
+    pub fn len(&self) -> usize {
+        core::cmp::min(self.cutoff.len(), self.resonance.len())
+    }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
+impl<'a> From<MutFiltParamsFxP<'a>> for FiltParamsFxP<'a> {
+    fn from(value: MutFiltParamsFxP<'a>) -> Self {
+        Self {
+            cutoff: value.cutoff,
+            resonance: value.resonance,
+        }
+    }
+}
+
 /// A 2-pole, fixed-point, state variable filter with low, band, and high pass
 /// output signals.
 pub struct FiltFxP {

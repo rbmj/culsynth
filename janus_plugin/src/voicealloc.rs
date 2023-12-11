@@ -5,6 +5,7 @@
 use crate::parambuf::{
     EnvParamBuffer, FiltParamBuffer, GlobalParamBuffer, OscParamBuffer, RingModParamBuffer, LfoParamBuffer,
 };
+use crate::pluginparams::ModMatrixPluginParams;
 use janus::context::{Context, ContextFxP, GenericContext};
 use janus::voice::{Voice, VoiceFxP};
 use janus::{NoteFxP, SampleFxP, ScalarFxP};
@@ -39,13 +40,14 @@ pub trait VoiceAllocator: Send {
     /// to the beginning of the buffer (see [VoiceAllocator::sample_tick]).
     fn process(
         &mut self,
+        matrix_p: &ModMatrixPluginParams,
         glob_p: &mut GlobalParamBuffer,
-        o1p: &OscParamBuffer,
-        o2p: &OscParamBuffer,
-        rp: &RingModParamBuffer,
-        fp: &FiltParamBuffer,
-        efp: &EnvParamBuffer,
-        eap: &EnvParamBuffer,
+        o1p: &mut OscParamBuffer,
+        o2p: &mut OscParamBuffer,
+        rp: &mut RingModParamBuffer,
+        fp: &mut FiltParamBuffer,
+        efp: &mut EnvParamBuffer,
+        eap: &mut EnvParamBuffer,
         l1p: &LfoParamBuffer,
         l2p: &mut LfoParamBuffer,
         e1p: &EnvParamBuffer,
@@ -120,34 +122,37 @@ impl VoiceAllocator for MonoSynthFxP {
     }
     fn process(
         &mut self,
+        matrix_p: &ModMatrixPluginParams,
         glob_p: &mut GlobalParamBuffer,
-        osc1_p: &OscParamBuffer,
-        osc2_p: &OscParamBuffer,
-        ring_p: &RingModParamBuffer,
-        filt_p: &FiltParamBuffer,
-        filt_env_p: &EnvParamBuffer,
-        amp_env_p: &EnvParamBuffer,
+        osc1_p: &mut OscParamBuffer,
+        osc2_p: &mut OscParamBuffer,
+        ring_p: &mut RingModParamBuffer,
+        filt_p: &mut FiltParamBuffer,
+        filt_env_p: &mut EnvParamBuffer,
+        amp_env_p: &mut EnvParamBuffer,
         lfo1_p: &LfoParamBuffer,
         lfo2_p: &mut LfoParamBuffer,
         env1_p: &EnvParamBuffer,
         env2_p: &mut EnvParamBuffer,
     ) -> &[f32] {
         let mut processed: usize = 0;
+        let matrix = matrix_p.build_matrix();
         while processed < self.index {
             let thisiter = self.voice.process(
                 &self.ctx,
+                &matrix,
                 &self.notebuf[processed..self.index],
                 &self.gatebuf[processed..self.index],
                 &self.velbuf[processed..self.index],
                 &self.aftertouchbuf[processed..self.index],
                 &self.modwheelbuf[processed..self.index],
                 glob_p.sync(processed, self.index),
-                osc1_p.params(processed, self.index),
-                osc2_p.params(processed, self.index),
-                ring_p.params(processed, self.index),
-                filt_p.params(processed, self.index),
-                filt_env_p.params(processed, self.index),
-                amp_env_p.params(processed, self.index),
+                osc1_p.params_mut(processed, self.index),
+                osc2_p.params_mut(processed, self.index),
+                ring_p.params_mut(processed, self.index),
+                filt_p.params_mut(processed, self.index),
+                filt_env_p.params_mut(processed, self.index),
+                amp_env_p.params_mut(processed, self.index),
                 lfo1_p.params(processed, self.index),
                 lfo2_p.params_mut(processed, self.index),
                 env1_p.params(processed, self.index),
@@ -231,13 +236,14 @@ impl VoiceAllocator for MonoSynth {
     }
     fn process(
         &mut self,
+        matrix_p: &ModMatrixPluginParams,
         glob_p: &mut GlobalParamBuffer,
-        osc1_p: &OscParamBuffer,
-        osc2_p: &OscParamBuffer,
-        ring_p: &RingModParamBuffer,
-        filt_p: &FiltParamBuffer,
-        filt_env_p: &EnvParamBuffer,
-        amp_env_p: &EnvParamBuffer,
+        osc1_p: &mut OscParamBuffer,
+        osc2_p: &mut OscParamBuffer,
+        ring_p: &mut RingModParamBuffer,
+        filt_p: &mut FiltParamBuffer,
+        filt_env_p: &mut EnvParamBuffer,
+        amp_env_p: &mut EnvParamBuffer,
         lfo1_p: &LfoParamBuffer,
         lfo2_p: &mut LfoParamBuffer,
         env1_p: &EnvParamBuffer,

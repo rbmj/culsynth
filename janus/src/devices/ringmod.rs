@@ -98,6 +98,42 @@ impl<'a> RingModParamsFxP<'a> {
     }
 }
 
+/// Mutable Parameters for a [RingModFxP]
+pub struct MutRingModParamsFxP<'a> {
+    /// The volume of the output modulation signal
+    pub mix_out: &'a mut [ScalarFxP],
+    /// The volume of the input signal a mixed back in
+    pub mix_a: &'a mut [ScalarFxP],
+    /// The volume of the input signal b mixed back in
+    pub mix_b: &'a mut [ScalarFxP],
+}
+
+impl<'a> MutRingModParamsFxP<'a> {
+    /// The length of the input parameters, defined as the length of the shortest
+    /// input slice.
+    pub fn len(&self) -> usize {
+        min_size(&[
+            self.mix_a.len(),
+            self.mix_b.len(),
+            self.mix_out.len(),
+        ])
+    }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
+impl<'a> From<MutRingModParamsFxP<'a>> for RingModParamsFxP<'a> {
+    fn from(value: MutRingModParamsFxP<'a>) -> Self {
+        Self {
+            mix_a: value.mix_a,
+            mix_b: value.mix_b,
+            mix_out: value.mix_out,
+        }
+    }
+}
+
+
 /// A basic ring modulator with parameters to mix either of the original signals
 /// in with the output using fixed-point logic.
 pub struct RingModFxP {

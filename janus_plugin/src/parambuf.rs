@@ -1,10 +1,7 @@
 use crate::pluginparams::{
     EnvPluginParams, FiltPluginParams, OscPluginParams, RingModPluginParams, LfoPluginParams,
 };
-use janus::devices::{
-    EnvParams, EnvParamsFxP, MixOscParams, MixOscParamsFxP, ModFiltParams, ModFiltParamsFxP,
-    RingModParams, RingModParamsFxP, LfoOptions, LfoParamsFxP, LfoParams, MutEnvParams, MutEnvParamsFxP, MutLfoParams, MutLfoParamsFxP,
-};
+use janus::devices::*;
 use janus::{EnvParamFxP, NoteFxP, ScalarFxP, SignedNoteFxP, LfoFreqFxP};
 
 #[derive(Default)]
@@ -190,6 +187,13 @@ impl RingModParamBuffer {
             mix_out: &self.mix_mod_fxp[base..end],
         }
     }
+    pub fn params_mut(&mut self, base: usize, end: usize) -> MutRingModParamsFxP {
+        MutRingModParamsFxP {
+            mix_a: &mut self.mix_a_fxp[base..end],
+            mix_b: &mut self.mix_b_fxp[base..end],
+            mix_out: &mut self.mix_mod_fxp[base..end],
+        }
+    }
     pub fn mix_a(&self) -> &[ScalarFxP] {
         self.mix_a_fxp.as_slice()
     }
@@ -344,6 +348,17 @@ impl OscParamBuffer {
             sq: &self.sq_fxp[base..end],
             tri: &self.tri_fxp[base..end],
             saw: &self.saw_fxp[base..end],
+        }
+    }
+    pub fn params_mut(&mut self, base: usize, end: usize) -> MutMixOscParamsFxP {
+        MutMixOscParamsFxP {
+            tune: &mut self.tune_fxp[base..end],
+            shape: &mut self.shape_fxp[base..end],
+            sync: janus::devices::OscSync::Off,
+            sin: &mut self.sin_fxp[base..end],
+            sq: &mut self.sq_fxp[base..end],
+            tri: &mut self.tri_fxp[base..end],
+            saw: &mut self.saw_fxp[base..end],
         }
     }
     pub fn tune(&self) -> &[SignedNoteFxP] {
@@ -599,6 +614,18 @@ impl FiltParamBuffer {
             low_mix: &self.low_mix_fxp[base..end],
             band_mix: &self.band_mix_fxp[base..end],
             high_mix: &self.high_mix_fxp[base..end],
+        }
+    }
+    pub fn params_mut(&mut self, base: usize, end: usize) -> MutModFiltParamsFxP {
+        MutModFiltParamsFxP {
+            env_mod: &mut self.env_mod_fxp[base..end],
+            vel_mod: &mut self.vel_mod_fxp[base..end],
+            kbd: &mut self.kbd_fxp[base..end],
+            cutoff: &mut self.cutoff_fxp[base..end],
+            resonance: &mut self.resonance_fxp[base..end],
+            low_mix: &mut self.low_mix_fxp[base..end],
+            band_mix: &mut self.band_mix_fxp[base..end],
+            high_mix: &mut self.high_mix_fxp[base..end],
         }
     }
     pub fn env_mod(&self) -> &[ScalarFxP] {

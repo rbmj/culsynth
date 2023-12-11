@@ -264,6 +264,10 @@ impl Plugin for JanusPlugin {
             self.filt_params.update_index(index, &self.params.filt);
             self.env_amp_params.update_index(index, &self.params.env_vca);
             self.env_filt_params.update_index(index, &self.params.env_vcf);
+            self.env1_params.update_index(index, &self.params.env1);
+            self.env2_params.update_index(index, &self.params.env2);
+            self.lfo1_params.update_index(index, &self.params.lfo1);
+            self.lfo2_params.update_index(index, &self.params.lfo2);
 
             // Process MIDI events:
             while let Some(event) = next_event {
@@ -298,13 +302,14 @@ impl Plugin for JanusPlugin {
             self.env2_params.conv_float();
         }
         let output = voices.process(
+            &self.params.modmatrix,
             &mut self.glob_params,
-            &self.osc1_params,
-            &self.osc2_params,
-            &self.ringmod_params,
-            &self.filt_params,
-            &self.env_filt_params,
-            &self.env_amp_params,
+            &mut self.osc1_params,
+            &mut self.osc2_params,
+            &mut self.ringmod_params,
+            &mut self.filt_params,
+            &mut self.env_filt_params,
+            &mut self.env_amp_params,
             &self.lfo1_params,
             &mut self.lfo2_params,
             &self.env1_params,

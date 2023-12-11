@@ -6,6 +6,8 @@ use crate::devices::*;
 use crate::{min_size, BufferT, STATIC_BUFFER_SIZE};
 use crate::{NoteFxP, SampleFxP, ScalarFxP};
 
+use self::modulation::ModMatrixFxP;
+
 pub mod modulation;
 
 /// This struct encapsulates a single voice unit, containing a single oscillator,
@@ -21,7 +23,7 @@ pub struct VoiceFxP {
     env_amp: EnvFxP,
     env_filt: EnvFxP,
     vca: AmpFxP,
-    modmatrix: modulation::ModMatrixFxP,
+    modsection: modulation::ModSectionFxP,
 
     vcabuf: BufferT<SampleFxP>,
 }
@@ -38,7 +40,7 @@ impl VoiceFxP {
             env_amp: Default::default(),
             env_filt: Default::default(),
             vca: Default::default(),
-            modmatrix: Default::default(),
+            modsection: Default::default(),
         }
     }
     /// Process the note/gate inputs, passing the parameters to the relevant
@@ -59,18 +61,19 @@ impl VoiceFxP {
     pub fn process(
         &mut self,
         ctx: &ContextFxP,
+        matrix: &ModMatrixFxP,
         note: &[NoteFxP],
         gate: &[SampleFxP],
         vel: &[ScalarFxP],
         aftertouch: &[ScalarFxP],
         modwheel: &[ScalarFxP],
         sync: &mut [ScalarFxP],
-        osc1_p: MixOscParamsFxP,
-        osc2_p: MixOscParamsFxP,
-        ring_p: RingModParamsFxP,
-        filt_p: ModFiltParamsFxP,
-        filt_env_p: EnvParamsFxP,
-        amp_env_p: EnvParamsFxP,
+        mut osc1_p: MutMixOscParamsFxP,
+        mut osc2_p: MutMixOscParamsFxP,
+        mut ring_p: MutRingModParamsFxP,
+        mut filt_p: MutModFiltParamsFxP,
+        mut filt_env_p: MutEnvParamsFxP,
+        mut amp_env_p: MutEnvParamsFxP,
         lfo1_p: LfoParamsFxP,
         lfo2_p: MutLfoParamsFxP,
         env1_p: EnvParamsFxP,
@@ -89,6 +92,7 @@ impl VoiceFxP {
             amp_env_p.len(),
             STATIC_BUFFER_SIZE,
         ]);
+        // Build the ModMatrix
         let modparams = modulation::ModMatrixParamsFxP {
             velocity: vel,
             aftertouch,
@@ -98,7 +102,22 @@ impl VoiceFxP {
             env1_params: env1_p,
             env2_params: env2_p,
         };
-        let modulation = self.modmatrix.process(ctx, gate, modparams);
+        let modulation = self.modsection.process(ctx, &gate[0..numsamples], modparams, matrix);
+        // Modulate all the parameters
+        modulation.modulate_osc(&mut osc1_p, &modulation::OSC1_MOD_DEST);
+        modulation.modulate_osc(&mut osc2_p, &modulation::OSC2_MOD_DEST);
+        modulation.modulate_ring(&mut ring_p);
+        modulation.modulate_env(&mut filt_env_p, &modulation::ENV_FILT_MOD_DEST);
+        modulation.modulate_env(&mut amp_env_p, &modulation::ENV_AMP_MOD_DEST);
+        modulation.modulate_filt(&mut filt_p);
+        // We don't need any of the params to be mutable now
+        let osc1_p: MixOscParamsFxP = osc1_p.into();
+        let osc2_p: MixOscParamsFxP = osc2_p.into();
+        let ring_p: RingModParamsFxP = ring_p.into();
+        let filt_env_p: EnvParamsFxP = filt_env_p.into();
+        let amp_env_p: EnvParamsFxP = amp_env_p.into();
+        let filt_p: ModFiltParamsFxP = filt_p.into();
+
         let osc1_out = self.osc1.process(
             ctx,
             &note[0..numsamples],
@@ -109,11 +128,9 @@ impl VoiceFxP {
             &note[0..numsamples],
             osc2_p.with_sync(OscSync::Slave(sync)),
         );
-        let ring_mod_out = self.ringmod.process(ctx, osc1_out, osc2_out, ring_p);
+        let ring_mod_out = self.ringmod.process(ctx, &osc1_out[0..numsamples], &osc2_out[0..numsamples], ring_p);
         let filt_env_out = self.env_filt.process(ctx, &gate[0..numsamples], filt_env_p);
-        let filt_out = self
-            .filt
-            .process(ctx, ring_mod_out, filt_env_out, note, vel, filt_p);
+        let filt_out = self.filt.process(ctx, &ring_mod_out[0..numsamples], filt_env_out, note, vel, filt_p);
         let vca_env_out = self.env_amp.process(ctx, &gate[0..numsamples], amp_env_p);
         for i in 0..numsamples {
             self.vcabuf[i] = SampleFxP::from_num(vca_env_out[i]);

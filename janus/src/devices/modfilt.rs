@@ -105,7 +105,7 @@ pub struct ModFiltParamsFxP<'a> {
 
 impl<'a> ModFiltParamsFxP<'a> {
     pub fn len(&self) -> usize {
-        *[
+        min_size(&[
             self.env_mod.len(),
             self.kbd.len(),
             self.cutoff.len(),
@@ -113,13 +113,54 @@ impl<'a> ModFiltParamsFxP<'a> {
             self.low_mix.len(),
             self.band_mix.len(),
             self.high_mix.len(),
-        ]
-        .iter()
-        .min()
-        .unwrap_or(&0)
+        ])
     }
     pub fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+}
+
+pub struct MutModFiltParamsFxP<'a> {
+    pub env_mod: &'a mut [ScalarFxP],
+    pub vel_mod: &'a mut [ScalarFxP],
+    pub kbd: &'a mut [ScalarFxP],
+    pub cutoff: &'a mut [NoteFxP],
+    pub resonance: &'a mut [ScalarFxP],
+    pub low_mix: &'a mut [ScalarFxP],
+    pub band_mix: &'a mut [ScalarFxP],
+    pub high_mix: &'a mut [ScalarFxP],
+}
+
+impl<'a> MutModFiltParamsFxP<'a> {
+    pub fn len(&self) -> usize {
+        min_size(&[
+            self.env_mod.len(),
+            self.vel_mod.len(),
+            self.kbd.len(),
+            self.cutoff.len(),
+            self.resonance.len(),
+            self.low_mix.len(),
+            self.band_mix.len(),
+            self.high_mix.len(),
+        ])
+    }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
+impl<'a> From<MutModFiltParamsFxP<'a>> for ModFiltParamsFxP<'a> {
+    fn from(value: MutModFiltParamsFxP<'a>) -> Self {
+        Self {
+            env_mod: value.env_mod,
+            vel_mod: value.vel_mod,
+            kbd: value.kbd,
+            cutoff: value.cutoff,
+            resonance: value.resonance,
+            low_mix: value.low_mix,
+            band_mix: value.band_mix,
+            high_mix: value.high_mix,
+        }
     }
 }
 

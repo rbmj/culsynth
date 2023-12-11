@@ -255,10 +255,36 @@ pub struct LfoParamsFxP<'a> {
     pub opts: &'a [LfoOptions],
 }
 
+impl<'a> LfoParamsFxP<'a> {
+    pub fn len(&self) -> usize {
+        min_size(&[
+            self.freq.len(),
+            self.depth.len(),
+            self.opts.len(),
+        ])
+    }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
 pub struct MutLfoParamsFxP<'a> {
     pub freq: &'a mut [LfoFreqFxP],
     pub depth: &'a mut [ScalarFxP],
     pub opts: &'a mut [LfoOptions],
+}
+
+impl<'a> MutLfoParamsFxP<'a> {
+    pub fn len(&self) -> usize {
+        min_size(&[
+            self.freq.len(),
+            self.depth.len(),
+            self.opts.len(),
+        ])
+    }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 impl<'a> From<MutLfoParamsFxP<'a>> for LfoParamsFxP<'a> {

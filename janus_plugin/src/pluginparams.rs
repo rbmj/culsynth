@@ -1,5 +1,6 @@
 use janus::devices::{LfoOptions, LfoWave};
-use janus::{EnvParamFxP, NoteFxP, ScalarFxP, LfoFreqFxP};
+use janus::voice::modulation::{ModDest, ModSrc, ModMatrixFxP};
+use janus::{EnvParamFxP, IScalarFxP, NoteFxP, ScalarFxP, LfoFreqFxP};
 use nih_plug::prelude::*;
 use nih_plug_egui::EguiState;
 
@@ -192,6 +193,157 @@ impl EnvPluginParams {
     }
 }
 
+#[derive(Params)]
+pub struct ModMatrixRowParams {
+    #[id = "A"]
+    pub a: IntParam,
+    #[id = "AM"]
+    pub a_magnitude: IntParam,
+    #[id = "B"]
+    pub b: IntParam,
+    #[id = "BM"]
+    pub b_magnitude: IntParam,
+    #[id = "C"]
+    pub c: IntParam,
+    #[id = "CM"]
+    pub c_magnitude: IntParam,
+    #[id = "D"]
+    pub d: IntParam,
+    #[id = "DM"]
+    pub d_magnitude: IntParam,
+
+    is_secondary: bool,
+}
+
+impl ModMatrixRowParams {
+    fn make_param(name: String, rng: IntRange) -> IntParam {
+        IntParam::new(name, ModDest::Null as i32, rng)
+            .non_automatable()
+            .with_value_to_string(Arc::new(|x| ModDest::try_from(x as u16).unwrap_or_default().to_str().to_owned()))
+            .with_string_to_value(Arc::new(
+                |string| ModDest::elements().into_iter().find_map(
+                    |dest| if dest.to_str() == string { Some(dest as i32) } else { None },
+                ),
+            ))
+    }
+    fn new(name: &str, is_secondary: bool) -> Self {
+        let rng = if is_secondary {
+            IntRange::Linear{
+                min: ModDest::min() as i32,
+                max: ModDest::max_secondary() as i32
+            }
+        } else {
+            IntRange::Linear{
+                min: ModDest::min() as i32,
+                max: ModDest::max() as i32
+            }
+        };
+        Self {
+            a: Self::make_param(name.to_owned() + " A", rng),
+            a_magnitude: new_fixed_param(name.to_owned() + " A Mag", IScalarFxP::ZERO),
+            b: Self::make_param(name.to_owned() + " B", rng),
+            b_magnitude: new_fixed_param(name.to_owned() + " B Mag", IScalarFxP::ZERO),
+            c: Self::make_param(name.to_owned() + " C", rng),
+            c_magnitude: new_fixed_param(name.to_owned() + " C Mag", IScalarFxP::ZERO),
+            d: Self::make_param(name.to_owned() + " D", rng),
+            d_magnitude: new_fixed_param(name.to_owned() + " D Mag", IScalarFxP::ZERO),
+            is_secondary,
+        }
+    }
+    pub fn slot(&self, idx: usize) -> (&IntParam, &IntParam) {
+        [
+            (&self.a, &self.a_magnitude),
+            (&self.b, &self.b_magnitude),
+            (&self.c, &self.c_magnitude),
+            (&self.d, &self.d_magnitude),
+        ][idx]
+    }
+    pub fn len(&self) -> usize {
+        4
+    }
+    pub fn iter(&self) -> ModMatrixRowIterator {
+        ModMatrixRowIterator { row: self, idx: 0 }
+    }
+    pub fn is_secondary(&self) -> bool {
+        self.is_secondary
+    }
+}
+
+pub struct ModMatrixRowIterator<'a> {
+    row: &'a ModMatrixRowParams,
+    idx: usize
+}
+
+impl<'a> Iterator for ModMatrixRowIterator<'a> {
+    type Item = (&'a IntParam, &'a IntParam);
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.idx >= self.row.len() {
+            None
+        }
+        else {
+            let cur = self.row.slot(self.idx);
+            self.idx += 1;
+            Some(cur)
+        }
+    }
+}
+
+#[derive(Params)]
+pub struct ModMatrixPluginParams {
+    #[nested(id_prefix = "M_V_", group = "VelMod")]
+    pub velocity: ModMatrixRowParams,
+    #[nested(id_prefix = "M_A_", group = "AftMod")]
+    pub aftertouch: ModMatrixRowParams,
+    #[nested(id_prefix = "M_M_", group = "WhlMod")]
+    pub modwheel: ModMatrixRowParams,
+    #[nested(id_prefix = "M_E1_", group = "E1Mod")]
+    pub env1: ModMatrixRowParams,
+    #[nested(id_prefix = "M_E2_", group = "E2Mod")]
+    pub env2: ModMatrixRowParams,
+    #[nested(id_prefix = "M_L1_", group = "L1Mod")]
+    pub lfo1: ModMatrixRowParams,
+    #[nested(id_prefix = "M_L2_", group = "L2Mod")]
+    pub lfo2: ModMatrixRowParams,
+}
+
+impl ModMatrixPluginParams {
+    pub fn new() -> Self {
+        Self {
+            velocity: ModMatrixRowParams::new("MM Velocity", false),
+            aftertouch: ModMatrixRowParams::new("MM Aftertouch", false),
+            modwheel: ModMatrixRowParams::new("MM Modwheel", false),
+            env1: ModMatrixRowParams::new("MM Env 1", false),
+            env2: ModMatrixRowParams::new("MM Env 2", true),
+            lfo1: ModMatrixRowParams::new("MM LFO 1", false),
+            lfo2: ModMatrixRowParams::new("MM LFO 2", true),
+        }
+    }
+    pub fn row(&self, src: ModSrc) -> &ModMatrixRowParams {
+        match src {
+            ModSrc::Velocity => &self.velocity,
+            ModSrc::Aftertouch => &self.aftertouch,
+            ModSrc::ModWheel => &self.modwheel,
+            ModSrc::Env1 => &self.env1,
+            ModSrc::Env2 => &self.env2,
+            ModSrc::Lfo1 => &self.lfo1,
+            ModSrc::Lfo2 => &self.lfo2,
+        }
+    }
+    pub fn build_matrix(&self) -> ModMatrixFxP {
+        ModMatrixFxP {
+            rows: ModSrc::ELEM.map(|src| {
+                let row = self.row(src);
+                (src, [0, 1, 2, 3].map(|i| {
+                    let slot = row.slot(i);
+                    let dest = ModDest::try_from(slot.0.value() as u16).unwrap();
+                    let mag = IScalarFxP::from_bits(slot.1.value() as i16);
+                    (dest, mag)
+                }))
+            }),
+        }
+    }
+}
+
 /// Holds all of the plugin parameters
 #[derive(Params)]
 pub struct JanusParams {
@@ -232,6 +384,9 @@ pub struct JanusParams {
 
     #[nested(id_prefix = "env2", group = "envmd2")]
     pub env2: EnvPluginParams,
+
+    #[nested(group = "Mod")]
+    pub modmatrix: ModMatrixPluginParams,
 }
 
 impl Default for JanusParams {
@@ -249,6 +404,7 @@ impl Default for JanusParams {
             lfo2: LfoPluginParams::new("LFO2"),
             env1: EnvPluginParams::new("Mod Envelope 1"),
             env2: EnvPluginParams::new("Mod Envelope 2"),
+            modmatrix: ModMatrixPluginParams::new(),
         }
     }
 }

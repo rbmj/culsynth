@@ -22,7 +22,7 @@ pub enum ModSrc {
 }
 
 impl ModSrc {
-    const ELEM: [ModSrc; Self::numel()] = [
+    pub const ELEM: [ModSrc; Self::numel()] = [
         ModSrc::Velocity,
         ModSrc::Aftertouch,
         ModSrc::ModWheel,
@@ -57,8 +57,9 @@ impl ModSrc {
 }
 
 #[repr(u16)]
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Default)]
 pub enum ModDest {
+    #[default]
     Null,
     Osc1Course,
     Osc1Fine,
@@ -168,6 +169,17 @@ impl ModDest {
     pub const fn max() -> Self {
         Self::Env2R
     }
+    pub const fn max_secondary() -> Self {
+        Self::EnvAmpR
+    }
+    pub fn elements() -> impl core::iter::Iterator<Item=ModDest> {
+        ((Self::min() as u16)..=(Self::max() as u16))
+            .map(|x| unsafe { core::mem::transmute(x) })
+    }
+    pub fn elements_secondary() -> impl core::iter::Iterator<Item=ModDest> {
+        ((Self::min() as u16)..=(Self::max_secondary() as u16))
+            .map(|x| unsafe { core::mem::transmute(x) })
+    }
 }
 
 impl TryFrom<u16> for ModDest {
@@ -236,10 +248,10 @@ pub const ENV_FILT_MOD_DEST: EnvModDest = EnvModDest {
 };
 
 const MOD_SLOTS: usize = 4;
-type ModSetFxP = [(ModDest, IScalarFxP); MOD_SLOTS];
-type ModMatrixEntryFxP = (ModSrc, ModSetFxP);
-type ModSet<Smp> = [(ModDest, Smp); MOD_SLOTS];
-type ModMatrixEntry<Smp> = (ModSrc, ModSet<Smp>);
+type ModMatrixRowEntriesFxP = [(ModDest, IScalarFxP); MOD_SLOTS];
+type ModMatrixRowEntries<Smp> = [(ModDest, Smp); MOD_SLOTS];
+type ModMatrixEntryFxP = (ModSrc, ModMatrixRowEntriesFxP);
+type ModMatrixRow<Smp> = (ModSrc, ModMatrixRowEntries<Smp>);
 
 pub struct ModulatorFxP<'a> {
     velocity: &'a [ScalarFxP],
@@ -249,7 +261,7 @@ pub struct ModulatorFxP<'a> {
     lfo2: &'a [SampleFxP],
     env1: &'a [ScalarFxP],
     env2: &'a [ScalarFxP],
-    matrix: &'a ModMatrixEntriesFxP,
+    matrix: &'a ModMatrixFxP,
 }
 
 impl<'a> ModulatorFxP<'a> {
@@ -404,6 +416,21 @@ impl<'a> ModulatorFxP<'a> {
         self.apply_unsigned(dest.tri, params.tri);
         self.apply_unsigned(dest.saw, params.saw);
     }
+    pub fn modulate_ring(&self, params: &mut MutRingModParamsFxP) {
+        self.apply_unsigned(ModDest::RingOsc1, params.mix_a);
+        self.apply_unsigned(ModDest::RingOsc2, params.mix_b);
+        self.apply_unsigned(ModDest::RingMod, params.mix_out);
+    }
+    pub fn modulate_filt(&self, params: &mut MutModFiltParamsFxP) {
+        self.apply_unsigned(ModDest::FiltEnv, params.env_mod);
+        self.apply_unsigned(ModDest::FiltVel, params.vel_mod);
+        self.apply_unsigned(ModDest::FiltKbd, params.kbd);
+        self.apply_unsigned(ModDest::FiltCutoff, params.cutoff);
+        self.apply_unsigned(ModDest::FiltRes, params.resonance);
+        self.apply_unsigned(ModDest::FiltLow, params.low_mix);
+        self.apply_unsigned(ModDest::FiltBand, params.band_mix);
+        self.apply_unsigned(ModDest::FiltHigh, params.high_mix);
+    }
 }
 
 pub struct ModMatrixParamsFxP<'a> {
@@ -416,42 +443,60 @@ pub struct ModMatrixParamsFxP<'a> {
     pub env2_params: MutEnvParamsFxP<'a>,
 }
 
-struct ModMatrixEntriesFxP {
-    entries: [ModMatrixEntryFxP; ModSrc::numel()],
-}
-
-impl Default for ModMatrixEntriesFxP {
-    fn default() -> Self {
-        Self {
-            entries: ModSrc::ELEM.map(|e| (e, [(ModDest::Null, IScalarFxP::ZERO); MOD_SLOTS])),
-        }
+impl<'a> ModMatrixParamsFxP<'a> {
+    pub fn len(&self) -> usize {
+        min_size(&[
+            self.velocity.len(),
+            self.aftertouch.len(),
+            self.modwheel.len(),
+            self.lfo1_params.len(),
+            self.lfo2_params.len(),
+            self.env1_params.len(),
+            self.env2_params.len(),
+        ])
     }
-}
-
-impl ModMatrixEntriesFxP {
-    pub fn get_modulation(&self, src: ModSrc, dest: ModDest) -> Option<IScalarFxP> {
-        self.entries[src as usize].1.iter()
-            .find_map(|x| if x.0 == dest { Some(x.1) } else { None })
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 }
 
 pub struct ModMatrixFxP {
-    entries: ModMatrixEntriesFxP,
+    pub rows: [ModMatrixEntryFxP; ModSrc::numel()],
+}
+
+impl Default for ModMatrixFxP {
+    fn default() -> Self {
+        Self {
+            rows: ModSrc::ELEM.map(|e| (e, [(ModDest::Null, IScalarFxP::ZERO); MOD_SLOTS])),
+        }
+    }
+}
+
+impl ModMatrixFxP {
+    pub fn get_modulation(&self, src: ModSrc, dest: ModDest) -> Option<IScalarFxP> {
+        self.rows[src as usize].1.iter()
+            .find_map(|x| if x.0 == dest { Some(x.1) } else { None })
+    }
+}
+
+pub struct ModSectionFxP {
     lfo1: LfoFxP,
     lfo2: LfoFxP,
     env1: EnvFxP,
     env2: EnvFxP,
 }
 
-impl ModMatrixFxP {
+impl ModSectionFxP {
     pub fn process<'a>(
         &'a mut self,
         ctx: &ContextFxP,
         gate: &[SampleFxP],
         params: ModMatrixParamsFxP<'a>,
+        entries: &'a ModMatrixFxP,
     ) -> ModulatorFxP<'a> {
-        let lfo1_out = self.lfo1.process(ctx, gate, params.lfo1_params);
-        let env1_out = self.env1.process(ctx, gate, params.env1_params);
+        let numsamples = min_size(&[gate.len(), params.len(), STATIC_BUFFER_SIZE]);
+        let lfo1_out = self.lfo1.process(ctx, &gate[0..numsamples], params.lfo1_params);
+        let env1_out = self.env1.process(ctx, &gate[0..numsamples], params.env1_params);
         // LFO2/ENV2 are default here, so empty slices.
         let modulator_initial = ModulatorFxP {
             velocity: params.velocity,
@@ -461,29 +506,17 @@ impl ModMatrixFxP {
             lfo2: Default::default(),
             env1: env1_out,
             env2: Default::default(),
-            matrix: &self.entries,
+            matrix: entries,
         };
-        modulator_initial.apply_unsigned(ModDest::Lfo2Rate, params.lfo2_params.freq);
-        modulator_initial.apply_unsigned(ModDest::Lfo2Depth, params.lfo2_params.depth);
-        modulator_initial.apply_unsigned(ModDest::Env2A, params.env2_params.attack);
-        modulator_initial.apply_unsigned(ModDest::Env2D, params.env2_params.decay);
-        modulator_initial.apply_unsigned(ModDest::Env2S, params.env2_params.sustain);
-        modulator_initial.apply_unsigned(ModDest::Env2R, params.env2_params.release);
-        let lfo2_out = self.lfo2.process(ctx, gate, params.lfo2_params.into());
-        let env2_out = self.env2.process(ctx, gate, params.env2_params.into());
-        /*
-        ModulatorFxP {
-            velocity: params.velocity,
-            aftertouch: params.aftertouch,
-            modwheel: params.modwheel,
-            lfo1: lfo1_out,
-            lfo2: lfo2_out,
-            env1: env1_out,
-            env2: env2_out,
-            matrix: &self.entries,
-        }
-        */
-        ModulatorFxP {
+        modulator_initial.apply_unsigned(ModDest::Lfo2Rate, &mut params.lfo2_params.freq[0..numsamples]);
+        modulator_initial.apply_unsigned(ModDest::Lfo2Depth, &mut params.lfo2_params.depth[0..numsamples]);
+        modulator_initial.apply_unsigned(ModDest::Env2A, &mut params.env2_params.attack[0..numsamples]);
+        modulator_initial.apply_unsigned(ModDest::Env2D, &mut params.env2_params.decay[0..numsamples]);
+        modulator_initial.apply_unsigned(ModDest::Env2S, &mut params.env2_params.sustain[0..numsamples]);
+        modulator_initial.apply_unsigned(ModDest::Env2R, &mut params.env2_params.release[0..numsamples]);
+        let lfo2_out = self.lfo2.process(ctx, &gate[0..numsamples], params.lfo2_params.into());
+        let env2_out = self.env2.process(ctx, &gate[0..numsamples], params.env2_params.into());
+        ModulatorFxP::<'a> {
             lfo2: lfo2_out,
             env2: env2_out,
             ..modulator_initial
@@ -491,10 +524,9 @@ impl ModMatrixFxP {
     }
 }
 
-impl Default for ModMatrixFxP {
+impl Default for ModSectionFxP {
     fn default() -> Self {
         Self {
-            entries: ModMatrixEntriesFxP::default(),
             lfo1: LfoFxP::default(),
             lfo2: LfoFxP::default(),
             env1: EnvFxP::new(),
@@ -608,7 +640,7 @@ pub struct ModMatrixParams<'a, Smp: Float> {
 }
 
 struct ModMatrixEntries<Smp: Float> {
-    entries: [ModMatrixEntry<Smp>; ModSrc::numel()],
+    entries: [ModMatrixRow<Smp>; ModSrc::numel()],
 }
 
 impl<Smp: Float> Default for ModMatrixEntries<Smp> {

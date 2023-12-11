@@ -7,6 +7,7 @@ use crate::ContextReader;
 use egui::widgets;
 use janus::context::{Context, ContextFxP};
 use janus::devices::LfoWave;
+use janus::voice::modulation::{ModSrc, ModDest};
 use nih_plug::prelude::*;
 use nih_plug_egui::{create_egui_editor, egui, EguiState};
 use piano_keyboard::Rectangle as PianoRectangle;
@@ -243,7 +244,7 @@ fn key_to_notenum(k: egui::Key) -> Option<i8> {
 
 // Makes sense to also define this here, makes it a bit easier to keep track of
 pub(crate) fn default_state() -> Arc<EguiState> {
-    EguiState::from_size(1200, 800)
+    EguiState::from_size(1000, 800)
 }
 
 /// Struct to hold the global state information for the plugin editor (GUI).
@@ -253,6 +254,7 @@ struct JanusEditor {
     synth_channel: SyncSender<Box<dyn VoiceAllocator>>,
     context: ContextReader,
     last_note: Option<i8>,
+    show_mod_matrix: bool,
 }
 
 impl JanusEditor {
@@ -268,6 +270,7 @@ impl JanusEditor {
             synth_channel: synth_tx,
             context: ctx,
             last_note: None,
+            show_mod_matrix: false,
         }
     }
     /// Helper function to handle keyboard input
@@ -541,43 +544,102 @@ impl JanusEditor {
                 });
             });
     }
+    fn draw_main_controls(&mut self, setter: &ParamSetter, ui: &mut egui::Ui) {
+        ui.spacing_mut().slider_width = 130f32;
+        ui.vertical(|ui| {
+            ui.horizontal(|ui| {
+                self.params.osc1.draw_on(ui, setter, "Oscillator 1");
+                ui.separator();
+                let sync_on = self.params.osc_sync.value();
+                (&self.params.osc2, sync_on, || {
+                    setter.begin_set_parameter(&self.params.osc_sync);
+                    setter.set_parameter(&self.params.osc_sync, !sync_on);
+                    setter.end_set_parameter(&self.params.osc_sync);
+                }).draw_on(ui, setter, "Oscillator 2");
+                ui.separator();
+                self.params.ringmod.draw_on(ui, setter, "Mixer/Ring Modulator");
+            });
+            ui.horizontal(|ui| {
+                self.params.filt.draw_on(ui, setter, "Filter");
+                ui.separator();
+                self.params.lfo1.draw_on(ui, setter, "LFO 1");
+                ui.separator();
+                self.params.lfo2.draw_on(ui, setter, "LFO 2");
+            });
+            ui.horizontal(|ui| {
+                self.params.env_vcf.draw_on(ui, setter, "Filter Envelope");
+                ui.separator();
+                self.params.env_vca.draw_on(ui, setter, "Amplifier Envelope");
+                ui.separator();
+                self.params.env1.draw_on(ui, setter, "Mod Envelope 1");
+                ui.separator();
+                self.params.env2.draw_on(ui, setter, "Mod Envelope 2");
+            });
+        });
+    }
     /// Draw the editor panel
     pub fn update(&mut self, egui_ctx: &egui::Context, setter: &ParamSetter) {
         self.draw_status_bar(egui_ctx);
         self.draw_kbd_panel(egui_ctx);
         egui::CentralPanel::default().show(egui_ctx, |ui| {
-            ui.spacing_mut().slider_width = 130f32;
             ui.vertical(|ui| {
-                ui.horizontal(|ui| {
-                    self.params.osc1.draw_on(ui, setter, "Oscillator 1");
-                    ui.separator();
-                    let sync_on = self.params.osc_sync.value();
-                    (&self.params.osc2, sync_on, || {
-                        setter.begin_set_parameter(&self.params.osc_sync);
-                        setter.set_parameter(&self.params.osc_sync, !sync_on);
-                        setter.end_set_parameter(&self.params.osc_sync);
-                    }).draw_on(ui, setter, "Oscillator 2");
-                    ui.separator();
-                    self.params.ringmod.draw_on(ui, setter, "Mixer/Ring Modulator");
-                });
-                ui.horizontal(|ui| {
-                    self.params.filt.draw_on(ui, setter, "Filter");
-                    ui.separator();
-                    self.params.lfo1.draw_on(ui, setter, "LFO 1");
-                    ui.separator();
-                    self.params.lfo2.draw_on(ui, setter, "LFO 2");
-                });
-                ui.horizontal(|ui| {
-                    self.params.env_vcf.draw_on(ui, setter, "Filter Envelope");
-                    ui.separator();
-                    self.params.env_vca.draw_on(ui, setter, "Amplifier Envelope");
-                    ui.separator();
-                    self.params.env1.draw_on(ui, setter, "Mod Envelope 1");
-                    ui.separator();
-                    self.params.env2.draw_on(ui, setter, "Mod Envelope 2");
-                });
+                self.draw_main_controls(setter, ui);
+                if ui.button("Open Mod Matrix").clicked() {
+                    self.show_mod_matrix = true;
+                }
             });
         });
+        egui::Window::new("Modulation Matrix")
+            .open(&mut self.show_mod_matrix)
+            .show(egui_ctx, |ui| {
+                egui::Grid::new("MODMATRIX").show(ui, |ui| {
+                    ui.label("");
+                    ui.label("Slot A");
+                    ui.label("Slot B");
+                    ui.label("Slot C");
+                    ui.label("Slot D");
+                    ui.end_row();
+                    for src in ModSrc::elements() {
+                        ui.label(src.to_str());
+                        let row = self.params.modmatrix.row(*src);
+                        for (idx, slot) in row.iter().enumerate() {
+                            let mut dest = ModDest::try_from(slot.0.value() as u16).unwrap();
+                            let id_str = format!("MMRow{}Slot{}", *src as u16, idx);
+                            ui.vertical(|ui| {
+                                ui.separator();
+                                egui::ComboBox::from_id_source(id_str)
+                                    .selected_text(dest.to_str())
+                                    .show_ui(ui, |ui| {
+                                        if row.is_secondary() {
+                                            for value in ModDest::elements_secondary() {
+                                                ui.selectable_value(
+                                                    &mut dest,
+                                                    value,
+                                                    value.to_str(),
+                                                );
+                                            }
+                                        } else {
+                                            for value in ModDest::elements() {
+                                                ui.selectable_value(
+                                                    &mut dest,
+                                                    value,
+                                                    value.to_str(),
+                                                );
+                                            }
+                                        }
+                                    });
+                                if dest as i32 != slot.0.value() {
+                                    setter.begin_set_parameter(slot.0);
+                                    setter.set_parameter(slot.0, dest as i32);
+                                    setter.end_set_parameter(slot.0);
+                                }
+                                ui.add(param_slider(setter, slot.1));
+                            });
+                        }
+                        ui.end_row();
+                    }
+                });
+            });
     }
     pub fn initialize(&mut self, egui_ctx: &egui::Context) {
         let mut fonts = egui::FontDefinitions::default();

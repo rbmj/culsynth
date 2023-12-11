@@ -70,9 +70,9 @@ fn midi_note_to_frequency<T: Float>(note: T) -> T {
 
 pub use amp::{Amp, AmpFxP};
 pub use env::{Env, EnvFxP, EnvParams, EnvParamsFxP, MutEnvParams, MutEnvParamsFxP};
-pub use filt::{Filt, FiltFxP, FiltOutput, FiltOutputFxP, FiltParams, FiltParamsFxP};
+pub use filt::{Filt, FiltFxP, FiltOutput, FiltOutputFxP, FiltParams, FiltParamsFxP, MutFiltParamsFxP};
 pub use lfo::{Lfo, LfoFxP, LfoOptions, LfoParams, LfoParamsFxP, LfoWave, MutLfoParams, MutLfoParamsFxP};
 pub use mixosc::{MixOsc, MixOscFxP, MixOscParams, MixOscParamsFxP, MutMixOscParamsFxP, MutMixOscParams};
-pub use modfilt::{ModFilt, ModFiltFxP, ModFiltParams, ModFiltParamsFxP};
+pub use modfilt::{ModFilt, ModFiltFxP, ModFiltParams, ModFiltParamsFxP, MutModFiltParamsFxP};
 pub use osc::{Osc, OscFxP, OscOutput, OscParams, OscParamsFxP, OscSync};
-pub use ringmod::{RingMod, RingModFxP, RingModParams, RingModParamsFxP};
+pub use ringmod::{MutRingModParamsFxP, RingMod, RingModFxP, RingModParams, RingModParamsFxP};
