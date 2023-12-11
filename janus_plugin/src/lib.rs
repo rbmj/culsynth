@@ -174,7 +174,7 @@ impl Plugin for JanusPlugin {
         },
     ];
 
-    const MIDI_INPUT: MidiConfig = MidiConfig::Basic;
+    const MIDI_INPUT: MidiConfig = MidiConfig::MidiCCs;
     const SAMPLE_ACCURATE_AUTOMATION: bool = true;
 
     type SysExMessage = ();
@@ -277,9 +277,24 @@ impl Plugin for JanusPlugin {
                 match event {
                     NoteEvent::NoteOn { note, velocity, .. } => {
                         voices.note_on(note, (velocity * 127f32) as u8);
-                    }
+                    },
                     NoteEvent::NoteOff { note, velocity, .. } => {
                         voices.note_off(note, (velocity * 127f32) as u8);
+                    },
+                    NoteEvent::MidiCC { cc, value, .. } => {
+                        let value = (value * 127f32) as u8;
+                        match cc {
+                            control_change::MODULATION_MSB => voices.modwheel(value),
+                            _ => {
+                                nih_log!("Unhandled MIDI CC {value}");
+                            }
+                        }
+                    },
+                    NoteEvent::MidiChannelPressure { pressure, .. } => {
+                        voices.aftertouch((pressure * 127f32) as u8);
+                    },
+                    NoteEvent::MidiPitchBend { value, ..} => {
+                        voices.pitch_bend(((value - 0.5) * (i16::MAX as f32)) as i16);
                     }
                     _ => (),
                 }

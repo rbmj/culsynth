@@ -8,7 +8,7 @@ use crate::parambuf::{
 use crate::pluginparams::ModMatrixPluginParams;
 use janus::context::{Context, ContextFxP, GenericContext};
 use janus::voice::{Voice, VoiceFxP};
-use janus::{NoteFxP, SampleFxP, ScalarFxP};
+use janus::{NoteFxP, SampleFxP, ScalarFxP, SignedNoteFxP, IScalarFxP};
 
 /// This trait is the main abstraction for this module - the plugin may send it
 /// note on/off events and it will assign those events to voices, stealing if
@@ -27,8 +27,23 @@ pub trait VoiceAllocator: Send {
     ///
     /// Note:  Most implementations will ignore note off velocity
     fn note_off(&mut self, n: u8, v: u8);
+    /// For the sample at the current index (see [VoiceAllocator::sample_tick]),
+    /// process a change in the aftertouch value
     fn aftertouch(&mut self, v: u8);
+    /// For the sample at the current index (see [VoiceAllocator::sample_tick]),
+    /// process a change in modwheel value
     fn modwheel(&mut self, v: u8);
+    /// For the sample at the current index (see [VoiceAllocator::sample_tick]),
+    /// process a change in pitch bend value
+    fn pitch_bend(&mut self, v: i16);
+    /// Get the current pitch bend range, in semitones
+    fn get_pitch_bend_range(&self) -> (i8, i8);
+    /// Set the current pitch bend range, in semitones
+    /// 
+    /// Both arguments should generally be positive.  For example,
+    /// `set_pitch_bend_range(2, 2)` will set the pitch wheel to bend up/down
+    /// a whole step.
+    fn set_pitch_bend_range(&mut self, low: i8, high: i8);
     /// Process all of the note on/off events within the buffer, taking the
     /// parameter buffers as input and returning a reference to an internal
     /// buffer holding the corresponding audio sample output
@@ -74,6 +89,8 @@ pub struct MonoSynthFxP {
     velocity: ScalarFxP,
     aftertouch: ScalarFxP,
     modwheel: ScalarFxP,
+    pitch_bend: SignedNoteFxP,
+    pitch_range: (fixed::types::I16F0, fixed::types::I16F0),
 }
 
 impl MonoSynthFxP {
@@ -96,9 +113,10 @@ impl VoiceAllocator for MonoSynthFxP {
         self.index = 0;
         self.note = NoteFxP::lit("69"); //A440, nice
         self.gate = SampleFxP::ZERO;
+        self.set_pitch_bend_range(2, 2);
     }
     fn sample_tick(&mut self) {
-        self.notebuf[self.index] = self.note;
+        self.notebuf[self.index] = self.note.add_signed(self.pitch_bend);
         self.gatebuf[self.index] = self.gate;
         self.velbuf[self.index] = self.velocity;
         self.aftertouchbuf[self.index] = self.aftertouch;
@@ -121,6 +139,26 @@ impl VoiceAllocator for MonoSynthFxP {
     }
     fn modwheel(&mut self, value: u8) {
         self.modwheel = ScalarFxP::from_bits((value as u16) << 8);
+    }
+    fn pitch_bend(&mut self, v: i16) {
+        if v < 0 {
+            self.pitch_bend = SignedNoteFxP::from_num(
+                IScalarFxP::from_bits(v).wide_mul(self.pitch_range.0),
+            );
+        } else {
+            self.pitch_bend = SignedNoteFxP::from_num(
+                IScalarFxP::from_bits(v).wide_mul(self.pitch_range.1),
+            );
+        }
+    }
+    fn get_pitch_bend_range(&self) -> (i8, i8) {
+        (self.pitch_range.0.to_num::<i8>(), self.pitch_range.1.to_num::<i8>())
+    }
+    fn set_pitch_bend_range(&mut self, low: i8, high: i8) {
+        self.pitch_range = (
+            fixed::types::I16F0::from_num(low),
+            fixed::types::I16F0::from_num(high),
+        );
     }
     fn process(
         &mut self,
@@ -190,6 +228,8 @@ pub struct MonoSynth {
     velocity: f32,
     aftertouch: f32,
     modwheel: f32,
+    pitch_bend: f32,
+    pitch_bend_range: (f32, f32),
 }
 
 impl MonoSynth {
@@ -212,6 +252,7 @@ impl VoiceAllocator for MonoSynth {
         self.index = 0;
         self.note = 69f32; //A440, nice
         self.gate = 0f32;
+        self.set_pitch_bend_range(2, 2);
     }
     fn sample_tick(&mut self) {
         self.notebuf[self.index] = self.note;
@@ -237,6 +278,23 @@ impl VoiceAllocator for MonoSynth {
     }
     fn modwheel(&mut self, value: u8) {
         self.modwheel = f32::from(value) / 127f32;
+    }
+    fn pitch_bend(&mut self, value: i16) {
+        let val_float = (value as f32) / (i16::MAX as f32);
+        if val_float < 0f32 {
+            self.pitch_bend = self.pitch_bend_range.0 * val_float;
+        } else {
+            self.pitch_bend = self.pitch_bend_range.1 * val_float;
+        }
+    }
+    fn get_pitch_bend_range(&self) -> (i8, i8) {
+        (self.pitch_bend_range.0 as i8, self.pitch_bend_range.1 as i8)
+    }
+    fn set_pitch_bend_range(&mut self, low: i8, high: i8) {
+        self.pitch_bend_range = (
+            low as f32,
+            high as f32,
+        );
     }
     fn process(
         &mut self,
