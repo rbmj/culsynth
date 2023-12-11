@@ -18,3 +18,13 @@ Hence: Janus, with two faces - physical and virtual.
 This project is licensed under the MIT License.  However, due to the licensing
 of the bindings any plugins built in VST3 format are licensed under the terms of
 the GPLv3.
+
+## Dependencies
+
+For Rust dependencies, see `Cargo.toml`.
+
+On Linux, the following packages (Debian names provided, but should be similar on other
+distros) need to be installed:
+ - `libx11-xcb-dev`
+ - `libxcb-icccm4-dev`
+ - `libxcb-dri2-0-dev`
