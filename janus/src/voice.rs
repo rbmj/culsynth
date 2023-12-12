@@ -93,7 +93,7 @@ impl VoiceFxP {
             STATIC_BUFFER_SIZE,
         ]);
         // Build the ModMatrix
-        let modparams = modulation::ModMatrixParamsFxP {
+        let modparams = modulation::ModSectionParamsFxP {
             velocity: vel,
             aftertouch,
             modwheel,

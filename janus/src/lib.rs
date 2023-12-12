@@ -59,3 +59,20 @@ pub type IScalarFxP = fixedmath::I1F15;
 fn min_size(sizes: &[usize]) -> usize {
     *sizes.iter().min().unwrap_or(&0)
 }
+
+pub trait Fixed16: fixed::traits::Fixed
+{
+    //none required currently
+}
+
+impl<N> Fixed16 for fixed::FixedI16<N>
+    where N: fixed::types::extra::Unsigned + fixed::types::extra::LeEqU16
+{
+    //
+}
+
+impl<N> Fixed16 for fixed::FixedU16<N>
+    where N: fixed::types::extra::Unsigned + fixed::types::extra::LeEqU16
+{
+    //
+}

@@ -19,6 +19,26 @@ use super::min_size;
 use super::BufferT;
 use super::STATIC_BUFFER_SIZE;
 
+use fixed::types::extra::LeEqU16;
+use fixed::traits::Fixed;
+static U16_ZEROBUF: [u16; STATIC_BUFFER_SIZE] = [0u16; STATIC_BUFFER_SIZE];
+pub fn fixed_zerobuf_signed<T: Fixed>() -> &'static [fixed::FixedI16<T::Frac>]
+    where T::Frac: LeEqU16
+{
+    // Fixed is #[repr(transparent)], so this is valid:
+    unsafe {
+        core::mem::transmute(&U16_ZEROBUF[0..STATIC_BUFFER_SIZE])
+    }
+}
+pub fn fixed_zerobuf_unsigned<T: Fixed>() -> &'static [fixed::FixedU16<T::Frac>]
+    where T::Frac: LeEqU16
+{
+    // Fixed is #[repr(transparent)], so this is valid:
+    unsafe {
+        core::mem::transmute(&U16_ZEROBUF[0..STATIC_BUFFER_SIZE])
+    }
+}
+
 /// Types must implement this trait to instantiate any of the generic devices
 /// in this module.  Implementations are provided for `f32` and `f64`.
 pub trait Float: num_traits::Float + num_traits::FloatConst + From<u16> + Default + Copy {
@@ -34,8 +54,10 @@ pub trait Float: num_traits::Float + num_traits::FloatConst + From<u16> + Defaul
     fn from_u16(x: u16) -> Self {
         <Self as From<u16>>::from(x)
     }
+    fn zerobuf<'a>() -> &'a [Self; STATIC_BUFFER_SIZE];
 }
 
+static F32_ZEROBUF: [f32; STATIC_BUFFER_SIZE] = [0f32; STATIC_BUFFER_SIZE];
 impl Float for f32 {
     const ZERO: f32 = 0.0f32;
     const ONE: f32 = 1.0f32;
@@ -46,8 +68,12 @@ impl Float for f32 {
     const RES_MAX: f32 = 0xF000 as f32 / 0xFFFF as f32;
     const NOTE_MAX: f32 = 127.0f32 * (0xFFFF as f32 / 0x10000 as f32);
     const SHAPE_CLIP: f32 = 0.9375f32;
+    fn zerobuf<'a>() -> &'a [Self; STATIC_BUFFER_SIZE] {
+        &F32_ZEROBUF
+    }
 }
 
+static F64_ZEROBUF: [f64; STATIC_BUFFER_SIZE] = [0f64; STATIC_BUFFER_SIZE];
 impl Float for f64 {
     const ZERO: f64 = 0.0f64;
     const ONE: f64 = 1.0f64;
@@ -58,6 +84,9 @@ impl Float for f64 {
     const RES_MAX: f64 = 0xF000 as f64 / 0xFFFF as f64;
     const NOTE_MAX: f64 = 127.0f64 * (0xFFFF as f64 / 0x10000 as f64);
     const SHAPE_CLIP: f64 = 0.9375f64;
+    fn zerobuf<'a>() -> &'a [Self; STATIC_BUFFER_SIZE] {
+        &F64_ZEROBUF
+    }
 }
 
 /// Converts a MIDI note number to a frequency

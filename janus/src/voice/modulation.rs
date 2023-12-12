@@ -1,7 +1,4 @@
 //! This module contains data to allow modulation of a `Voice`
-use fixed::types::extra::{Unsigned, LeEqU32, LeEqU16};
-use fixed::{FixedI16, FixedU16, FixedI32};
-
 use tinyvec::ArrayVec;
 
 use crate::context::{ContextFxP, Context};
@@ -282,10 +279,11 @@ impl<'a> ModulatorFxP<'a> {
     /// Apply all modulation to the parameter passed in `dest` in place using `mut buf`
     /// 
     /// Returns true if any modulation was performed, or false otherwise
-    pub fn apply_unsigned<N: Unsigned>(&self, dest: ModDest, buf: &mut [FixedU16<N>]) -> bool
-        where N: LeEqU16 + LeEqU32
+    pub fn modulate<T: crate::Fixed16>(&self, dest: ModDest, buf: &mut [T]) -> bool
+        where T::Frac: fixed::types::extra::LeEqU32
     {
         use crate::fixedmath::I1F31;
+        use fixed::FixedI32;
         let modulation = ModSrc::ELEM.map(|src|
             self.matrix.get_modulation(src, dest)
         );
@@ -324,70 +322,18 @@ impl<'a> ModulatorFxP<'a> {
             // correspond to the maximum value of the type, and do all our math in 32 bit signed
             // arithmetic so we can model multiple modulations canceling each other out then
             // check for saturation at the end
-            buf[i] = FixedU16::<N>::saturating_from_num(modulations
-                .map(|x| FixedI32::<N>::from_bits(IScalarFxP::from_num(x).to_bits() as i32))
-                .fold(FixedI32::<N>::from_num(buf[i]), |acc, val| acc + val)
-            );
-        }
-        true
-    }
-    /// Apply all modulation to the parameter passed in `dest` in place using `mut buf`
-    /// 
-    /// Returns true if any modulation was performed, or false otherwise
-    pub fn apply_signed<N: Unsigned>(&self, dest: ModDest, buf: &mut [FixedI16<N>]) -> bool
-        where N: LeEqU16 + LeEqU32
-    {
-        use crate::fixedmath::I1F31;
-        let modulation = ModSrc::ELEM.map(|src|
-            self.matrix.get_modulation(src, dest)
-        );
-        // All the modulation sources that are not LFOs are ScalarFxPs
-        let non_lfos = [
-            (self.velocity, modulation[ModSrc::Velocity as usize]),
-            (self.aftertouch, modulation[ModSrc::Aftertouch as usize]),
-            (self.modwheel, modulation[ModSrc::ModWheel as usize]),
-            (self.env1, modulation[ModSrc::Env1 as usize]),
-            (self.env2, modulation[ModSrc::Env2 as usize]),
-        ];
-        // Filter the above and collect them into an array-backed vec
-        let non_lfos_filt = non_lfos.iter()
-            .filter_map(|x| x.1.map(|y| (x.0, y)))
-            .collect::<ArrayVec<[(&[ScalarFxP], IScalarFxP); 5]>>();
-        // The LFOs, however, are SampleFxPs, so these need to be separate
-        let lfos = [
-            (self.lfo1, modulation[ModSrc::Lfo1 as usize]),
-            (self.lfo2, modulation[ModSrc::Lfo2 as usize]),
-        ];
-        let lfos_filt = lfos.iter()
-            .filter_map(|x| x.1.map(|y| (x.0, y)))
-            .collect::<ArrayVec<[(&[SampleFxP], IScalarFxP); 2]>>();
-        // In the common case, where there is no modulation, early exit
-        if non_lfos_filt.is_empty() && lfos_filt.is_empty() {
-            return false;
-        }
-        for i in 0..core::cmp::min(self.len(), buf.len()) {
-            // All of the modulations for this sample, chain()ed together
-            let modulations = non_lfos_filt.into_iter()
-                .map(|(slc, val)| slc[i].wide_mul_signed(val))
-                .chain(lfos_filt.into_iter().map(|(slc, val)| I1F31::saturating_from_num(
-                    slc[i].wide_mul(val),
-                )));
-            // Add all the modulations.  We'll do some bit twiddling so 100% modulation will
-            // correspond to the maximum value of the type, and do all our math in 32 bit signed
-            // arithmetic so we can model multiple modulations canceling each other out then
-            // check for saturation at the end
-            buf[i] = FixedI16::<N>::saturating_from_num(modulations
-                .map(|x| FixedI32::<N>::from_bits(IScalarFxP::from_num(x).to_bits() as i32))
-                .fold(FixedI32::<N>::from_num(buf[i]), |acc, val| acc + val)
+            buf[i] = T::saturating_from_num(modulations
+                .map(|x| FixedI32::<T::Frac>::from_bits(IScalarFxP::from_num(x).to_bits() as i32))
+                .fold(FixedI32::<T::Frac>::from_num(buf[i]), |acc, val| acc + val)
             );
         }
         true
     }
     pub fn modulate_env(&self, params: &mut MutEnvParamsFxP, dest: &EnvModDest) {
-        self.apply_unsigned(dest.attack, params.attack);
-        self.apply_unsigned(dest.decay, params.decay);
-        self.apply_unsigned(dest.sustain, params.sustain);
-        self.apply_unsigned(dest.release, params.release);
+        self.modulate(dest.attack, params.attack);
+        self.modulate(dest.decay, params.decay);
+        self.modulate(dest.sustain, params.sustain);
+        self.modulate(dest.release, params.release);
     }
     pub fn modulate_osc(&self, params: &mut MutMixOscParamsFxP, dest: &OscModDest) {
         // Use a temporary buffer here to avoid _massive_ duplication of code
@@ -397,43 +343,44 @@ impl<'a> ModulatorFxP<'a> {
         // The range of fine tune is -2 to +2, or 1 bit + sign, so will need >>= 5
         // If we do fine first and >>= 4, then apply course and >>= 1, that will be equiv.
         let mut osc_mod_applied = false;
-        if self.apply_signed(dest.fine, &mut buf) {
+        if self.modulate(dest.fine, &mut buf) {
             osc_mod_applied = true;
             for mut i in buf {
                 i >>= 4;
             }
         }
-        osc_mod_applied |= self.apply_signed(dest.course, &mut buf);
+        osc_mod_applied |= self.modulate(dest.course, &mut buf);
         // Apply the modulation ourselves now
         if osc_mod_applied {
             for (smp, amt) in core::iter::zip(params.tune.iter_mut(), buf.iter()) {
                 *smp = smp.saturating_add(amt >> 1);
             }
         }
-        self.apply_unsigned(dest.shape, params.shape);
-        self.apply_unsigned(dest.sin, params.sin);
-        self.apply_unsigned(dest.sq, params.sq);
-        self.apply_unsigned(dest.tri, params.tri);
-        self.apply_unsigned(dest.saw, params.saw);
+        self.modulate(dest.shape, params.sin);
+        //self.modulate(dest.shape, params.shape);
+        self.modulate(dest.sin, params.sin);
+        self.modulate(dest.sq, params.sq);
+        self.modulate(dest.tri, params.tri);
+        self.modulate(dest.saw, params.saw);
     }
     pub fn modulate_ring(&self, params: &mut MutRingModParamsFxP) {
-        self.apply_unsigned(ModDest::RingOsc1, params.mix_a);
-        self.apply_unsigned(ModDest::RingOsc2, params.mix_b);
-        self.apply_unsigned(ModDest::RingMod, params.mix_out);
+        self.modulate(ModDest::RingOsc1, params.mix_a);
+        self.modulate(ModDest::RingOsc2, params.mix_b);
+        self.modulate(ModDest::RingMod, params.mix_out);
     }
     pub fn modulate_filt(&self, params: &mut MutModFiltParamsFxP) {
-        self.apply_unsigned(ModDest::FiltEnv, params.env_mod);
-        self.apply_unsigned(ModDest::FiltVel, params.vel_mod);
-        self.apply_unsigned(ModDest::FiltKbd, params.kbd);
-        self.apply_unsigned(ModDest::FiltCutoff, params.cutoff);
-        self.apply_unsigned(ModDest::FiltRes, params.resonance);
-        self.apply_unsigned(ModDest::FiltLow, params.low_mix);
-        self.apply_unsigned(ModDest::FiltBand, params.band_mix);
-        self.apply_unsigned(ModDest::FiltHigh, params.high_mix);
+        self.modulate(ModDest::FiltEnv, params.env_mod);
+        self.modulate(ModDest::FiltVel, params.vel_mod);
+        self.modulate(ModDest::FiltKbd, params.kbd);
+        self.modulate(ModDest::FiltCutoff, params.cutoff);
+        self.modulate(ModDest::FiltRes, params.resonance);
+        self.modulate(ModDest::FiltLow, params.low_mix);
+        self.modulate(ModDest::FiltBand, params.band_mix);
+        self.modulate(ModDest::FiltHigh, params.high_mix);
     }
 }
 
-pub struct ModMatrixParamsFxP<'a> {
+pub struct ModSectionParamsFxP<'a> {
     pub velocity: &'a [ScalarFxP],
     pub aftertouch: &'a [ScalarFxP],
     pub modwheel: &'a [ScalarFxP],
@@ -443,7 +390,7 @@ pub struct ModMatrixParamsFxP<'a> {
     pub env2_params: MutEnvParamsFxP<'a>,
 }
 
-impl<'a> ModMatrixParamsFxP<'a> {
+impl<'a> ModSectionParamsFxP<'a> {
     pub fn len(&self) -> usize {
         min_size(&[
             self.velocity.len(),
@@ -491,7 +438,7 @@ impl ModSectionFxP {
         &'a mut self,
         ctx: &ContextFxP,
         gate: &[SampleFxP],
-        params: ModMatrixParamsFxP<'a>,
+        params: ModSectionParamsFxP<'a>,
         entries: &'a ModMatrixFxP,
     ) -> ModulatorFxP<'a> {
         let numsamples = min_size(&[gate.len(), params.len(), STATIC_BUFFER_SIZE]);
@@ -503,17 +450,17 @@ impl ModSectionFxP {
             aftertouch: params.aftertouch,
             modwheel: params.modwheel,
             lfo1: lfo1_out,
-            lfo2: Default::default(),
+            lfo2: fixed_zerobuf_signed::<SampleFxP>(),
             env1: env1_out,
-            env2: Default::default(),
+            env2: fixed_zerobuf_unsigned::<ScalarFxP>(),
             matrix: entries,
         };
-        modulator_initial.apply_unsigned(ModDest::Lfo2Rate, &mut params.lfo2_params.freq[0..numsamples]);
-        modulator_initial.apply_unsigned(ModDest::Lfo2Depth, &mut params.lfo2_params.depth[0..numsamples]);
-        modulator_initial.apply_unsigned(ModDest::Env2A, &mut params.env2_params.attack[0..numsamples]);
-        modulator_initial.apply_unsigned(ModDest::Env2D, &mut params.env2_params.decay[0..numsamples]);
-        modulator_initial.apply_unsigned(ModDest::Env2S, &mut params.env2_params.sustain[0..numsamples]);
-        modulator_initial.apply_unsigned(ModDest::Env2R, &mut params.env2_params.release[0..numsamples]);
+        modulator_initial.modulate(ModDest::Lfo2Rate, &mut params.lfo2_params.freq[0..numsamples]);
+        modulator_initial.modulate(ModDest::Lfo2Depth, &mut params.lfo2_params.depth[0..numsamples]);
+        modulator_initial.modulate(ModDest::Env2A, &mut params.env2_params.attack[0..numsamples]);
+        modulator_initial.modulate(ModDest::Env2D, &mut params.env2_params.decay[0..numsamples]);
+        modulator_initial.modulate(ModDest::Env2S, &mut params.env2_params.sustain[0..numsamples]);
+        modulator_initial.modulate(ModDest::Env2R, &mut params.env2_params.release[0..numsamples]);
         let lfo2_out = self.lfo2.process(ctx, &gate[0..numsamples], params.lfo2_params.into());
         let env2_out = self.env2.process(ctx, &gate[0..numsamples], params.env2_params.into());
         ModulatorFxP::<'a> {
@@ -543,7 +490,7 @@ pub struct Modulator<'a, Smp: Float> {
     lfo2: &'a [Smp],
     env1: &'a [Smp],
     env2: &'a [Smp],
-    matrix: &'a ModMatrixEntries<Smp>,
+    matrix: &'a ModMatrix<Smp>,
 }
 
 impl<'a, Smp: Float> Modulator<'a, Smp> {
@@ -564,7 +511,7 @@ impl<'a, Smp: Float> Modulator<'a, Smp> {
     /// Apply all modulation to the parameter passed in `dest` in place using `mut buf`
     /// 
     /// Returns true if any modulation was performed, or false otherwise
-    pub fn apply(&self, dest: ModDest, buf: &mut [Smp]) -> bool
+    pub fn modulate(&self, dest: ModDest, buf: &mut [Smp]) -> bool
     {
         let modulation = ModSrc::ELEM.map(|src|
             self.matrix.get_modulation(src, dest)
@@ -595,10 +542,10 @@ impl<'a, Smp: Float> Modulator<'a, Smp> {
         true
     }
     pub fn modulate_env(&self, params: &mut MutEnvParams<Smp>, dest: &EnvModDest) {
-        self.apply(dest.attack, params.attack);
-        self.apply(dest.decay, params.decay);
-        self.apply(dest.sustain, params.sustain);
-        self.apply(dest.release, params.release);
+        self.modulate(dest.attack, params.attack);
+        self.modulate(dest.decay, params.decay);
+        self.modulate(dest.sustain, params.sustain);
+        self.modulate(dest.release, params.release);
     }
     pub fn modulate_osc(&self, params: &mut MutMixOscParams<Smp>, dest: &OscModDest) {
         // Use a temporary buffer here to avoid _massive_ duplication of code
@@ -608,28 +555,28 @@ impl<'a, Smp: Float> Modulator<'a, Smp> {
         // The range of fine tune is -2 to +2, or 1 bit + sign, so will need >>= 5
         // If we do fine first and >>= 4, then apply course and >>= 1, that will be equiv.
         let mut osc_mod_applied = false;
-        if self.apply(dest.fine, &mut buf) {
+        if self.modulate(dest.fine, &mut buf) {
             osc_mod_applied = true;
             for i in &mut buf {
                 *i = *i / <Smp as From<u16>>::from(16);
             }
         }
-        osc_mod_applied |= self.apply(dest.course, &mut buf);
+        osc_mod_applied |= self.modulate(dest.course, &mut buf);
         // Apply the modulation ourselves now
         if osc_mod_applied {
             for (smp, amt) in core::iter::zip(params.tune.iter_mut(), buf.iter()) {
                 *smp = *smp + (*amt / Smp::TWO);
             }
         }
-        self.apply(dest.shape, params.shape);
-        self.apply(dest.sin, params.sin);
-        self.apply(dest.sq, params.sq);
-        self.apply(dest.tri, params.tri);
-        self.apply(dest.saw, params.saw);
+        self.modulate(dest.shape, params.shape);
+        self.modulate(dest.sin, params.sin);
+        self.modulate(dest.sq, params.sq);
+        self.modulate(dest.tri, params.tri);
+        self.modulate(dest.saw, params.saw);
     }
 }
 
-pub struct ModMatrixParams<'a, Smp: Float> {
+pub struct ModSectionParams<'a, Smp: Float> {
     pub velocity: &'a [Smp],
     pub aftertouch: &'a [Smp],
     pub modwheel: &'a [Smp],
@@ -639,11 +586,11 @@ pub struct ModMatrixParams<'a, Smp: Float> {
     pub env2_params: MutEnvParams<'a, Smp>,
 }
 
-struct ModMatrixEntries<Smp: Float> {
+pub struct ModMatrix<Smp: Float> {
     entries: [ModMatrixRow<Smp>; ModSrc::numel()],
 }
 
-impl<Smp: Float> Default for ModMatrixEntries<Smp> {
+impl<Smp: Float> Default for ModMatrix<Smp> {
     fn default() -> Self {
         Self {
             entries: ModSrc::ELEM.map(|e| (e, [(ModDest::Null, Smp::ZERO); MOD_SLOTS])),
@@ -651,65 +598,59 @@ impl<Smp: Float> Default for ModMatrixEntries<Smp> {
     }
 }
 
-impl<Smp: Float> ModMatrixEntries<Smp> {
+impl<Smp: Float> ModMatrix<Smp> {
     pub fn get_modulation(&self, src: ModSrc, dest: ModDest) -> Option<Smp> {
         self.entries[src as usize].1.iter()
             .find_map(|x| if x.0 == dest { Some(x.1) } else { None })
     }
 }
 
-pub struct ModMatrix<Smp: Float> {
-    entries: ModMatrixEntries<Smp>,
+pub struct ModSection<Smp: Float> {
     lfo1: Lfo<Smp>,
     lfo2: Lfo<Smp>,
     env1: Env<Smp>,
     env2: Env<Smp>,
 }
 
-impl<Smp: Float> ModMatrix<Smp> {
+impl<Smp: Float> ModSection<Smp> {
     pub fn process<'a>(
         &'a mut self,
         ctx: &Context<Smp>,
         gate: &[Smp],
-        params: ModMatrixParams<'a, Smp>,
+        params: ModSectionParams<'a, Smp>,
+        entries: &'a ModMatrix<Smp>,
     ) -> Modulator<'a, Smp> {
         let lfo1_out = self.lfo1.process(ctx, gate, params.lfo1_params);
         let env1_out = self.env1.process(ctx, gate, params.env1_params);
-        let modulator_initial = Modulator {
+        let modulator_initial = Modulator::<'a, Smp> {
             velocity: params.velocity,
             aftertouch: params.aftertouch,
             modwheel: params.modwheel,
             lfo1: lfo1_out,
-            lfo2: Default::default(),
+            lfo2: Smp::zerobuf(),
             env1: env1_out,
-            env2: Default::default(),
-            matrix: &self.entries,
+            env2: Smp::zerobuf(),
+            matrix: entries,
         };
-        modulator_initial.apply(ModDest::Lfo2Rate, params.lfo2_params.freq);
-        modulator_initial.apply(ModDest::Lfo2Depth, params.lfo2_params.depth);
-        modulator_initial.apply(ModDest::Env2A, params.env2_params.attack);
-        modulator_initial.apply(ModDest::Env2D, params.env2_params.decay);
-        modulator_initial.apply(ModDest::Env2S, params.env2_params.sustain);
-        modulator_initial.apply(ModDest::Env2R, params.env2_params.release);
+        modulator_initial.modulate(ModDest::Lfo2Rate, params.lfo2_params.freq);
+        modulator_initial.modulate(ModDest::Lfo2Depth, params.lfo2_params.depth);
+        modulator_initial.modulate(ModDest::Env2A, params.env2_params.attack);
+        modulator_initial.modulate(ModDest::Env2D, params.env2_params.decay);
+        modulator_initial.modulate(ModDest::Env2S, params.env2_params.sustain);
+        modulator_initial.modulate(ModDest::Env2R, params.env2_params.release);
         let lfo2_out = self.lfo2.process(ctx, gate, params.lfo2_params.into());
         let env2_out = self.env2.process(ctx, gate, params.env2_params.into());
-        Modulator {
-            velocity: params.velocity,
-            aftertouch: params.aftertouch,
-            modwheel: params.modwheel,
-            lfo1: lfo1_out,
+        Modulator::<'a, Smp> {
             lfo2: lfo2_out,
-            env1: env1_out,
             env2: env2_out,
-            matrix: &self.entries,
+            ..modulator_initial
         }
     }
 }
 
-impl<Smp: Float> Default for ModMatrix<Smp> {
+impl<Smp: Float> Default for ModSection<Smp> {
     fn default() -> Self {
         Self {
-            entries: ModMatrixEntries::default(),
             lfo1: Lfo::default(),
             lfo2: Lfo::default(),
             env1: Env::new(),
