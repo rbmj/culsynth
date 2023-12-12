@@ -8,14 +8,14 @@ pub extern "C" fn janus_amp_u16_new() -> *mut AmpFxP {
 }
 
 #[no_mangle]
-pub extern "C" fn janus_amp_u16_free(p: *mut AmpFxP) {
+pub unsafe extern "C" fn janus_amp_u16_free(p: *mut AmpFxP) {
     if !p.is_null() {
-        let _ = unsafe { Box::from_raw(p) };
+        let _ = Box::from_raw(p);
     }
 }
 
 #[no_mangle]
-pub extern "C" fn janus_amp_u16_process(
+pub unsafe extern "C" fn janus_amp_u16_process(
     p: *mut AmpFxP,
     samples: u32,
     signal: *const i16,
@@ -26,19 +26,17 @@ pub extern "C" fn janus_amp_u16_process(
     if p.is_null() || signal.is_null() || gain.is_null() || out.is_null() {
         return -1;
     }
-    unsafe {
-        let s = std::slice::from_raw_parts(
-            signal.offset(offset as isize).cast::<SampleFxP>(),
-            samples as usize,
-        );
-        let g = std::slice::from_raw_parts(
-            gain.offset(offset as isize).cast::<SampleFxP>(),
-            samples as usize,
-        );
-        let out_slice = (*p).process(s, g);
-        *out = out_slice.as_ptr().cast();
-        out_slice.len() as i32
-    }
+    let s = std::slice::from_raw_parts(
+        signal.offset(offset as isize).cast::<SampleFxP>(),
+        samples as usize,
+    );
+    let g = std::slice::from_raw_parts(
+        gain.offset(offset as isize).cast::<SampleFxP>(),
+        samples as usize,
+    );
+    let out_slice = (*p).process(s, g);
+    *out = out_slice.as_ptr().cast();
+    out_slice.len() as i32
 }
 
 #[no_mangle]
@@ -47,14 +45,14 @@ pub extern "C" fn janus_amp_f32_new() -> *mut Amp<f32> {
 }
 
 #[no_mangle]
-pub extern "C" fn janus_amp_f32_free(p: *mut Amp<f32>) {
+pub unsafe extern "C" fn janus_amp_f32_free(p: *mut Amp<f32>) {
     if !p.is_null() {
-        let _ = unsafe { Box::from_raw(p) };
+        let _ = Box::from_raw(p);
     }
 }
 
 #[no_mangle]
-pub extern "C" fn janus_amp_f32_process(
+pub unsafe extern "C" fn janus_amp_f32_process(
     p: *mut Amp<f32>,
     samples: u32,
     signal: *const f32,
@@ -65,13 +63,11 @@ pub extern "C" fn janus_amp_f32_process(
     if p.is_null() || signal.is_null() || gain.is_null() || out.is_null() {
         return -1;
     }
-    unsafe {
-        let s = std::slice::from_raw_parts(signal.offset(offset as isize), samples as usize);
-        let g = std::slice::from_raw_parts(gain.offset(offset as isize), samples as usize);
-        let out_slice = (*p).process(s, g);
-        *out = out_slice.as_ptr().cast();
-        out_slice.len() as i32
-    }
+    let s = std::slice::from_raw_parts(signal.offset(offset as isize), samples as usize);
+    let g = std::slice::from_raw_parts(gain.offset(offset as isize), samples as usize);
+    let out_slice = (*p).process(s, g);
+    *out = out_slice.as_ptr().cast();
+    out_slice.len() as i32
 }
 
 #[no_mangle]
@@ -80,14 +76,14 @@ pub extern "C" fn janus_env_u16_new() -> *mut EnvFxP {
 }
 
 #[no_mangle]
-pub extern "C" fn janus_env_u16_free(p: *mut EnvFxP) {
+pub unsafe extern "C" fn janus_env_u16_free(p: *mut EnvFxP) {
     if !p.is_null() {
-        let _ = unsafe { Box::from_raw(p) };
+        let _ = Box::from_raw(p);
     }
 }
 
 #[no_mangle]
-pub extern "C" fn janus_env_u16_process(
+pub unsafe extern "C" fn janus_env_u16_process(
     p: *mut EnvFxP,
     samples: u32,
     gate: *const i16,
@@ -108,38 +104,36 @@ pub extern "C" fn janus_env_u16_process(
     {
         return -1;
     }
-    unsafe {
-        let g = std::slice::from_raw_parts(
-            gate.offset(offset as isize).cast::<SampleFxP>(),
-            samples as usize,
-        );
-        let a = std::slice::from_raw_parts(
-            attack.offset(offset as isize).cast::<EnvParamFxP>(),
-            samples as usize,
-        );
-        let d = std::slice::from_raw_parts(
-            decay.offset(offset as isize).cast::<EnvParamFxP>(),
-            samples as usize,
-        );
-        let s = std::slice::from_raw_parts(
-            sustain.offset(offset as isize).cast::<ScalarFxP>(),
-            samples as usize,
-        );
-        let r = std::slice::from_raw_parts(
-            release.offset(offset as isize).cast::<EnvParamFxP>(),
-            samples as usize,
-        );
-        let params = EnvParamsFxP {
-            attack: a,
-            decay: d,
-            sustain: s,
-            release: r,
-        };
-        let ctx = ContextFxP::default();
-        let out = (*p).process(&ctx, g, params);
-        *signal = out.as_ptr().cast();
-        out.len() as i32
-    }
+    let g = std::slice::from_raw_parts(
+        gate.offset(offset as isize).cast::<SampleFxP>(),
+        samples as usize,
+    );
+    let a = std::slice::from_raw_parts(
+        attack.offset(offset as isize).cast::<EnvParamFxP>(),
+        samples as usize,
+    );
+    let d = std::slice::from_raw_parts(
+        decay.offset(offset as isize).cast::<EnvParamFxP>(),
+        samples as usize,
+    );
+    let s = std::slice::from_raw_parts(
+        sustain.offset(offset as isize).cast::<ScalarFxP>(),
+        samples as usize,
+    );
+    let r = std::slice::from_raw_parts(
+        release.offset(offset as isize).cast::<EnvParamFxP>(),
+        samples as usize,
+    );
+    let params = EnvParamsFxP {
+        attack: a,
+        decay: d,
+        sustain: s,
+        release: r,
+    };
+    let ctx = ContextFxP::default();
+    let out = (*p).process(&ctx, g, params);
+    *signal = out.as_ptr().cast();
+    out.len() as i32
 }
 
 #[no_mangle]
@@ -148,14 +142,14 @@ pub extern "C" fn janus_env_f32_new() -> *mut Env<f32> {
 }
 
 #[no_mangle]
-pub extern "C" fn janus_env_f32_free(p: *mut Env<f32>) {
+pub unsafe extern "C" fn janus_env_f32_free(p: *mut Env<f32>) {
     if !p.is_null() {
-        let _ = unsafe { Box::from_raw(p) };
+        let _ = Box::from_raw(p);
     }
 }
 
 #[no_mangle]
-pub extern "C" fn janus_env_f32_process(
+pub unsafe extern "C" fn janus_env_f32_process(
     p: *mut Env<f32>,
     samples: u32,
     gate: *const f32,
@@ -176,26 +170,24 @@ pub extern "C" fn janus_env_f32_process(
     {
         return -1;
     }
-    unsafe {
-        let g = std::slice::from_raw_parts(gate.offset(offset as isize), samples as usize);
-        let a = std::slice::from_raw_parts(attack.offset(offset as isize), samples as usize);
-        let d = std::slice::from_raw_parts(decay.offset(offset as isize), samples as usize);
-        let s = std::slice::from_raw_parts(sustain.offset(offset as isize), samples as usize);
-        let r = std::slice::from_raw_parts(release.offset(offset as isize), samples as usize);
-        let params = EnvParams::<f32> {
-            attack: a,
-            decay: d,
-            sustain: s,
-            release: r,
-        };
-        //FIXME
-        let ctx = Context::<f32> {
-            sample_rate: 44100f32,
-        };
-        let out = (*p).process(&ctx, g, params);
-        *signal = out.as_ptr().cast();
-        out.len() as i32
-    }
+    let g = std::slice::from_raw_parts(gate.offset(offset as isize), samples as usize);
+    let a = std::slice::from_raw_parts(attack.offset(offset as isize), samples as usize);
+    let d = std::slice::from_raw_parts(decay.offset(offset as isize), samples as usize);
+    let s = std::slice::from_raw_parts(sustain.offset(offset as isize), samples as usize);
+    let r = std::slice::from_raw_parts(release.offset(offset as isize), samples as usize);
+    let params = EnvParams::<f32> {
+        attack: a,
+        decay: d,
+        sustain: s,
+        release: r,
+    };
+    //FIXME
+    let ctx = Context::<f32> {
+        sample_rate: 44100f32,
+    };
+    let out = (*p).process(&ctx, g, params);
+    *signal = out.as_ptr().cast();
+    out.len() as i32
 }
 
 #[no_mangle]
@@ -204,14 +196,14 @@ pub extern "C" fn janus_filt_u16_new() -> *mut FiltFxP {
 }
 
 #[no_mangle]
-pub extern "C" fn janus_filt_u16_free(p: *mut FiltFxP) {
+pub unsafe extern "C" fn janus_filt_u16_free(p: *mut FiltFxP) {
     if !p.is_null() {
-        let _ = unsafe { Box::from_raw(p) };
+        let _ = Box::from_raw(p);
     }
 }
 
 #[no_mangle]
-pub extern "C" fn janus_filt_u16_process(
+pub unsafe extern "C" fn janus_filt_u16_process(
     p: *mut FiltFxP,
     samples: u32,
     input: *const i16,
@@ -232,31 +224,29 @@ pub extern "C" fn janus_filt_u16_process(
     {
         return -1;
     }
-    unsafe {
-        let i = std::slice::from_raw_parts(
-            input.offset(offset as isize).cast::<SampleFxP>(),
-            samples as usize,
-        );
-        let c = std::slice::from_raw_parts(
-            cutoff.offset(offset as isize).cast::<NoteFxP>(),
-            samples as usize,
-        );
-        let r = std::slice::from_raw_parts(
-            resonance.offset(offset as isize).cast::<ScalarFxP>(),
-            samples as usize,
-        );
-        let params = FiltParamsFxP {
-            cutoff: c,
-            resonance: r,
-        };
-        //FIXME
-        let ctx = ContextFxP::default();
-        let out = (*p).process(&ctx, i, params);
-        *low = out.low.as_ptr().cast();
-        *band = out.band.as_ptr().cast();
-        *high = out.high.as_ptr().cast();
-        out.low.len() as i32
-    }
+    let i = std::slice::from_raw_parts(
+        input.offset(offset as isize).cast::<SampleFxP>(),
+        samples as usize,
+    );
+    let c = std::slice::from_raw_parts(
+        cutoff.offset(offset as isize).cast::<NoteFxP>(),
+        samples as usize,
+    );
+    let r = std::slice::from_raw_parts(
+        resonance.offset(offset as isize).cast::<ScalarFxP>(),
+        samples as usize,
+    );
+    let params = FiltParamsFxP {
+        cutoff: c,
+        resonance: r,
+    };
+    //FIXME
+    let ctx = ContextFxP::default();
+    let out = (*p).process(&ctx, i, params);
+    *low = out.low.as_ptr().cast();
+    *band = out.band.as_ptr().cast();
+    *high = out.high.as_ptr().cast();
+    out.low.len() as i32
 }
 
 #[no_mangle]
@@ -265,14 +255,14 @@ pub extern "C" fn janus_filt_f32_new() -> *mut Filt<f32> {
 }
 
 #[no_mangle]
-pub extern "C" fn janus_filt_f32_free(p: *mut Filt<f32>) {
+pub unsafe extern "C" fn janus_filt_f32_free(p: *mut Filt<f32>) {
     if !p.is_null() {
-        let _ = unsafe { Box::from_raw(p) };
+        let _ = Box::from_raw(p);
     }
 }
 
 #[no_mangle]
-pub extern "C" fn janus_filt_f32_process(
+pub unsafe extern "C" fn janus_filt_f32_process(
     p: *mut Filt<f32>,
     samples: u32,
     input: *const f32,
@@ -293,24 +283,22 @@ pub extern "C" fn janus_filt_f32_process(
     {
         return -1;
     }
-    unsafe {
-        let i = std::slice::from_raw_parts(input.offset(offset as isize), samples as usize);
-        let c = std::slice::from_raw_parts(cutoff.offset(offset as isize), samples as usize);
-        let r = std::slice::from_raw_parts(resonance.offset(offset as isize), samples as usize);
-        let params = FiltParams::<f32> {
-            cutoff: c,
-            resonance: r,
-        };
-        //FIXME
-        let ctx = Context::<f32> {
-            sample_rate: 44100f32,
-        };
-        let out = (*p).process(&ctx, i, params);
-        *low = out.low.as_ptr().cast();
-        *band = out.band.as_ptr().cast();
-        *high = out.high.as_ptr().cast();
-        out.low.len() as i32
-    }
+    let i = std::slice::from_raw_parts(input.offset(offset as isize), samples as usize);
+    let c = std::slice::from_raw_parts(cutoff.offset(offset as isize), samples as usize);
+    let r = std::slice::from_raw_parts(resonance.offset(offset as isize), samples as usize);
+    let params = FiltParams::<f32> {
+        cutoff: c,
+        resonance: r,
+    };
+    //FIXME
+    let ctx = Context::<f32> {
+        sample_rate: 44100f32,
+    };
+    let out = (*p).process(&ctx, i, params);
+    *low = out.low.as_ptr().cast();
+    *band = out.band.as_ptr().cast();
+    *high = out.high.as_ptr().cast();
+    out.low.len() as i32
 }
 
 #[no_mangle]
@@ -319,14 +307,14 @@ pub extern "C" fn janus_osc_u16_new() -> *mut OscFxP {
 }
 
 #[no_mangle]
-pub extern "C" fn janus_osc_u16_free(p: *mut OscFxP) {
+pub unsafe extern "C" fn janus_osc_u16_free(p: *mut OscFxP) {
     if !p.is_null() {
-        let _ = unsafe { Box::from_raw(p) };
+        let _ = Box::from_raw(p);
     }
 }
 
 #[no_mangle]
-pub extern "C" fn janus_osc_u16_process(
+pub unsafe extern "C" fn janus_osc_u16_process(
     p: *mut OscFxP,
     samples: u32,
     note: *const u16,
@@ -348,33 +336,31 @@ pub extern "C" fn janus_osc_u16_process(
     {
         return -1;
     }
-    unsafe {
-        let note_s = std::slice::from_raw_parts(
-            note.offset(offset as isize).cast::<NoteFxP>(),
-            samples as usize,
-        );
-        let shape_s = std::slice::from_raw_parts(
-            shape.offset(offset as isize).cast::<ScalarFxP>(),
-            samples as usize,
-        );
-        let tune_s = std::slice::from_raw_parts(
-            tune.offset(offset as isize).cast::<SignedNoteFxP>(),
-            samples as usize,
-        );
-        let params = OscParamsFxP {
-            tune: tune_s,
-            shape: shape_s,
-            sync: OscSync::Off,
-        };
-        //FIXME
-        let ctx = ContextFxP::default();
-        let out = (*p).process(&ctx, note_s, params);
-        *sin = out.sin.as_ptr().cast();
-        *tri = out.tri.as_ptr().cast();
-        *sq = out.sq.as_ptr().cast();
-        *saw = out.saw.as_ptr().cast();
-        out.sin.len() as i32
-    }
+    let note_s = std::slice::from_raw_parts(
+        note.offset(offset as isize).cast::<NoteFxP>(),
+        samples as usize,
+    );
+    let shape_s = std::slice::from_raw_parts(
+        shape.offset(offset as isize).cast::<ScalarFxP>(),
+        samples as usize,
+    );
+    let tune_s = std::slice::from_raw_parts(
+        tune.offset(offset as isize).cast::<SignedNoteFxP>(),
+        samples as usize,
+    );
+    let params = OscParamsFxP {
+        tune: tune_s,
+        shape: shape_s,
+        sync: OscSync::Off,
+    };
+    //FIXME
+    let ctx = ContextFxP::default();
+    let out = (*p).process(&ctx, note_s, params);
+    *sin = out.sin.as_ptr().cast();
+    *tri = out.tri.as_ptr().cast();
+    *sq = out.sq.as_ptr().cast();
+    *saw = out.saw.as_ptr().cast();
+    out.sin.len() as i32
 }
 
 #[no_mangle]
@@ -383,14 +369,14 @@ pub extern "C" fn janus_osc_f32_new() -> *mut Osc<f32> {
 }
 
 #[no_mangle]
-pub extern "C" fn janus_osc_f32_free(p: *mut Osc<f32>) {
+pub unsafe extern "C" fn janus_osc_f32_free(p: *mut Osc<f32>) {
     if !p.is_null() {
-        let _ = unsafe { Box::from_raw(p) };
+        let _ = Box::from_raw(p);
     }
 }
 
 #[no_mangle]
-pub extern "C" fn janus_osc_f32_process(
+pub unsafe extern "C" fn janus_osc_f32_process(
     p: *mut Osc<f32>,
     samples: u32,
     note: *const f32,
@@ -413,24 +399,22 @@ pub extern "C" fn janus_osc_f32_process(
     {
         return -1;
     }
-    unsafe {
-        let note_s = std::slice::from_raw_parts(note.offset(offset as isize), samples as usize);
-        let shape_s = std::slice::from_raw_parts(shape.offset(offset as isize), samples as usize);
-        let tune_s = std::slice::from_raw_parts(tune.offset(offset as isize), samples as usize);
-        let params = OscParams::<f32> {
-            tune: tune_s,
-            shape: shape_s,
-            sync: OscSync::Off,
-        };
-        //FIXME
-        let ctx = Context::<f32> {
-            sample_rate: 44100f32,
-        };
-        let out = (*p).process(&ctx, note_s, params);
-        *sin = out.sin.as_ptr().cast();
-        *tri = out.tri.as_ptr().cast();
-        *sq = out.sq.as_ptr().cast();
-        *saw = out.saw.as_ptr().cast();
-        out.sin.len() as i32
-    }
+    let note_s = std::slice::from_raw_parts(note.offset(offset as isize), samples as usize);
+    let shape_s = std::slice::from_raw_parts(shape.offset(offset as isize), samples as usize);
+    let tune_s = std::slice::from_raw_parts(tune.offset(offset as isize), samples as usize);
+    let params = OscParams::<f32> {
+        tune: tune_s,
+        shape: shape_s,
+        sync: OscSync::Off,
+    };
+    //FIXME
+    let ctx = Context::<f32> {
+        sample_rate: 44100f32,
+    };
+    let out = (*p).process(&ctx, note_s, params);
+    *sin = out.sin.as_ptr().cast();
+    *tri = out.tri.as_ptr().cast();
+    *sq = out.sq.as_ptr().cast();
+    *saw = out.saw.as_ptr().cast();
+    out.sin.len() as i32
 }
