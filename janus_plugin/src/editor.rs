@@ -99,7 +99,7 @@ impl PluginWidget for OscPluginParams {
     }
 }
 
-impl<T: Fn() -> ()> PluginWidget for (&OscPluginParams, bool, T) {
+impl<T: Fn()> PluginWidget for (&OscPluginParams, bool, T) {
     fn draw_on(&self, ui: &mut egui::Ui, setter: &ParamSetter, label: &str) {
         if draw_osc(self.0, ui, setter, label, true, self.1) {
             self.2()

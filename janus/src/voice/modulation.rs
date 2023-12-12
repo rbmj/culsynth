@@ -199,13 +199,7 @@ impl TryFrom<&str> for ModDest {
     type Error = &'static str;
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         Self::elements()
-            .find_map(|elem| {
-                if value == elem.to_str() {
-                    Some(elem)
-                } else {
-                    None
-                }
-            })
+            .find(|elem| value == elem.to_str())
             .ok_or("ModDest::try_from::<&str> parse failure")
     }
 }

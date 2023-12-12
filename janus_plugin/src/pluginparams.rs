@@ -226,13 +226,7 @@ impl ModMatrixRowParams {
                     .to_owned()
             }))
             .with_string_to_value(Arc::new(|string| {
-                ModDest::elements().into_iter().find_map(|dest| {
-                    if dest.to_str() == string {
-                        Some(dest as i32)
-                    } else {
-                        None
-                    }
-                })
+                ModDest::try_from(string).map(|x| x as i32).ok()
             }))
     }
     fn new(name: &str, is_secondary: bool) -> Self {
@@ -269,6 +263,9 @@ impl ModMatrixRowParams {
     }
     pub fn len(&self) -> usize {
         4
+    }
+    pub fn is_empty(&self) -> bool {
+        false
     }
     pub fn iter(&self) -> ModMatrixRowIterator {
         ModMatrixRowIterator { row: self, idx: 0 }
@@ -312,6 +309,12 @@ pub struct ModMatrixPluginParams {
     pub lfo1: ModMatrixRowParams,
     #[nested(id_prefix = "M_L2_", group = "L2Mod")]
     pub lfo2: ModMatrixRowParams,
+}
+
+impl Default for ModMatrixPluginParams {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ModMatrixPluginParams {

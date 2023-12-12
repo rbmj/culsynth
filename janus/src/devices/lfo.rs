@@ -115,6 +115,9 @@ impl<'a, Smp: Float> LfoParams<'a, Smp> {
     pub fn len(&self) -> usize {
         min_size(&[self.freq.len(), self.depth.len(), self.opts.len()])
     }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 pub struct MutLfoParams<'a, Smp: Float> {
@@ -126,6 +129,9 @@ pub struct MutLfoParams<'a, Smp: Float> {
 impl<'a, Smp: Float> MutLfoParams<'a, Smp> {
     pub fn len(&self) -> usize {
         min_size(&[self.freq.len(), self.depth.len(), self.opts.len()])
+    }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 }
 
