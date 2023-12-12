@@ -345,8 +345,8 @@ impl<'a> ModulatorFxP<'a> {
         let mut osc_mod_applied = false;
         if self.modulate(dest.fine, &mut buf) {
             osc_mod_applied = true;
-            for mut i in buf {
-                i >>= 4;
+            for i in buf.iter_mut() {
+                *i >>= 4;
             }
         }
         osc_mod_applied |= self.modulate(dest.course, &mut buf);
