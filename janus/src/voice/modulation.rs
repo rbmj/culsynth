@@ -357,7 +357,6 @@ impl<'a> ModulatorFxP<'a> {
             }
         }
         self.modulate(dest.shape, params.sin);
-        //self.modulate(dest.shape, params.shape);
         self.modulate(dest.sin, params.sin);
         self.modulate(dest.sq, params.sq);
         self.modulate(dest.tri, params.tri);
