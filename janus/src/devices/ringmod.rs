@@ -21,11 +21,7 @@ impl<'a, Smp> RingModParams<'a, Smp> {
     /// The length of the input parameters, defined as the length of the shortest
     /// input slice.
     pub fn len(&self) -> usize {
-        min_size(&[
-            self.mix_a.len(),
-            self.mix_b.len(),
-            self.mix_out.len(),
-        ])
+        min_size(&[self.mix_a.len(), self.mix_b.len(), self.mix_out.len()])
     }
     pub fn is_empty(&self) -> bool {
         self.len() == 0
@@ -52,12 +48,7 @@ impl<Smp: Float> RingMod<Smp> {
         b: &[Smp],
         params: RingModParams<Smp>,
     ) -> &[Smp] {
-        let numsamples = min_size(&[
-            params.len(),
-            a.len(),
-            b.len(),
-            STATIC_BUFFER_SIZE,
-        ]);
+        let numsamples = min_size(&[params.len(), a.len(), b.len(), STATIC_BUFFER_SIZE]);
         for i in 0..numsamples {
             let out = a[i] * b[i];
             self.outbuf[i] =
@@ -87,11 +78,7 @@ impl<'a> RingModParamsFxP<'a> {
     /// The length of the input parameters, defined as the length of the shortest
     /// input slice.
     pub fn len(&self) -> usize {
-        min_size(&[
-            self.mix_a.len(),
-            self.mix_b.len(),
-            self.mix_out.len(),
-        ])
+        min_size(&[self.mix_a.len(), self.mix_b.len(), self.mix_out.len()])
     }
     pub fn is_empty(&self) -> bool {
         self.len() == 0
@@ -112,11 +99,7 @@ impl<'a> MutRingModParamsFxP<'a> {
     /// The length of the input parameters, defined as the length of the shortest
     /// input slice.
     pub fn len(&self) -> usize {
-        min_size(&[
-            self.mix_a.len(),
-            self.mix_b.len(),
-            self.mix_out.len(),
-        ])
+        min_size(&[self.mix_a.len(), self.mix_b.len(), self.mix_out.len()])
     }
     pub fn is_empty(&self) -> bool {
         self.len() == 0
@@ -132,7 +115,6 @@ impl<'a> From<MutRingModParamsFxP<'a>> for RingModParamsFxP<'a> {
         }
     }
 }
-
 
 /// A basic ring modulator with parameters to mix either of the original signals
 /// in with the output using fixed-point logic.
@@ -161,12 +143,7 @@ impl RingModFxP {
         b: &[SampleFxP],
         params: RingModParamsFxP,
     ) -> &[SampleFxP] {
-        let numsamples = min_size(&[
-            params.len(),
-            a.len(),
-            b.len(),
-            STATIC_BUFFER_SIZE,
-        ]);
+        let numsamples = min_size(&[params.len(), a.len(), b.len(), STATIC_BUFFER_SIZE]);
         for i in 0..numsamples {
             let out = SampleFxP::saturating_from_num(a[i].wide_mul(b[i]));
             let mixed_32bits = widen_i(apply_scalar_i(out, params.mix_out[i]))

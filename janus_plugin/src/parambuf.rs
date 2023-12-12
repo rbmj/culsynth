@@ -1,8 +1,8 @@
 use crate::pluginparams::{
-    EnvPluginParams, FiltPluginParams, OscPluginParams, RingModPluginParams, LfoPluginParams,
+    EnvPluginParams, FiltPluginParams, LfoPluginParams, OscPluginParams, RingModPluginParams,
 };
 use janus::devices::*;
-use janus::{EnvParamFxP, NoteFxP, ScalarFxP, SignedNoteFxP, LfoFreqFxP};
+use janus::{EnvParamFxP, LfoFreqFxP, NoteFxP, ScalarFxP, SignedNoteFxP};
 
 #[derive(Default)]
 pub struct EnvParamBuffer {

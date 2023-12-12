@@ -1,6 +1,6 @@
-use janus::devices::*;
-use janus::{SampleFxP, EnvParamFxP, ScalarFxP, NoteFxP, SignedNoteFxP};
 use janus::context::{Context, ContextFxP};
+use janus::devices::*;
+use janus::{EnvParamFxP, NoteFxP, SampleFxP, ScalarFxP, SignedNoteFxP};
 
 #[no_mangle]
 pub extern "C" fn janus_amp_u16_new() -> *mut AmpFxP {
@@ -415,8 +415,7 @@ pub extern "C" fn janus_osc_f32_process(
     }
     unsafe {
         let note_s = std::slice::from_raw_parts(note.offset(offset as isize), samples as usize);
-        let shape_s =
-            std::slice::from_raw_parts(shape.offset(offset as isize), samples as usize);
+        let shape_s = std::slice::from_raw_parts(shape.offset(offset as isize), samples as usize);
         let tune_s = std::slice::from_raw_parts(tune.offset(offset as isize), samples as usize);
         let params = OscParams::<f32> {
             tune: tune_s,

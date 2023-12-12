@@ -102,7 +102,9 @@ impl VoiceFxP {
             env1_params: env1_p,
             env2_params: env2_p,
         };
-        let modulation = self.modsection.process(ctx, &gate[0..numsamples], modparams, matrix);
+        let modulation = self
+            .modsection
+            .process(ctx, &gate[0..numsamples], modparams, matrix);
         // Modulate all the parameters
         modulation.modulate_osc(&mut osc1_p, &modulation::OSC1_MOD_DEST);
         modulation.modulate_osc(&mut osc2_p, &modulation::OSC2_MOD_DEST);
@@ -128,9 +130,21 @@ impl VoiceFxP {
             &note[0..numsamples],
             osc2_p.with_sync(OscSync::Slave(sync)),
         );
-        let ring_mod_out = self.ringmod.process(ctx, &osc1_out[0..numsamples], &osc2_out[0..numsamples], ring_p);
+        let ring_mod_out = self.ringmod.process(
+            ctx,
+            &osc1_out[0..numsamples],
+            &osc2_out[0..numsamples],
+            ring_p,
+        );
         let filt_env_out = self.env_filt.process(ctx, &gate[0..numsamples], filt_env_p);
-        let filt_out = self.filt.process(ctx, &ring_mod_out[0..numsamples], filt_env_out, note, vel, filt_p);
+        let filt_out = self.filt.process(
+            ctx,
+            &ring_mod_out[0..numsamples],
+            filt_env_out,
+            note,
+            vel,
+            filt_p,
+        );
         let vca_env_out = self.env_amp.process(ctx, &gate[0..numsamples], amp_env_p);
         for i in 0..numsamples {
             self.vcabuf[i] = SampleFxP::from_num(vca_env_out[i]);

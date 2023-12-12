@@ -172,16 +172,17 @@ impl<Smp: Float> Lfo<Smp> {
     /// input slices.  Callers must check the number of returned samples and
     /// copy them into their own output buffers before calling this function
     /// again to process the remainder of the data.
-    pub fn process(
-        &mut self,
-        ctx: &Context<Smp>,
-        gate: &[Smp],
-        params: LfoParams<Smp>,
-    ) -> &[Smp] {
+    pub fn process(&mut self, ctx: &Context<Smp>, gate: &[Smp], params: LfoParams<Smp>) -> &[Smp] {
         let freq = params.freq;
         let depth = params.depth;
         let opts = params.opts;
-        let numsamples = min_size(&[freq.len(), gate.len(), opts.len(), depth.len(), STATIC_BUFFER_SIZE]);
+        let numsamples = min_size(&[
+            freq.len(),
+            gate.len(),
+            opts.len(),
+            depth.len(),
+            STATIC_BUFFER_SIZE,
+        ]);
         for i in 0..numsamples {
             let this_gate = gate[i] > Smp::ONE_HALF;
             if opts[i].retrigger() && this_gate && !self.last_gate {
@@ -230,7 +231,7 @@ impl<Smp: Float> Lfo<Smp> {
             if !opts[i].bipolar() {
                 value = (value + Smp::ONE) / Smp::TWO;
             }
-            self.outbuf[i] = value*depth[i];
+            self.outbuf[i] = value * depth[i];
             let phase_per_sample = (freq[i] * Smp::TAU()) / ctx.sample_rate;
             self.phase = self.phase + phase_per_sample;
             // Check if we've crossed from positive phase back to negative:
@@ -257,11 +258,7 @@ pub struct LfoParamsFxP<'a> {
 
 impl<'a> LfoParamsFxP<'a> {
     pub fn len(&self) -> usize {
-        min_size(&[
-            self.freq.len(),
-            self.depth.len(),
-            self.opts.len(),
-        ])
+        min_size(&[self.freq.len(), self.depth.len(), self.opts.len()])
     }
     pub fn is_empty(&self) -> bool {
         self.len() == 0
@@ -276,11 +273,7 @@ pub struct MutLfoParamsFxP<'a> {
 
 impl<'a> MutLfoParamsFxP<'a> {
     pub fn len(&self) -> usize {
-        min_size(&[
-            self.freq.len(),
-            self.depth.len(),
-            self.opts.len(),
-        ])
+        min_size(&[self.freq.len(), self.depth.len(), self.opts.len()])
     }
     pub fn is_empty(&self) -> bool {
         self.len() == 0
@@ -341,7 +334,13 @@ impl LfoFxP {
         let freq = params.freq;
         let depth = params.depth;
         let opts = params.opts;
-        let numsamples = min_size(&[freq.len(), gate.len(), opts.len(), depth.len(), STATIC_BUFFER_SIZE]);
+        let numsamples = min_size(&[
+            freq.len(),
+            gate.len(),
+            opts.len(),
+            depth.len(),
+            STATIC_BUFFER_SIZE,
+        ]);
         const FRAC_2_PI: ScalarFxP = ScalarFxP::lit("0x0.a2fa");
         for i in 0..numsamples {
             let this_gate = gate[i] > SampleFxP::lit("0.5");

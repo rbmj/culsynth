@@ -86,10 +86,7 @@ impl<'a, Smp: Float> MutMixOscParams<'a, Smp> {
         self.len() == 0
     }
     pub fn with_sync(self, s: OscSync<'a, Smp>) -> Self {
-        Self {
-            sync: s,
-            ..self
-        }
+        Self { sync: s, ..self }
     }
 }
 
@@ -166,10 +163,7 @@ impl<'a> MixOscParamsFxP<'a> {
         self.len() == 0
     }
     pub fn with_sync(self, s: OscSync<'a, ScalarFxP>) -> Self {
-        Self {
-            sync: s,
-            ..self
-        }
+        Self { sync: s, ..self }
     }
 }
 
@@ -213,10 +207,7 @@ impl<'a> MutMixOscParamsFxP<'a> {
         self.len() == 0
     }
     pub fn with_sync(self, s: OscSync<'a, ScalarFxP>) -> Self {
-        Self {
-            sync: s,
-            ..self
-        }
+        Self { sync: s, ..self }
     }
 }
 

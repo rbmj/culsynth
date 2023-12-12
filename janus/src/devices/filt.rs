@@ -70,11 +70,7 @@ impl<Smp: Float> Filt<Smp> {
     ) -> FiltOutput<Smp> {
         let cutoff = params.cutoff;
         let resonance = params.resonance;
-        let numsamples = min_size(&[
-            input.len(),
-            params.len(),
-            STATIC_BUFFER_SIZE,
-        ]);
+        let numsamples = min_size(&[input.len(), params.len(), STATIC_BUFFER_SIZE]);
         for i in 0..numsamples {
             let res = Smp::ONE
                 - if resonance[i] < Smp::RES_MAX {
@@ -263,4 +259,3 @@ impl Default for FiltFxP {
         Self::new()
     }
 }
-

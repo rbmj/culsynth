@@ -1,13 +1,13 @@
 use crate::pluginparams::{
-    EnvPluginParams, FiltPluginParams, JanusParams, LfoPluginParams, OscPluginParams,
-    RingModPluginParams,
+    EnvPluginParams, FiltPluginParams, JanusParams, LfoPluginParams, ModMatrixPluginParams,
+    OscPluginParams, RingModPluginParams,
 };
 use crate::voicealloc::{MonoSynth, MonoSynthFxP, VoiceAllocator};
 use crate::ContextReader;
 use egui::widgets;
 use janus::context::{Context, ContextFxP};
 use janus::devices::LfoWave;
-use janus::voice::modulation::{ModSrc, ModDest};
+use janus::voice::modulation::{ModDest, ModSrc};
 use nih_plug::prelude::*;
 use nih_plug_egui::{create_egui_editor, egui, EguiState};
 use piano_keyboard::Rectangle as PianoRectangle;
@@ -54,7 +54,7 @@ fn draw_osc(
     setter: &ParamSetter,
     label: &str,
     draw_sync: bool,
-    sync_on: bool
+    sync_on: bool,
 ) -> bool {
     let mut sync_clicked = false;
     ui.vertical(|ui| {
@@ -122,10 +122,10 @@ impl PluginWidget for LfoPluginParams {
                 ui.vertical(|ui| {
                     let cur_wave = self.wave.value();
                     for wave in LfoWave::waves() {
-                        if ui.selectable_label(
-                            cur_wave == *wave as i32,
-                            wave.to_str_short()
-                        ).clicked() {
+                        if ui
+                            .selectable_label(cur_wave == *wave as i32, wave.to_str_short())
+                            .clicked()
+                        {
                             setter.begin_set_parameter(&self.wave);
                             setter.set_parameter(&self.wave, *wave as i32);
                             setter.end_set_parameter(&self.wave);
@@ -474,6 +474,37 @@ impl JanusEditor {
             }
         });
     }
+    fn sr_context_menu(
+        ui: &mut egui::Ui,
+        sr: u32,
+        fixed_point: bool,
+    ) -> Option<Box<dyn VoiceAllocator>> {
+        let fixed_context = ContextFxP::maybe_create(sr);
+        let mut new_synth: Option<Box<dyn VoiceAllocator>> = None;
+        ui.vertical(|ui| {
+            ui.horizontal(|ui| {
+                if fixed_context.is_none() {
+                    ui.set_enabled(false);
+                }
+                if ui.selectable_label(fixed_point, "Fixed").clicked() {
+                    ui.close_menu();
+                    if let Some(context) = fixed_context {
+                        if !fixed_point {
+                            new_synth = Some(Box::new(MonoSynthFxP::new(context)));
+                        }
+                    }
+                }
+            });
+            if ui.selectable_label(!fixed_point, "Float").clicked() {
+                ui.close_menu();
+                if fixed_point {
+                    let ctx = Context::new(sr as f32);
+                    new_synth = Some(Box::new(MonoSynth::new(ctx)));
+                }
+            }
+        });
+        new_synth
+    }
     fn draw_status_bar(&mut self, egui_ctx: &egui::Context) {
         egui::TopBottomPanel::top("status")
             .frame(egui::Frame::none().fill(egui::Color32::from_gray(32)))
@@ -504,37 +535,13 @@ impl JanusEditor {
                                 fixed_str,
                             ))
                             .context_menu(|ui| {
-                                let fixed_context = ContextFxP::maybe_create(sr);
-                                let mut new_synth: Option<Box<dyn VoiceAllocator>> = None;
-                                ui.vertical(|ui| {
-                                    ui.horizontal(|ui| {
-                                        if fixed_context.is_none() {
-                                            ui.set_enabled(false);
-                                        }
-                                        if ui.selectable_label(fixed_point, "Fixed").clicked() {
-                                            ui.close_menu();
-                                            if let Some(context) = fixed_context {
-                                                if !fixed_point {
-                                                    new_synth =
-                                                        Some(Box::new(MonoSynthFxP::new(context)));
-                                                }
-                                            }
-                                        }
-                                    });
-                                    if ui.selectable_label(!fixed_point, "Float").clicked() {
-                                        ui.close_menu();
-                                        if fixed_point {
-                                            let ctx = Context::new(sr as f32);
-                                            new_synth = Some(Box::new(MonoSynth::new(ctx)));
-                                        }
+                                let new_synth = Self::sr_context_menu(ui, sr, fixed_point);
+                                if let Some(mut synth) = new_synth {
+                                    synth.initialize(self.context.bufsz());
+                                    if let Err(e) = self.synth_channel.try_send(synth) {
+                                        nih_log!("{}", e);
                                     }
-                                    if let Some(mut synth) = new_synth {
-                                        synth.initialize(self.context.bufsz());
-                                        if let Err(e) = self.synth_channel.try_send(synth) {
-                                            nih_log!("{}", e);
-                                        }
-                                    }
-                                });
+                                }
                             });
                         },
                     );
@@ -555,9 +562,12 @@ impl JanusEditor {
                     setter.begin_set_parameter(&self.params.osc_sync);
                     setter.set_parameter(&self.params.osc_sync, !sync_on);
                     setter.end_set_parameter(&self.params.osc_sync);
-                }).draw_on(ui, setter, "Oscillator 2");
+                })
+                    .draw_on(ui, setter, "Oscillator 2");
                 ui.separator();
-                self.params.ringmod.draw_on(ui, setter, "Mixer/Ring Modulator");
+                self.params
+                    .ringmod
+                    .draw_on(ui, setter, "Mixer/Ring Modulator");
             });
             ui.horizontal(|ui| {
                 self.params.filt.draw_on(ui, setter, "Filter");
@@ -569,12 +579,50 @@ impl JanusEditor {
             ui.horizontal(|ui| {
                 self.params.env_vcf.draw_on(ui, setter, "Filter Envelope");
                 ui.separator();
-                self.params.env_vca.draw_on(ui, setter, "Amplifier Envelope");
+                self.params
+                    .env_vca
+                    .draw_on(ui, setter, "Amplifier Envelope");
                 ui.separator();
                 self.params.env1.draw_on(ui, setter, "Mod Envelope 1");
                 ui.separator();
                 self.params.env2.draw_on(ui, setter, "Mod Envelope 2");
             });
+        });
+    }
+    fn draw_modmatrix(matrix: &ModMatrixPluginParams, ui: &mut egui::Ui, setter: &ParamSetter) {
+        egui::Grid::new("MODMATRIX").show(ui, |ui| {
+            ui.label("");
+            ui.label("Slot A");
+            ui.label("Slot B");
+            ui.label("Slot C");
+            ui.label("Slot D");
+            ui.end_row();
+            for src in ModSrc::elements() {
+                ui.label(src.to_str());
+                let row = matrix.row(*src);
+                for (idx, slot) in row.iter().enumerate() {
+                    let mut dest = ModDest::try_from(slot.0.value() as u16).unwrap();
+                    let id_str = format!("MMRow{}Slot{}", *src as u16, idx);
+                    ui.vertical(|ui| {
+                        ui.separator();
+                        egui::ComboBox::from_id_source(id_str)
+                            .selected_text(dest.to_str())
+                            .show_ui(ui, |ui| {
+                                let sec = row.is_secondary();
+                                for value in ModDest::elements_secondary_if(sec) {
+                                    ui.selectable_value(&mut dest, value, value.to_str());
+                                }
+                            });
+                        if dest as i32 != slot.0.value() {
+                            setter.begin_set_parameter(slot.0);
+                            setter.set_parameter(slot.0, dest as i32);
+                            setter.end_set_parameter(slot.0);
+                        }
+                        ui.add(param_slider(setter, slot.1));
+                    });
+                }
+                ui.end_row();
+            }
         });
     }
     /// Draw the editor panel
@@ -592,81 +640,38 @@ impl JanusEditor {
         egui::Window::new("Modulation Matrix")
             .open(&mut self.show_mod_matrix)
             .show(egui_ctx, |ui| {
-                egui::Grid::new("MODMATRIX").show(ui, |ui| {
-                    ui.label("");
-                    ui.label("Slot A");
-                    ui.label("Slot B");
-                    ui.label("Slot C");
-                    ui.label("Slot D");
-                    ui.end_row();
-                    for src in ModSrc::elements() {
-                        ui.label(src.to_str());
-                        let row = self.params.modmatrix.row(*src);
-                        for (idx, slot) in row.iter().enumerate() {
-                            let mut dest = ModDest::try_from(slot.0.value() as u16).unwrap();
-                            let id_str = format!("MMRow{}Slot{}", *src as u16, idx);
-                            ui.vertical(|ui| {
-                                ui.separator();
-                                egui::ComboBox::from_id_source(id_str)
-                                    .selected_text(dest.to_str())
-                                    .show_ui(ui, |ui| {
-                                        if row.is_secondary() {
-                                            for value in ModDest::elements_secondary() {
-                                                ui.selectable_value(
-                                                    &mut dest,
-                                                    value,
-                                                    value.to_str(),
-                                                );
-                                            }
-                                        } else {
-                                            for value in ModDest::elements() {
-                                                ui.selectable_value(
-                                                    &mut dest,
-                                                    value,
-                                                    value.to_str(),
-                                                );
-                                            }
-                                        }
-                                    });
-                                if dest as i32 != slot.0.value() {
-                                    setter.begin_set_parameter(slot.0);
-                                    setter.set_parameter(slot.0, dest as i32);
-                                    setter.end_set_parameter(slot.0);
-                                }
-                                ui.add(param_slider(setter, slot.1));
-                            });
-                        }
-                        ui.end_row();
-                    }
-                });
+                Self::draw_modmatrix(&self.params.modmatrix, ui, setter);
             });
     }
     pub fn initialize(&mut self, egui_ctx: &egui::Context) {
         let mut fonts = egui::FontDefinitions::default();
         fonts.font_data.insert(
             "janus_noto_sans_math".to_owned(),
-            egui::FontData::from_static(
-                include_bytes!("../../resources/fonts/NotoSansMath-Regular.ttf"),
-            ),
+            egui::FontData::from_static(include_bytes!(
+                "../../resources/fonts/NotoSansMath-Regular.ttf"
+            )),
         );
         fonts.font_data.insert(
             "janus_noto_sans_sym".to_owned(),
-            egui::FontData::from_static(
-                include_bytes!("../../resources/fonts/NotoSansSymbols-Regular.ttf"),
-            ),
+            egui::FontData::from_static(include_bytes!(
+                "../../resources/fonts/NotoSansSymbols-Regular.ttf"
+            )),
         );
         fonts.font_data.insert(
             "janus_noto_sans_math".to_owned(),
-            egui::FontData::from_static(
-                include_bytes!("../../resources/fonts/NotoSansMath-Regular.ttf"),
-            ),
+            egui::FontData::from_static(include_bytes!(
+                "../../resources/fonts/NotoSansMath-Regular.ttf"
+            )),
         );
-        fonts.families.get_mut(&egui::FontFamily::Proportional).unwrap()
+        fonts
+            .families
+            .get_mut(&egui::FontFamily::Proportional)
+            .unwrap()
             .extend_from_slice(&[
                 "janus_noto_sans_math".to_owned(),
                 "janus_noto_sans_sym".to_owned(),
             ]);
-        
+
         egui_ctx.set_fonts(fonts);
     }
 }

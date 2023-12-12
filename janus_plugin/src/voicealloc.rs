@@ -3,12 +3,13 @@
 //! selected logic form (fixed, float32, float64), etc.
 
 use crate::parambuf::{
-    EnvParamBuffer, FiltParamBuffer, GlobalParamBuffer, OscParamBuffer, RingModParamBuffer, LfoParamBuffer,
+    EnvParamBuffer, FiltParamBuffer, GlobalParamBuffer, LfoParamBuffer, OscParamBuffer,
+    RingModParamBuffer,
 };
 use crate::pluginparams::ModMatrixPluginParams;
 use janus::context::{Context, ContextFxP, GenericContext};
 use janus::voice::{Voice, VoiceFxP};
-use janus::{NoteFxP, SampleFxP, ScalarFxP, SignedNoteFxP, IScalarFxP};
+use janus::{IScalarFxP, NoteFxP, SampleFxP, ScalarFxP, SignedNoteFxP};
 
 /// This trait is the main abstraction for this module - the plugin may send it
 /// note on/off events and it will assign those events to voices, stealing if
@@ -39,7 +40,7 @@ pub trait VoiceAllocator: Send {
     /// Get the current pitch bend range, in semitones
     fn get_pitch_bend_range(&self) -> (i8, i8);
     /// Set the current pitch bend range, in semitones
-    /// 
+    ///
     /// Both arguments should generally be positive.  For example,
     /// `set_pitch_bend_range(2, 2)` will set the pitch wheel to bend up/down
     /// a whole step.
@@ -142,17 +143,18 @@ impl VoiceAllocator for MonoSynthFxP {
     }
     fn pitch_bend(&mut self, v: i16) {
         if v < 0 {
-            self.pitch_bend = SignedNoteFxP::from_num(
-                IScalarFxP::from_bits(v).wide_mul(self.pitch_range.0),
-            );
+            self.pitch_bend =
+                SignedNoteFxP::from_num(IScalarFxP::from_bits(v).wide_mul(self.pitch_range.0));
         } else {
-            self.pitch_bend = SignedNoteFxP::from_num(
-                IScalarFxP::from_bits(v).wide_mul(self.pitch_range.1),
-            );
+            self.pitch_bend =
+                SignedNoteFxP::from_num(IScalarFxP::from_bits(v).wide_mul(self.pitch_range.1));
         }
     }
     fn get_pitch_bend_range(&self) -> (i8, i8) {
-        (self.pitch_range.0.to_num::<i8>(), self.pitch_range.1.to_num::<i8>())
+        (
+            self.pitch_range.0.to_num::<i8>(),
+            self.pitch_range.1.to_num::<i8>(),
+        )
     }
     fn set_pitch_bend_range(&mut self, low: i8, high: i8) {
         self.pitch_range = (
@@ -291,10 +293,7 @@ impl VoiceAllocator for MonoSynth {
         (self.pitch_bend_range.0 as i8, self.pitch_bend_range.1 as i8)
     }
     fn set_pitch_bend_range(&mut self, low: i8, high: i8) {
-        self.pitch_bend_range = (
-            low as f32,
-            high as f32,
-        );
+        self.pitch_bend_range = (low as f32, high as f32);
     }
     fn process(
         &mut self,

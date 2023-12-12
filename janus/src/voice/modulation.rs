@@ -1,10 +1,10 @@
 //! This module contains data to allow modulation of a `Voice`
 use tinyvec::ArrayVec;
 
-use crate::context::{ContextFxP, Context};
+use crate::context::{Context, ContextFxP};
 use crate::devices::*;
-use crate::{IScalarFxP, ScalarFxP, SampleFxP, SignedNoteFxP};
 use crate::{min_size, STATIC_BUFFER_SIZE};
+use crate::{IScalarFxP, SampleFxP, ScalarFxP, SignedNoteFxP};
 
 #[repr(u16)]
 #[derive(Clone, Copy)]
@@ -98,7 +98,6 @@ pub enum ModDest {
     Env2D,
     Env2S,
     Env2R,
-
 }
 
 impl ModDest {
@@ -169,13 +168,19 @@ impl ModDest {
     pub const fn max_secondary() -> Self {
         Self::EnvAmpR
     }
-    pub fn elements() -> impl core::iter::Iterator<Item=ModDest> {
-        ((Self::min() as u16)..=(Self::max() as u16))
-            .map(|x| unsafe { core::mem::transmute(x) })
+    pub fn elements() -> impl core::iter::Iterator<Item = ModDest> {
+        Self::elements_secondary_if(false)
     }
-    pub fn elements_secondary() -> impl core::iter::Iterator<Item=ModDest> {
-        ((Self::min() as u16)..=(Self::max_secondary() as u16))
-            .map(|x| unsafe { core::mem::transmute(x) })
+    pub fn elements_secondary() -> impl core::iter::Iterator<Item = ModDest> {
+        Self::elements_secondary_if(true)
+    }
+    pub fn elements_secondary_if(sec: bool) -> impl core::iter::Iterator<Item = ModDest> {
+        let max = if sec {
+            Self::max_secondary()
+        } else {
+            Self::max()
+        };
+        ((Self::min() as u16)..=(max as u16)).map(|x| unsafe { core::mem::transmute(x) })
     }
 }
 
@@ -183,13 +188,25 @@ impl TryFrom<u16> for ModDest {
     type Error = &'static str;
     fn try_from(value: u16) -> Result<Self, Self::Error> {
         if value >= Self::min() as u16 && value <= Self::max() as u16 {
-            unsafe {
-                Ok(core::mem::transmute(value))
-            }
-        }
-        else {
+            unsafe { Ok(core::mem::transmute(value)) }
+        } else {
             Err("ModDest out of bounds")
         }
+    }
+}
+
+impl TryFrom<&str> for ModDest {
+    type Error = &'static str;
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        Self::elements()
+            .find_map(|elem| {
+                if value == elem.to_str() {
+                    Some(elem)
+                } else {
+                    None
+                }
+            })
+            .ok_or("ModDest::try_from::<&str> parse failure")
     }
 }
 
@@ -277,16 +294,15 @@ impl<'a> ModulatorFxP<'a> {
         self.len() == 0
     }
     /// Apply all modulation to the parameter passed in `dest` in place using `mut buf`
-    /// 
+    ///
     /// Returns true if any modulation was performed, or false otherwise
     pub fn modulate<T: crate::Fixed16>(&self, dest: ModDest, buf: &mut [T]) -> bool
-        where T::Frac: fixed::types::extra::LeEqU32
+    where
+        T::Frac: fixed::types::extra::LeEqU32,
     {
         use crate::fixedmath::I1F31;
         use fixed::FixedI32;
-        let modulation = ModSrc::ELEM.map(|src|
-            self.matrix.get_modulation(src, dest)
-        );
+        let modulation = ModSrc::ELEM.map(|src| self.matrix.get_modulation(src, dest));
         // All the modulation sources that are not LFOs are ScalarFxPs
         let non_lfos = [
             (self.velocity, modulation[ModSrc::Velocity as usize]),
@@ -296,7 +312,8 @@ impl<'a> ModulatorFxP<'a> {
             (self.env2, modulation[ModSrc::Env2 as usize]),
         ];
         // Filter the above and collect them into an array-backed vec
-        let non_lfos_filt = non_lfos.iter()
+        let non_lfos_filt = non_lfos
+            .iter()
             .filter_map(|x| x.1.map(|y| (x.0, y)))
             .collect::<ArrayVec<[(&[ScalarFxP], IScalarFxP); 5]>>();
         // The LFOs, however, are SampleFxPs, so these need to be separate
@@ -304,7 +321,8 @@ impl<'a> ModulatorFxP<'a> {
             (self.lfo1, modulation[ModSrc::Lfo1 as usize]),
             (self.lfo2, modulation[ModSrc::Lfo2 as usize]),
         ];
-        let lfos_filt = lfos.iter()
+        let lfos_filt = lfos
+            .iter()
             .filter_map(|x| x.1.map(|y| (x.0, y)))
             .collect::<ArrayVec<[(&[SampleFxP], IScalarFxP); 2]>>();
         // In the common case, where there is no modulation, early exit
@@ -313,18 +331,24 @@ impl<'a> ModulatorFxP<'a> {
         }
         for i in 0..core::cmp::min(self.len(), buf.len()) {
             // All of the modulations for this sample, chain()ed together
-            let modulations = non_lfos_filt.into_iter()
+            let modulations = non_lfos_filt
+                .into_iter()
                 .map(|(slc, val)| slc[i].wide_mul_signed(val))
-                .chain(lfos_filt.into_iter().map(|(slc, val)| I1F31::saturating_from_num(
-                    slc[i].wide_mul(val),
-                )));
+                .chain(
+                    lfos_filt
+                        .into_iter()
+                        .map(|(slc, val)| I1F31::saturating_from_num(slc[i].wide_mul(val))),
+                );
             // Add all the modulations.  We'll do some bit twiddling so 100% modulation will
             // correspond to the maximum value of the type, and do all our math in 32 bit signed
             // arithmetic so we can model multiple modulations canceling each other out then
             // check for saturation at the end
-            buf[i] = T::saturating_from_num(modulations
-                .map(|x| FixedI32::<T::Frac>::from_bits(IScalarFxP::from_num(x).to_bits() as i32))
-                .fold(FixedI32::<T::Frac>::from_num(buf[i]), |acc, val| acc + val)
+            buf[i] = T::saturating_from_num(
+                modulations
+                    .map(|x| {
+                        FixedI32::<T::Frac>::from_bits(IScalarFxP::from_num(x).to_bits() as i32)
+                    })
+                    .fold(FixedI32::<T::Frac>::from_num(buf[i]), |acc, val| acc + val),
             );
         }
         true
@@ -420,7 +444,9 @@ impl Default for ModMatrixFxP {
 
 impl ModMatrixFxP {
     pub fn get_modulation(&self, src: ModSrc, dest: ModDest) -> Option<IScalarFxP> {
-        self.rows[src as usize].1.iter()
+        self.rows[src as usize]
+            .1
+            .iter()
             .find_map(|x| if x.0 == dest { Some(x.1) } else { None })
     }
 }
@@ -441,8 +467,12 @@ impl ModSectionFxP {
         entries: &'a ModMatrixFxP,
     ) -> ModulatorFxP<'a> {
         let numsamples = min_size(&[gate.len(), params.len(), STATIC_BUFFER_SIZE]);
-        let lfo1_out = self.lfo1.process(ctx, &gate[0..numsamples], params.lfo1_params);
-        let env1_out = self.env1.process(ctx, &gate[0..numsamples], params.env1_params);
+        let lfo1_out = self
+            .lfo1
+            .process(ctx, &gate[0..numsamples], params.lfo1_params);
+        let env1_out = self
+            .env1
+            .process(ctx, &gate[0..numsamples], params.env1_params);
         // LFO2/ENV2 are default here, so empty slices.
         let modulator_initial = ModulatorFxP {
             velocity: params.velocity,
@@ -454,14 +484,33 @@ impl ModSectionFxP {
             env2: fixed_zerobuf_unsigned::<ScalarFxP>(),
             matrix: entries,
         };
-        modulator_initial.modulate(ModDest::Lfo2Rate, &mut params.lfo2_params.freq[0..numsamples]);
-        modulator_initial.modulate(ModDest::Lfo2Depth, &mut params.lfo2_params.depth[0..numsamples]);
-        modulator_initial.modulate(ModDest::Env2A, &mut params.env2_params.attack[0..numsamples]);
+        modulator_initial.modulate(
+            ModDest::Lfo2Rate,
+            &mut params.lfo2_params.freq[0..numsamples],
+        );
+        modulator_initial.modulate(
+            ModDest::Lfo2Depth,
+            &mut params.lfo2_params.depth[0..numsamples],
+        );
+        modulator_initial.modulate(
+            ModDest::Env2A,
+            &mut params.env2_params.attack[0..numsamples],
+        );
         modulator_initial.modulate(ModDest::Env2D, &mut params.env2_params.decay[0..numsamples]);
-        modulator_initial.modulate(ModDest::Env2S, &mut params.env2_params.sustain[0..numsamples]);
-        modulator_initial.modulate(ModDest::Env2R, &mut params.env2_params.release[0..numsamples]);
-        let lfo2_out = self.lfo2.process(ctx, &gate[0..numsamples], params.lfo2_params.into());
-        let env2_out = self.env2.process(ctx, &gate[0..numsamples], params.env2_params.into());
+        modulator_initial.modulate(
+            ModDest::Env2S,
+            &mut params.env2_params.sustain[0..numsamples],
+        );
+        modulator_initial.modulate(
+            ModDest::Env2R,
+            &mut params.env2_params.release[0..numsamples],
+        );
+        let lfo2_out = self
+            .lfo2
+            .process(ctx, &gate[0..numsamples], params.lfo2_params.into());
+        let env2_out = self
+            .env2
+            .process(ctx, &gate[0..numsamples], params.env2_params.into());
         ModulatorFxP::<'a> {
             lfo2: lfo2_out,
             env2: env2_out,
@@ -508,13 +557,10 @@ impl<'a, Smp: Float> Modulator<'a, Smp> {
         self.len() == 0
     }
     /// Apply all modulation to the parameter passed in `dest` in place using `mut buf`
-    /// 
+    ///
     /// Returns true if any modulation was performed, or false otherwise
-    pub fn modulate(&self, dest: ModDest, buf: &mut [Smp]) -> bool
-    {
-        let modulation = ModSrc::ELEM.map(|src|
-            self.matrix.get_modulation(src, dest)
-        );
+    pub fn modulate(&self, dest: ModDest, buf: &mut [Smp]) -> bool {
+        let modulation = ModSrc::ELEM.map(|src| self.matrix.get_modulation(src, dest));
         let mod_params = [
             (self.velocity, modulation[ModSrc::Velocity as usize]),
             (self.aftertouch, modulation[ModSrc::Aftertouch as usize]),
@@ -525,7 +571,8 @@ impl<'a, Smp: Float> Modulator<'a, Smp> {
             (self.lfo2, modulation[ModSrc::Lfo2 as usize]),
         ];
         // Filter the above and collect them into an array-backed vec
-        let mod_params_filt = mod_params.iter()
+        let mod_params_filt = mod_params
+            .iter()
             .filter_map(|x| x.1.map(|y| (x.0, y)))
             .collect::<ArrayVec<[(&[Smp], Smp); 7]>>();
         // In the common case, where there is no modulation, early exit
@@ -599,7 +646,9 @@ impl<Smp: Float> Default for ModMatrix<Smp> {
 
 impl<Smp: Float> ModMatrix<Smp> {
     pub fn get_modulation(&self, src: ModSrc, dest: ModDest) -> Option<Smp> {
-        self.entries[src as usize].1.iter()
+        self.entries[src as usize]
+            .1
+            .iter()
             .find_map(|x| if x.0 == dest { Some(x.1) } else { None })
     }
 }
@@ -657,4 +706,3 @@ impl<Smp: Float> Default for ModSection<Smp> {
         }
     }
 }
-

@@ -19,24 +19,22 @@ use super::min_size;
 use super::BufferT;
 use super::STATIC_BUFFER_SIZE;
 
-use fixed::types::extra::LeEqU16;
 use fixed::traits::Fixed;
+use fixed::types::extra::LeEqU16;
 static U16_ZEROBUF: [u16; STATIC_BUFFER_SIZE] = [0u16; STATIC_BUFFER_SIZE];
 pub fn fixed_zerobuf_signed<T: Fixed>() -> &'static [fixed::FixedI16<T::Frac>]
-    where T::Frac: LeEqU16
+where
+    T::Frac: LeEqU16,
 {
     // Fixed is #[repr(transparent)], so this is valid:
-    unsafe {
-        core::mem::transmute(&U16_ZEROBUF[0..STATIC_BUFFER_SIZE])
-    }
+    unsafe { core::mem::transmute(&U16_ZEROBUF[0..STATIC_BUFFER_SIZE]) }
 }
 pub fn fixed_zerobuf_unsigned<T: Fixed>() -> &'static [fixed::FixedU16<T::Frac>]
-    where T::Frac: LeEqU16
+where
+    T::Frac: LeEqU16,
 {
     // Fixed is #[repr(transparent)], so this is valid:
-    unsafe {
-        core::mem::transmute(&U16_ZEROBUF[0..STATIC_BUFFER_SIZE])
-    }
+    unsafe { core::mem::transmute(&U16_ZEROBUF[0..STATIC_BUFFER_SIZE]) }
 }
 
 /// Types must implement this trait to instantiate any of the generic devices
@@ -99,9 +97,15 @@ fn midi_note_to_frequency<T: Float>(note: T) -> T {
 
 pub use amp::{Amp, AmpFxP};
 pub use env::{Env, EnvFxP, EnvParams, EnvParamsFxP, MutEnvParams, MutEnvParamsFxP};
-pub use filt::{Filt, FiltFxP, FiltOutput, FiltOutputFxP, FiltParams, FiltParamsFxP, MutFiltParamsFxP};
-pub use lfo::{Lfo, LfoFxP, LfoOptions, LfoParams, LfoParamsFxP, LfoWave, MutLfoParams, MutLfoParamsFxP};
-pub use mixosc::{MixOsc, MixOscFxP, MixOscParams, MixOscParamsFxP, MutMixOscParamsFxP, MutMixOscParams};
+pub use filt::{
+    Filt, FiltFxP, FiltOutput, FiltOutputFxP, FiltParams, FiltParamsFxP, MutFiltParamsFxP,
+};
+pub use lfo::{
+    Lfo, LfoFxP, LfoOptions, LfoParams, LfoParamsFxP, LfoWave, MutLfoParams, MutLfoParamsFxP,
+};
+pub use mixosc::{
+    MixOsc, MixOscFxP, MixOscParams, MixOscParamsFxP, MutMixOscParams, MutMixOscParamsFxP,
+};
 pub use modfilt::{ModFilt, ModFiltFxP, ModFiltParams, ModFiltParamsFxP, MutModFiltParamsFxP};
 pub use osc::{Osc, OscFxP, OscOutput, OscParams, OscParamsFxP, OscSync};
 pub use ringmod::{MutRingModParamsFxP, RingMod, RingModFxP, RingModParams, RingModParamsFxP};

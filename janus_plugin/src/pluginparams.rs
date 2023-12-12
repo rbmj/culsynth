@@ -1,6 +1,6 @@
 use janus::devices::{LfoOptions, LfoWave};
-use janus::voice::modulation::{ModDest, ModSrc, ModMatrixFxP};
-use janus::{EnvParamFxP, IScalarFxP, NoteFxP, ScalarFxP, LfoFreqFxP};
+use janus::voice::modulation::{ModDest, ModMatrixFxP, ModSrc};
+use janus::{EnvParamFxP, IScalarFxP, LfoFreqFxP, NoteFxP, ScalarFxP};
 use nih_plug::prelude::*;
 use nih_plug_egui::EguiState;
 
@@ -219,23 +219,32 @@ impl ModMatrixRowParams {
     fn make_param(name: String, rng: IntRange) -> IntParam {
         IntParam::new(name, ModDest::Null as i32, rng)
             .non_automatable()
-            .with_value_to_string(Arc::new(|x| ModDest::try_from(x as u16).unwrap_or_default().to_str().to_owned()))
-            .with_string_to_value(Arc::new(
-                |string| ModDest::elements().into_iter().find_map(
-                    |dest| if dest.to_str() == string { Some(dest as i32) } else { None },
-                ),
-            ))
+            .with_value_to_string(Arc::new(|x| {
+                ModDest::try_from(x as u16)
+                    .unwrap_or_default()
+                    .to_str()
+                    .to_owned()
+            }))
+            .with_string_to_value(Arc::new(|string| {
+                ModDest::elements().into_iter().find_map(|dest| {
+                    if dest.to_str() == string {
+                        Some(dest as i32)
+                    } else {
+                        None
+                    }
+                })
+            }))
     }
     fn new(name: &str, is_secondary: bool) -> Self {
         let rng = if is_secondary {
-            IntRange::Linear{
+            IntRange::Linear {
                 min: ModDest::min() as i32,
-                max: ModDest::max_secondary() as i32
+                max: ModDest::max_secondary() as i32,
             }
         } else {
-            IntRange::Linear{
+            IntRange::Linear {
                 min: ModDest::min() as i32,
-                max: ModDest::max() as i32
+                max: ModDest::max() as i32,
             }
         };
         Self {
@@ -271,7 +280,7 @@ impl ModMatrixRowParams {
 
 pub struct ModMatrixRowIterator<'a> {
     row: &'a ModMatrixRowParams,
-    idx: usize
+    idx: usize,
 }
 
 impl<'a> Iterator for ModMatrixRowIterator<'a> {
@@ -279,8 +288,7 @@ impl<'a> Iterator for ModMatrixRowIterator<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         if self.idx >= self.row.len() {
             None
-        }
-        else {
+        } else {
             let cur = self.row.slot(self.idx);
             self.idx += 1;
             Some(cur)
@@ -333,12 +341,15 @@ impl ModMatrixPluginParams {
         ModMatrixFxP {
             rows: ModSrc::ELEM.map(|src| {
                 let row = self.row(src);
-                (src, [0, 1, 2, 3].map(|i| {
-                    let slot = row.slot(i);
-                    let dest = ModDest::try_from(slot.0.value() as u16).unwrap();
-                    let mag = IScalarFxP::from_bits(slot.1.value() as i16);
-                    (dest, mag)
-                }))
+                (
+                    src,
+                    [0, 1, 2, 3].map(|i| {
+                        let slot = row.slot(i);
+                        let dest = ModDest::try_from(slot.0.value() as u16).unwrap();
+                        let mag = IScalarFxP::from_bits(slot.1.value() as i16);
+                        (dest, mag)
+                    }),
+                )
             }),
         }
     }

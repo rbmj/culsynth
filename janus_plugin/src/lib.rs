@@ -13,7 +13,8 @@ mod fixedparam;
 
 pub mod parambuf;
 use parambuf::{
-    EnvParamBuffer, FiltParamBuffer, GlobalParamBuffer, OscParamBuffer, RingModParamBuffer, LfoParamBuffer
+    EnvParamBuffer, FiltParamBuffer, GlobalParamBuffer, LfoParamBuffer, OscParamBuffer,
+    RingModParamBuffer,
 };
 
 pub mod pluginparams;
@@ -260,10 +261,13 @@ impl Plugin for JanusPlugin {
             self.glob_params.update_index(index, &self.params.osc_sync);
             self.osc1_params.update_index(index, &self.params.osc1);
             self.osc2_params.update_index(index, &self.params.osc2);
-            self.ringmod_params.update_index(index, &self.params.ringmod);
+            self.ringmod_params
+                .update_index(index, &self.params.ringmod);
             self.filt_params.update_index(index, &self.params.filt);
-            self.env_amp_params.update_index(index, &self.params.env_vca);
-            self.env_filt_params.update_index(index, &self.params.env_vcf);
+            self.env_amp_params
+                .update_index(index, &self.params.env_vca);
+            self.env_filt_params
+                .update_index(index, &self.params.env_vcf);
             self.env1_params.update_index(index, &self.params.env1);
             self.env2_params.update_index(index, &self.params.env2);
             self.lfo1_params.update_index(index, &self.params.lfo1);
@@ -277,10 +281,10 @@ impl Plugin for JanusPlugin {
                 match event {
                     NoteEvent::NoteOn { note, velocity, .. } => {
                         voices.note_on(note, (velocity * 127f32) as u8);
-                    },
+                    }
                     NoteEvent::NoteOff { note, velocity, .. } => {
                         voices.note_off(note, (velocity * 127f32) as u8);
-                    },
+                    }
                     NoteEvent::MidiCC { cc, value, .. } => {
                         let value = (value * 127f32) as u8;
                         match cc {
@@ -289,11 +293,11 @@ impl Plugin for JanusPlugin {
                                 nih_log!("Unhandled MIDI CC {value}");
                             }
                         }
-                    },
+                    }
                     NoteEvent::MidiChannelPressure { pressure, .. } => {
                         voices.aftertouch((pressure * 127f32) as u8);
-                    },
-                    NoteEvent::MidiPitchBend { value, ..} => {
+                    }
+                    NoteEvent::MidiPitchBend { value, .. } => {
                         voices.pitch_bend(((value - 0.5) * (i16::MAX as f32)) as i16);
                     }
                     _ => (),
