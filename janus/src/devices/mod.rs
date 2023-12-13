@@ -106,6 +106,10 @@ pub use lfo::{
 pub use mixosc::{
     MixOsc, MixOscFxP, MixOscParams, MixOscParamsFxP, MutMixOscParams, MutMixOscParamsFxP,
 };
-pub use modfilt::{ModFilt, ModFiltFxP, ModFiltParams, ModFiltParamsFxP, MutModFiltParamsFxP};
+pub use modfilt::{
+    ModFilt, ModFiltFxP, ModFiltParams, ModFiltParamsFxP, MutModFiltParams, MutModFiltParamsFxP
+};
 pub use osc::{Osc, OscFxP, OscOutput, OscParams, OscParamsFxP, OscSync};
-pub use ringmod::{MutRingModParamsFxP, RingMod, RingModFxP, RingModParams, RingModParamsFxP};
+pub use ringmod::{
+    MutRingModParams, MutRingModParamsFxP, RingMod, RingModFxP, RingModParams, RingModParamsFxP
+};

@@ -28,6 +28,37 @@ impl<'a, Smp> RingModParams<'a, Smp> {
     }
 }
 
+/// Mutable parameters for a [RingMod]
+pub struct MutRingModParams<'a, Smp> {
+    /// The volume of the output modulation signal
+    pub mix_out: &'a mut [Smp],
+    /// The volume of the input signal a mixed back in
+    pub mix_a: &'a mut [Smp],
+    /// The volume of the input signal b mixed back in
+    pub mix_b: &'a mut [Smp],
+}
+
+impl<'a, Smp> MutRingModParams<'a, Smp> {
+    /// The length of the input parameters, defined as the length of the shortest
+    /// input slice.
+    pub fn len(&self) -> usize {
+        min_size(&[self.mix_a.len(), self.mix_b.len(), self.mix_out.len()])
+    }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
+impl<'a, Smp> From<MutRingModParams<'a, Smp>> for RingModParams<'a, Smp> {
+    fn from(value: MutRingModParams<'a, Smp>) -> Self {
+        RingModParams {
+            mix_out: value.mix_out,
+            mix_a: value.mix_a,
+            mix_b: value.mix_b,
+        }
+    }
+}
+
 impl<Smp: Float> RingMod<Smp> {
     pub fn new() -> Self {
         Self {

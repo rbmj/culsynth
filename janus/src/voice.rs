@@ -6,7 +6,7 @@ use crate::devices::*;
 use crate::{min_size, BufferT, STATIC_BUFFER_SIZE};
 use crate::{NoteFxP, SampleFxP, ScalarFxP};
 
-use self::modulation::ModMatrixFxP;
+use self::modulation::{ModMatrix, ModMatrixFxP, ModSection};
 
 pub mod modulation;
 
@@ -172,6 +172,7 @@ pub struct Voice<Smp: Float> {
     env_amp: Env<Smp>,
     env_filt: Env<Smp>,
     vca: Amp<Smp>,
+    modsection: ModSection<Smp>,
 }
 
 impl<Smp: Float> Voice<Smp> {
@@ -185,6 +186,7 @@ impl<Smp: Float> Voice<Smp> {
             env_amp: Env::new(),
             env_filt: Env::new(),
             vca: Amp::new(),
+            modsection: Default::default(),
         }
     }
     /// Process the note/gate inputs, passing the parameters to the relevant
@@ -205,16 +207,19 @@ impl<Smp: Float> Voice<Smp> {
     pub fn process(
         &mut self,
         ctx: &Context<Smp>,
+        matrix: &ModMatrix<Smp>,
         note: &[Smp],
         gate: &[Smp],
         vel: &[Smp],
+        aftertouch: &[Smp],
+        modwheel: &[Smp],
         sync: &mut [Smp],
-        osc1_p: MixOscParams<Smp>,
-        osc2_p: MixOscParams<Smp>,
-        ring_p: RingModParams<Smp>,
-        filt_p: ModFiltParams<Smp>,
-        filt_env_p: EnvParams<Smp>,
-        amp_env_p: EnvParams<Smp>,
+        mut osc1_p: MutMixOscParams<Smp>,
+        mut osc2_p: MutMixOscParams<Smp>,
+        mut ring_p: MutRingModParams<Smp>,
+        mut filt_p: MutModFiltParams<Smp>,
+        mut filt_env_p: MutEnvParams<Smp>,
+        mut amp_env_p: MutEnvParams<Smp>,
         lfo1_p: LfoParams<Smp>,
         lfo2_p: MutLfoParams<Smp>,
         env1_p: EnvParams<Smp>,
@@ -224,6 +229,8 @@ impl<Smp: Float> Voice<Smp> {
             note.len(),
             gate.len(),
             vel.len(),
+            aftertouch.len(),
+            modwheel.len(),
             sync.len(),
             osc1_p.len(),
             osc2_p.len(),
@@ -237,22 +244,42 @@ impl<Smp: Float> Voice<Smp> {
             env2_p.len(),
             STATIC_BUFFER_SIZE,
         ]);
+        // Build the ModMatrix
+        let modparams = modulation::ModSectionParams {
+            velocity: vel,
+            aftertouch,
+            modwheel,
+            lfo1_params: lfo1_p,
+            lfo2_params: lfo2_p,
+            env1_params: env1_p,
+            env2_params: env2_p,
+        };
+        let modulation = self
+            .modsection
+            .process(ctx, &gate[0..numsamples], modparams, matrix);
+        // Modulate all the parameters
+        modulation.modulate_osc(&mut osc1_p, &modulation::OSC1_MOD_DEST);
+        modulation.modulate_osc(&mut osc2_p, &modulation::OSC2_MOD_DEST);
+        modulation.modulate_ring(&mut ring_p);
+        modulation.modulate_env(&mut filt_env_p, &modulation::ENV_FILT_MOD_DEST);
+        modulation.modulate_env(&mut amp_env_p, &modulation::ENV_AMP_MOD_DEST);
+        modulation.modulate_filt(&mut filt_p);
         let osc1_out = self.osc1.process(
             ctx,
             &note[0..numsamples],
-            osc1_p.with_sync(OscSync::Master(sync)),
+            osc1_p.with_sync(OscSync::Master(sync)).into(),
         );
         let osc2_out = self.osc2.process(
             ctx,
             &note[0..numsamples],
-            osc2_p.with_sync(OscSync::Slave(sync)),
+            osc2_p.with_sync(OscSync::Slave(sync)).into(),
         );
-        let ring_mod_out = self.ringmod.process(ctx, osc1_out, osc2_out, ring_p);
-        let filt_env_out = self.env_filt.process(ctx, &gate[0..numsamples], filt_env_p);
+        let ring_mod_out = self.ringmod.process(ctx, osc1_out, osc2_out, ring_p.into());
+        let filt_env_out = self.env_filt.process(ctx, &gate[0..numsamples], filt_env_p.into());
         let filt_out = self
             .filt
-            .process(ctx, ring_mod_out, filt_env_out, note, vel, filt_p);
-        let vca_env_out = self.env_amp.process(ctx, &gate[0..numsamples], amp_env_p);
+            .process(ctx, ring_mod_out, filt_env_out, note, vel, filt_p.into());
+        let vca_env_out = self.env_amp.process(ctx, &gate[0..numsamples], amp_env_p.into());
         self.vca.process(filt_out, vca_env_out)
     }
 }

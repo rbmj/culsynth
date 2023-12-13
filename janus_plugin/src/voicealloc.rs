@@ -311,19 +311,23 @@ impl VoiceAllocator for MonoSynth {
         env2_p: &mut EnvParamBuffer,
     ) -> &[f32] {
         let mut processed: usize = 0;
+        let matrix = matrix_p.build_matrix_float();
         while processed < self.index {
             let thisiter = self.voice.process(
                 &self.ctx,
+                &matrix,
                 &self.notebuf[processed..self.index],
                 &self.gatebuf[processed..self.index],
                 &self.velbuf[processed..self.index],
+                &self.aftertouchbuf[processed..self.index],
+                &self.modwheelbuf[processed..self.index],
                 glob_p.sync_float(processed, self.index),
-                osc1_p.params_float(processed, self.index),
-                osc2_p.params_float(processed, self.index),
-                ring_p.params_float(processed, self.index),
-                filt_p.params_float(processed, self.index),
-                filt_env_p.params_float(processed, self.index),
-                amp_env_p.params_float(processed, self.index),
+                osc1_p.params_float_mut(processed, self.index),
+                osc2_p.params_float_mut(processed, self.index),
+                ring_p.params_float_mut(processed, self.index),
+                filt_p.params_float_mut(processed, self.index),
+                filt_env_p.params_float_mut(processed, self.index),
+                amp_env_p.params_float_mut(processed, self.index),
                 lfo1_p.params_float(processed, self.index),
                 lfo2_p.params_float_mut(processed, self.index),
                 env1_p.params_float(processed, self.index),

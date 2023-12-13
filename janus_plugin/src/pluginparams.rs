@@ -1,5 +1,5 @@
 use janus::devices::{LfoOptions, LfoWave};
-use janus::voice::modulation::{ModDest, ModMatrixFxP, ModSrc};
+use janus::voice::modulation::{ModDest, ModMatrix, ModMatrixFxP, ModSrc};
 use janus::{EnvParamFxP, IScalarFxP, LfoFreqFxP, NoteFxP, ScalarFxP};
 use nih_plug::prelude::*;
 use nih_plug_egui::EguiState;
@@ -350,6 +350,22 @@ impl ModMatrixPluginParams {
                         let slot = row.slot(i);
                         let dest = ModDest::try_from(slot.0.value() as u16).unwrap();
                         let mag = IScalarFxP::from_bits(slot.1.value() as i16);
+                        (dest, mag)
+                    }),
+                )
+            }),
+        }
+    }
+    pub fn build_matrix_float(&self) -> ModMatrix<f32> {
+        ModMatrix {
+            rows: ModSrc::ELEM.map(|src| {
+                let row = self.row(src);
+                (
+                    src,
+                    [0, 1, 2, 3].map(|i| {
+                        let slot = row.slot(i);
+                        let dest = ModDest::try_from(slot.0.value() as u16).unwrap();
+                        let mag = f32::from(slot.1.value() as i16) / f32::from(i16::MAX);
                         (dest, mag)
                     }),
                 )

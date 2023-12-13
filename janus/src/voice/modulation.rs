@@ -588,31 +588,28 @@ impl<'a, Smp: Float> Modulator<'a, Smp> {
         self.modulate(dest.release, params.release);
     }
     pub fn modulate_osc(&self, params: &mut MutMixOscParams<Smp>, dest: &OscModDest) {
-        // Use a temporary buffer here to avoid _massive_ duplication of code
-        let mut buf = [Smp::ZERO; STATIC_BUFFER_SIZE];
-        // We have 6 bits of total range (7 - 1 sign bit) in SignedNoteFxP
-        // The range of course tune is -32 to +32, or 5 bits + sign, so will need >>= 1
-        // The range of fine tune is -2 to +2, or 1 bit + sign, so will need >>= 5
-        // If we do fine first and >>= 4, then apply course and >>= 1, that will be equiv.
-        let mut osc_mod_applied = false;
-        if self.modulate(dest.fine, &mut buf) {
-            osc_mod_applied = true;
-            for i in &mut buf {
-                *i = *i / <Smp as From<u16>>::from(16);
-            }
-        }
-        osc_mod_applied |= self.modulate(dest.course, &mut buf);
-        // Apply the modulation ourselves now
-        if osc_mod_applied {
-            for (smp, amt) in core::iter::zip(params.tune.iter_mut(), buf.iter()) {
-                *smp = *smp + (*amt / Smp::TWO);
-            }
-        }
+        self.modulate(dest.fine, params.tune);
+        self.modulate(dest.course, params.tune);
         self.modulate(dest.shape, params.shape);
         self.modulate(dest.sin, params.sin);
         self.modulate(dest.sq, params.sq);
         self.modulate(dest.tri, params.tri);
         self.modulate(dest.saw, params.saw);
+    }
+    pub fn modulate_ring(&self, params: &mut MutRingModParams<Smp>) {
+        self.modulate(ModDest::RingOsc1, params.mix_a);
+        self.modulate(ModDest::RingOsc2, params.mix_b);
+        self.modulate(ModDest::RingMod, params.mix_out);
+    }
+    pub fn modulate_filt(&self, params: &mut MutModFiltParams<Smp>) {
+        self.modulate(ModDest::FiltEnv, params.env_mod);
+        self.modulate(ModDest::FiltVel, params.vel_mod);
+        self.modulate(ModDest::FiltKbd, params.kbd);
+        self.modulate(ModDest::FiltCutoff, params.cutoff);
+        self.modulate(ModDest::FiltRes, params.resonance);
+        self.modulate(ModDest::FiltLow, params.low_mix);
+        self.modulate(ModDest::FiltBand, params.band_mix);
+        self.modulate(ModDest::FiltHigh, params.high_mix);
     }
 }
 
@@ -627,20 +624,20 @@ pub struct ModSectionParams<'a, Smp: Float> {
 }
 
 pub struct ModMatrix<Smp: Float> {
-    entries: [ModMatrixRow<Smp>; ModSrc::numel()],
+    pub rows: [ModMatrixRow<Smp>; ModSrc::numel()],
 }
 
 impl<Smp: Float> Default for ModMatrix<Smp> {
     fn default() -> Self {
         Self {
-            entries: ModSrc::ELEM.map(|e| (e, [(ModDest::Null, Smp::ZERO); MOD_SLOTS])),
+            rows: ModSrc::ELEM.map(|e| (e, [(ModDest::Null, Smp::ZERO); MOD_SLOTS])),
         }
     }
 }
 
 impl<Smp: Float> ModMatrix<Smp> {
     pub fn get_modulation(&self, src: ModSrc, dest: ModDest) -> Option<Smp> {
-        self.entries[src as usize]
+        self.rows[src as usize]
             .1
             .iter()
             .find_map(|x| if x.0 == dest { Some(x.1) } else { None })

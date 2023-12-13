@@ -180,6 +180,13 @@ impl RingModParamBuffer {
             mix_out: &self.mix_mod[base..end],
         }
     }
+    pub fn params_float_mut(&mut self, base: usize, end: usize) -> MutRingModParams<f32> {
+        MutRingModParams {
+            mix_a: &mut self.mix_a[base..end],
+            mix_b: &mut self.mix_b[base..end],
+            mix_out: &mut self.mix_mod[base..end],
+        }
+    }
     pub fn params(&self, base: usize, end: usize) -> RingModParamsFxP {
         RingModParamsFxP {
             mix_a: &self.mix_a_fxp[base..end],
@@ -337,6 +344,17 @@ impl OscParamBuffer {
             sq: &self.sq[base..end],
             tri: &self.tri[base..end],
             saw: &self.saw[base..end],
+        }
+    }
+    pub fn params_float_mut(&mut self, base: usize, end: usize) -> MutMixOscParams<f32> {
+        MutMixOscParams {
+            tune: &mut self.tune[base..end],
+            shape: &mut self.shape[base..end],
+            sync: janus::devices::OscSync::Off,
+            sin: &mut self.sin[base..end],
+            sq: &mut self.sq[base..end],
+            tri: &mut self.tri[base..end],
+            saw: &mut self.saw[base..end],
         }
     }
     pub fn params(&self, base: usize, end: usize) -> MixOscParamsFxP {
@@ -602,6 +620,18 @@ impl FiltParamBuffer {
             low_mix: &self.low_mix[base..end],
             band_mix: &self.band_mix[base..end],
             high_mix: &self.high_mix[base..end],
+        }
+    }
+    pub fn params_float_mut(&mut self, base: usize, end: usize) -> MutModFiltParams<f32> {
+        MutModFiltParams {
+            env_mod: &mut self.env_mod[base..end],
+            vel_mod: &mut self.vel_mod[base..end],
+            kbd: &mut self.kbd[base..end],
+            cutoff: &mut self.cutoff[base..end],
+            resonance: &mut self.resonance[base..end],
+            low_mix: &mut self.low_mix[base..end],
+            band_mix: &mut self.band_mix[base..end],
+            high_mix: &mut self.high_mix[base..end],
         }
     }
     pub fn params(&self, base: usize, end: usize) -> ModFiltParamsFxP {
