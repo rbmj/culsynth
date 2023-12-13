@@ -107,9 +107,9 @@ pub use mixosc::{
     MixOsc, MixOscFxP, MixOscParams, MixOscParamsFxP, MutMixOscParams, MutMixOscParamsFxP,
 };
 pub use modfilt::{
-    ModFilt, ModFiltFxP, ModFiltParams, ModFiltParamsFxP, MutModFiltParams, MutModFiltParamsFxP
+    ModFilt, ModFiltFxP, ModFiltParams, ModFiltParamsFxP, MutModFiltParams, MutModFiltParamsFxP,
 };
 pub use osc::{Osc, OscFxP, OscOutput, OscParams, OscParamsFxP, OscSync};
 pub use ringmod::{
-    MutRingModParams, MutRingModParamsFxP, RingMod, RingModFxP, RingModParams, RingModParamsFxP
+    MutRingModParams, MutRingModParamsFxP, RingMod, RingModFxP, RingModParams, RingModParamsFxP,
 };

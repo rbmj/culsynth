@@ -274,6 +274,7 @@ impl JanusEditor {
         }
     }
     /// Helper function to handle keyboard input
+    #[rustfmt::skip]
     fn handle_kbd_input(&mut self, ui: &egui::Ui) {
         ui.input(|i| {
             for evt in i.events.iter() {

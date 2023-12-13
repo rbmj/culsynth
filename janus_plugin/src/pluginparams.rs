@@ -38,8 +38,15 @@ pub struct OscPluginParams {
 impl Default for OscPluginParams {
     fn default() -> Self {
         Self {
-            course: IntParam::new("Course", 0, IntRange::Linear{ min: -32, max: 32}),
-            fine: IntParam::new("Fine", 0, IntRange::Linear{ min: -1024, max: 1024}),
+            course: IntParam::new("Course", 0, IntRange::Linear { min: -32, max: 32 }),
+            fine: IntParam::new(
+                "Fine",
+                0,
+                IntRange::Linear {
+                    min: -1024,
+                    max: 1024,
+                },
+            ),
             shape: new_fixed_param("Shape", ScalarFxP::ZERO),
             sin: new_fixed_param_percent("Sin", ScalarFxP::ZERO),
             saw: new_fixed_param_percent("Saw", ScalarFxP::MAX),

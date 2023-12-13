@@ -275,11 +275,15 @@ impl<Smp: Float> Voice<Smp> {
             osc2_p.with_sync(OscSync::Slave(sync)).into(),
         );
         let ring_mod_out = self.ringmod.process(ctx, osc1_out, osc2_out, ring_p.into());
-        let filt_env_out = self.env_filt.process(ctx, &gate[0..numsamples], filt_env_p.into());
+        let filt_env_out = self
+            .env_filt
+            .process(ctx, &gate[0..numsamples], filt_env_p.into());
         let filt_out = self
             .filt
             .process(ctx, ring_mod_out, filt_env_out, note, vel, filt_p.into());
-        let vca_env_out = self.env_amp.process(ctx, &gate[0..numsamples], amp_env_p.into());
+        let vca_env_out = self
+            .env_amp
+            .process(ctx, &gate[0..numsamples], amp_env_p.into());
         self.vca.process(filt_out, vca_env_out)
     }
 }

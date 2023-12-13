@@ -294,7 +294,7 @@ impl<'a> ModulatorFxP<'a> {
     where
         T::Frac: fixed::types::extra::LeEqU32,
     {
-        use crate::fixedmath::{I1F31, I16F16, I17F15};
+        use crate::fixedmath::{I16F16, I17F15, I1F31};
         use fixed::FixedI32;
         let modulation = ModSrc::ELEM.map(|src| self.matrix.get_modulation(src, dest));
         // All the modulation sources that are not LFOs are ScalarFxPs
@@ -339,13 +339,13 @@ impl<'a> ModulatorFxP<'a> {
             // check for saturation at the end
             buf[i] = T::saturating_from_num(
                 modulations
-                    .map(|x| FixedI32::<T::Frac>::from_bits(
-                        if T::IS_SIGNED {
+                    .map(|x| {
+                        FixedI32::<T::Frac>::from_bits(if T::IS_SIGNED {
                             I17F15::from_num(x).to_bits()
                         } else {
                             I16F16::from_num(x).to_bits()
-                        }
-                    ))
+                        })
+                    })
                     .fold(FixedI32::<T::Frac>::from_num(buf[i]), |acc, val| acc + val),
             );
         }
@@ -597,7 +597,11 @@ impl<'a, Smp: Float> Modulator<'a, Smp> {
         let coeff = Self::coeff_from_fixed::<EnvParamFxP>();
         self.modulate(dest.attack, params.attack, coeff);
         self.modulate(dest.decay, params.decay, coeff);
-        self.modulate(dest.sustain, params.sustain, Self::coeff_from_fixed::<ScalarFxP>());
+        self.modulate(
+            dest.sustain,
+            params.sustain,
+            Self::coeff_from_fixed::<ScalarFxP>(),
+        );
         self.modulate(dest.release, params.release, coeff);
     }
     pub fn modulate_osc(&self, params: &mut MutMixOscParams<Smp>, dest: &OscModDest) {
