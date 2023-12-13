@@ -18,7 +18,7 @@
 #![no_std]
 
 mod fixedmath;
-mod util;
+pub mod util;
 
 /// This module contains `u8` constants for MIDI note numbers, using standard
 /// musical notation.  For example, `midi_const::Db4` is the note a semitone

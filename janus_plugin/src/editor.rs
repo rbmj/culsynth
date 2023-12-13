@@ -81,13 +81,13 @@ fn draw_osc(
             ui.add(param_slider(setter, &osc.sq).vertical());
             ui.add(param_slider(setter, &osc.saw).vertical());
             ui.end_row();
-            ui.label("Course");
-            ui.label("Fine");
-            ui.label("Shape");
-            ui.label("Sine");
-            ui.label("Tri");
-            ui.label("Square");
-            ui.label("Saw");
+            ui.label("CRS");
+            ui.label("FIN");
+            ui.label("SHP");
+            ui.label(janus::util::SIN_CHARSTR);
+            ui.label(janus::util::TRI_CHARSTR);
+            ui.label(janus::util::SQ_CHARSTR);
+            ui.label(janus::util::SAW_CHARSTR);
         });
     });
     sync_clicked
@@ -335,8 +335,8 @@ impl JanusEditor {
             egui::pos2(cursor.x + r.x as f32, cursor.y + (r.y + r.height) as f32),
         ];
         points.dedup(); //is this necessary?
-        //since the key will not be convex, we must draw the border
-        //separately from the rectangles making up the key
+                        //since the key will not be convex, we must draw the border
+                        //separately from the rectangles making up the key
         let border = egui::Shape::closed_line(
             points,
             egui::epaint::Stroke {

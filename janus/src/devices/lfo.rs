@@ -78,10 +78,10 @@ impl LfoWave {
     }
     pub const fn to_str_short(&self) -> &'static str {
         [
-            "\u{223F}",
-            "\u{238D}",
-            "\u{039B}",
-            "\u{2A58}",
+            crate::util::SIN_CHARSTR,
+            crate::util::SQ_CHARSTR,
+            crate::util::TRI_CHARSTR,
+            crate::util::SAW_CHARSTR,
             "S+H",
             "S+G",
         ][*self as usize]
