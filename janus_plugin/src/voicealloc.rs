@@ -127,19 +127,19 @@ impl VoiceAllocator for MonoSynthFxP {
     fn note_on(&mut self, note: u8, velocity: u8) {
         self.note = NoteFxP::from_num(note);
         self.gate = SampleFxP::ONE;
-        self.velocity = ScalarFxP::from_bits((velocity as u16) << 8);
+        self.velocity = ScalarFxP::from_bits((velocity as u16) << 9);
     }
     fn note_off(&mut self, note: u8, velocity: u8) {
         if self.note == note {
             self.gate = SampleFxP::ZERO;
-            self.velocity = ScalarFxP::from_bits((velocity as u16) << 8);
+            self.velocity = ScalarFxP::from_bits((velocity as u16) << 9);
         }
     }
     fn aftertouch(&mut self, value: u8) {
-        self.aftertouch = ScalarFxP::from_bits((value as u16) << 8);
+        self.aftertouch = ScalarFxP::from_bits((value as u16) << 9);
     }
     fn modwheel(&mut self, value: u8) {
-        self.modwheel = ScalarFxP::from_bits((value as u16) << 8);
+        self.modwheel = ScalarFxP::from_bits((value as u16) << 9);
     }
     fn pitch_bend(&mut self, v: i16) {
         if v < 0 {
