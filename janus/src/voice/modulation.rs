@@ -4,7 +4,7 @@ use tinyvec::ArrayVec;
 use crate::context::{Context, ContextFxP};
 use crate::devices::*;
 use crate::{min_size, STATIC_BUFFER_SIZE};
-use crate::{IScalarFxP, SampleFxP, ScalarFxP, SignedNoteFxP};
+use crate::{EnvParamFxP, IScalarFxP, LfoFreqFxP, SampleFxP, ScalarFxP, SignedNoteFxP};
 
 #[repr(u16)]
 #[derive(Clone, Copy)]
@@ -294,7 +294,7 @@ impl<'a> ModulatorFxP<'a> {
     where
         T::Frac: fixed::types::extra::LeEqU32,
     {
-        use crate::fixedmath::I1F31;
+        use crate::fixedmath::{I1F31, I16F16, I17F15};
         use fixed::FixedI32;
         let modulation = ModSrc::ELEM.map(|src| self.matrix.get_modulation(src, dest));
         // All the modulation sources that are not LFOs are ScalarFxPs
@@ -339,9 +339,13 @@ impl<'a> ModulatorFxP<'a> {
             // check for saturation at the end
             buf[i] = T::saturating_from_num(
                 modulations
-                    .map(|x| {
-                        FixedI32::<T::Frac>::from_bits(IScalarFxP::from_num(x).to_bits() as i32)
-                    })
+                    .map(|x| FixedI32::<T::Frac>::from_bits(
+                        if T::IS_SIGNED {
+                            I17F15::from_num(x).to_bits()
+                        } else {
+                            I16F16::from_num(x).to_bits()
+                        }
+                    ))
                     .fold(FixedI32::<T::Frac>::from_num(buf[i]), |acc, val| acc + val),
             );
         }
@@ -468,7 +472,7 @@ impl ModSectionFxP {
             .env1
             .process(ctx, &gate[0..numsamples], params.env1_params);
         // LFO2/ENV2 are default here, so empty slices.
-        let modulator_initial = ModulatorFxP {
+        let modulator = ModulatorFxP {
             velocity: params.velocity,
             aftertouch: params.aftertouch,
             modwheel: params.modwheel,
@@ -478,24 +482,24 @@ impl ModSectionFxP {
             env2: fixed_zerobuf_unsigned::<ScalarFxP>(),
             matrix: entries,
         };
-        modulator_initial.modulate(
+        modulator.modulate(
             ModDest::Lfo2Rate,
             &mut params.lfo2_params.freq[0..numsamples],
         );
-        modulator_initial.modulate(
+        modulator.modulate(
             ModDest::Lfo2Depth,
             &mut params.lfo2_params.depth[0..numsamples],
         );
-        modulator_initial.modulate(
+        modulator.modulate(
             ModDest::Env2A,
             &mut params.env2_params.attack[0..numsamples],
         );
-        modulator_initial.modulate(ModDest::Env2D, &mut params.env2_params.decay[0..numsamples]);
-        modulator_initial.modulate(
+        modulator.modulate(ModDest::Env2D, &mut params.env2_params.decay[0..numsamples]);
+        modulator.modulate(
             ModDest::Env2S,
             &mut params.env2_params.sustain[0..numsamples],
         );
-        modulator_initial.modulate(
+        modulator.modulate(
             ModDest::Env2R,
             &mut params.env2_params.release[0..numsamples],
         );
@@ -508,7 +512,7 @@ impl ModSectionFxP {
         ModulatorFxP::<'a> {
             lfo2: lfo2_out,
             env2: env2_out,
-            ..modulator_initial
+            ..modulator
         }
     }
 }
@@ -550,10 +554,18 @@ impl<'a, Smp: Float> Modulator<'a, Smp> {
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
+    pub fn coeff_from_fixed<T: crate::Fixed16>() -> Smp {
+        let num_bits = if T::IS_SIGNED { 15 } else { 16 } - T::FRAC_NBITS as i32;
+        if num_bits == -1 {
+            Smp::ONE_HALF
+        } else {
+            Smp::from_u16(1u16 << num_bits)
+        }
+    }
     /// Apply all modulation to the parameter passed in `dest` in place using `mut buf`
     ///
     /// Returns true if any modulation was performed, or false otherwise
-    pub fn modulate(&self, dest: ModDest, buf: &mut [Smp]) -> bool {
+    pub fn modulate(&self, dest: ModDest, buf: &mut [Smp], coeff: Smp) -> bool {
         let modulation = ModSrc::ELEM.map(|src| self.matrix.get_modulation(src, dest));
         let mod_params = [
             (self.velocity, modulation[ModSrc::Velocity as usize]),
@@ -567,7 +579,7 @@ impl<'a, Smp: Float> Modulator<'a, Smp> {
         // Filter the above and collect them into an array-backed vec
         let mod_params_filt = mod_params
             .iter()
-            .filter_map(|x| x.1.map(|y| (x.0, y)))
+            .filter_map(|x| x.1.map(|y| (x.0, y * coeff)))
             .collect::<ArrayVec<[(&[Smp], Smp); 7]>>();
         // In the common case, where there is no modulation, early exit
         if mod_params_filt.is_empty() {
@@ -582,34 +594,39 @@ impl<'a, Smp: Float> Modulator<'a, Smp> {
         true
     }
     pub fn modulate_env(&self, params: &mut MutEnvParams<Smp>, dest: &EnvModDest) {
-        self.modulate(dest.attack, params.attack);
-        self.modulate(dest.decay, params.decay);
-        self.modulate(dest.sustain, params.sustain);
-        self.modulate(dest.release, params.release);
+        let coeff = Self::coeff_from_fixed::<EnvParamFxP>();
+        self.modulate(dest.attack, params.attack, coeff);
+        self.modulate(dest.decay, params.decay, coeff);
+        self.modulate(dest.sustain, params.sustain, Self::coeff_from_fixed::<ScalarFxP>());
+        self.modulate(dest.release, params.release, coeff);
     }
     pub fn modulate_osc(&self, params: &mut MutMixOscParams<Smp>, dest: &OscModDest) {
-        self.modulate(dest.fine, params.tune);
-        self.modulate(dest.course, params.tune);
-        self.modulate(dest.shape, params.shape);
-        self.modulate(dest.sin, params.sin);
-        self.modulate(dest.sq, params.sq);
-        self.modulate(dest.tri, params.tri);
-        self.modulate(dest.saw, params.saw);
+        let coeff = Self::coeff_from_fixed::<ScalarFxP>();
+        self.modulate(dest.fine, params.tune, Smp::TWO);
+        self.modulate(dest.course, params.tune, Smp::from_u16(32));
+        self.modulate(dest.shape, params.shape, coeff);
+        self.modulate(dest.sin, params.sin, coeff);
+        self.modulate(dest.sq, params.sq, coeff);
+        self.modulate(dest.tri, params.tri, coeff);
+        self.modulate(dest.saw, params.saw, coeff);
     }
     pub fn modulate_ring(&self, params: &mut MutRingModParams<Smp>) {
-        self.modulate(ModDest::RingOsc1, params.mix_a);
-        self.modulate(ModDest::RingOsc2, params.mix_b);
-        self.modulate(ModDest::RingMod, params.mix_out);
+        let coeff = Self::coeff_from_fixed::<ScalarFxP>();
+        self.modulate(ModDest::RingOsc1, params.mix_a, coeff);
+        self.modulate(ModDest::RingOsc2, params.mix_b, coeff);
+        self.modulate(ModDest::RingMod, params.mix_out, coeff);
     }
     pub fn modulate_filt(&self, params: &mut MutModFiltParams<Smp>) {
-        self.modulate(ModDest::FiltEnv, params.env_mod);
-        self.modulate(ModDest::FiltVel, params.vel_mod);
-        self.modulate(ModDest::FiltKbd, params.kbd);
-        self.modulate(ModDest::FiltCutoff, params.cutoff);
-        self.modulate(ModDest::FiltRes, params.resonance);
-        self.modulate(ModDest::FiltLow, params.low_mix);
-        self.modulate(ModDest::FiltBand, params.band_mix);
-        self.modulate(ModDest::FiltHigh, params.high_mix);
+        let coeff = Self::coeff_from_fixed::<ScalarFxP>();
+        let filt_coeff = Self::coeff_from_fixed::<crate::NoteFxP>();
+        self.modulate(ModDest::FiltEnv, params.env_mod, coeff);
+        self.modulate(ModDest::FiltVel, params.vel_mod, coeff);
+        self.modulate(ModDest::FiltKbd, params.kbd, coeff);
+        self.modulate(ModDest::FiltCutoff, params.cutoff, filt_coeff);
+        self.modulate(ModDest::FiltRes, params.resonance, coeff);
+        self.modulate(ModDest::FiltLow, params.low_mix, coeff);
+        self.modulate(ModDest::FiltBand, params.band_mix, coeff);
+        self.modulate(ModDest::FiltHigh, params.high_mix, coeff);
     }
 }
 
@@ -661,7 +678,7 @@ impl<Smp: Float> ModSection<Smp> {
     ) -> Modulator<'a, Smp> {
         let lfo1_out = self.lfo1.process(ctx, gate, params.lfo1_params);
         let env1_out = self.env1.process(ctx, gate, params.env1_params);
-        let modulator_initial = Modulator::<'a, Smp> {
+        let modulator = Modulator::<'a, Smp> {
             velocity: params.velocity,
             aftertouch: params.aftertouch,
             modwheel: params.modwheel,
@@ -671,18 +688,21 @@ impl<Smp: Float> ModSection<Smp> {
             env2: Smp::zerobuf(),
             matrix: entries,
         };
-        modulator_initial.modulate(ModDest::Lfo2Rate, params.lfo2_params.freq);
-        modulator_initial.modulate(ModDest::Lfo2Depth, params.lfo2_params.depth);
-        modulator_initial.modulate(ModDest::Env2A, params.env2_params.attack);
-        modulator_initial.modulate(ModDest::Env2D, params.env2_params.decay);
-        modulator_initial.modulate(ModDest::Env2S, params.env2_params.sustain);
-        modulator_initial.modulate(ModDest::Env2R, params.env2_params.release);
+        let env_coeff = Modulator::coeff_from_fixed::<EnvParamFxP>();
+        let lfo_coeff = Modulator::coeff_from_fixed::<LfoFreqFxP>();
+        let scalar_coeff = Modulator::coeff_from_fixed::<ScalarFxP>();
+        modulator.modulate(ModDest::Lfo2Rate, params.lfo2_params.freq, lfo_coeff);
+        modulator.modulate(ModDest::Lfo2Depth, params.lfo2_params.depth, scalar_coeff);
+        modulator.modulate(ModDest::Env2A, params.env2_params.attack, env_coeff);
+        modulator.modulate(ModDest::Env2D, params.env2_params.decay, env_coeff);
+        modulator.modulate(ModDest::Env2S, params.env2_params.sustain, scalar_coeff);
+        modulator.modulate(ModDest::Env2R, params.env2_params.release, env_coeff);
         let lfo2_out = self.lfo2.process(ctx, gate, params.lfo2_params.into());
         let env2_out = self.env2.process(ctx, gate, params.env2_params.into());
         Modulator::<'a, Smp> {
             lfo2: lfo2_out,
             env2: env2_out,
-            ..modulator_initial
+            ..modulator
         }
     }
 }
