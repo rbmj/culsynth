@@ -31,6 +31,7 @@ impl<'a, Smp> FiltParams<'a, Smp> {
 
 /// A 2-pole, floating-point state variable filter, with low, band, and high
 /// pass signal outputs.
+#[derive(Clone)]
 pub struct Filt<Smp> {
     low: BufferT<Smp>,
     band: BufferT<Smp>,
@@ -162,6 +163,7 @@ impl<'a> From<MutFiltParamsFxP<'a>> for FiltParamsFxP<'a> {
 
 /// A 2-pole, fixed-point, state variable filter with low, band, and high pass
 /// output signals.
+#[derive(Clone)]
 pub struct FiltFxP {
     low: BufferT<SampleFxP>,
     band: BufferT<SampleFxP>,

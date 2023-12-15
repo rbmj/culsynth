@@ -3,6 +3,7 @@ use crate::fixedmath::{apply_scalar_i, widen_i};
 
 /// A basic ring modulator with parameters to mix either of the original signals
 /// in with the output.
+#[derive(Clone)]
 pub struct RingMod<Smp> {
     outbuf: BufferT<Smp>,
 }
@@ -149,6 +150,7 @@ impl<'a> From<MutRingModParamsFxP<'a>> for RingModParamsFxP<'a> {
 
 /// A basic ring modulator with parameters to mix either of the original signals
 /// in with the output using fixed-point logic.
+#[derive(Clone)]
 pub struct RingModFxP {
     outbuf: BufferT<SampleFxP>,
 }

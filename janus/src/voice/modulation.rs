@@ -449,6 +449,7 @@ impl ModMatrixFxP {
     }
 }
 
+#[derive(Clone)]
 pub struct ModSectionFxP {
     lfo1: LfoFxP,
     lfo2: LfoFxP,
@@ -457,6 +458,14 @@ pub struct ModSectionFxP {
 }
 
 impl ModSectionFxP {
+    pub fn new_with_seeds(seed1: u64, seed2: u64) -> Self {
+        Self {
+            lfo1: LfoFxP::new(seed1),
+            lfo2: LfoFxP::new(seed2),
+            env1: Default::default(),
+            env2: Default::default(),
+        }
+    }
     pub fn process<'a>(
         &'a mut self,
         ctx: &ContextFxP,
@@ -665,6 +674,7 @@ impl<Smp: Float> ModMatrix<Smp> {
     }
 }
 
+#[derive(Clone)]
 pub struct ModSection<Smp: Float> {
     lfo1: Lfo<Smp>,
     lfo2: Lfo<Smp>,
@@ -673,6 +683,14 @@ pub struct ModSection<Smp: Float> {
 }
 
 impl<Smp: Float> ModSection<Smp> {
+    pub fn new_with_seeds(seed1: u64, seed2: u64) -> Self {
+        Self {
+            lfo1: Lfo::new(seed1),
+            lfo2: Lfo::new(seed2),
+            env1: Default::default(),
+            env2: Default::default(),
+        }
+    }
     pub fn process<'a>(
         &'a mut self,
         ctx: &Context<Smp>,

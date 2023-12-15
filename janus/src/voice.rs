@@ -6,7 +6,7 @@ use crate::devices::*;
 use crate::{min_size, BufferT, STATIC_BUFFER_SIZE};
 use crate::{NoteFxP, SampleFxP, ScalarFxP};
 
-use self::modulation::{ModMatrix, ModMatrixFxP, ModSection};
+use self::modulation::{ModMatrix, ModMatrixFxP, ModSection, ModSectionFxP};
 
 pub mod modulation;
 
@@ -15,6 +15,7 @@ pub mod modulation;
 /// a VCA, and two envelopes (one for the VCA and one for the VCF).
 ///
 /// This implementaiton uses fixed point logic.
+#[derive(Clone)]
 pub struct VoiceFxP {
     osc1: MixOscFxP,
     osc2: MixOscFxP,
@@ -23,7 +24,7 @@ pub struct VoiceFxP {
     env_amp: EnvFxP,
     env_filt: EnvFxP,
     vca: AmpFxP,
-    modsection: modulation::ModSectionFxP,
+    modsection: ModSectionFxP,
 
     vcabuf: BufferT<SampleFxP>,
 }
@@ -41,6 +42,20 @@ impl VoiceFxP {
             env_filt: Default::default(),
             vca: Default::default(),
             modsection: Default::default(),
+        }
+    }
+    /// Constructor
+    pub fn new_with_seeds(seeda: u64, seedb: u64) -> Self {
+        Self {
+            vcabuf: [SampleFxP::ZERO; STATIC_BUFFER_SIZE],
+            osc1: MixOscFxP::new(),
+            osc2: MixOscFxP::new(),
+            ringmod: RingModFxP::new(),
+            filt: ModFiltFxP::new(),
+            env_amp: EnvFxP::new(),
+            env_filt: EnvFxP::new(),
+            vca: AmpFxP::new(),
+            modsection: ModSectionFxP::new_with_seeds(seeda, seedb),
         }
     }
     /// Process the note/gate inputs, passing the parameters to the relevant
@@ -164,6 +179,7 @@ impl Default for VoiceFxP {
 /// a VCA, and two envelopes (one for the VCA and one for the VCF).
 ///
 /// This implementation uses floating point logic
+#[derive(Clone)]
 pub struct Voice<Smp: Float> {
     osc1: MixOsc<Smp>,
     osc2: MixOsc<Smp>,
@@ -187,6 +203,19 @@ impl<Smp: Float> Voice<Smp> {
             env_filt: Env::new(),
             vca: Amp::new(),
             modsection: Default::default(),
+        }
+    }
+    /// Constructor
+    pub fn new_with_seeds(seeda: u64, seedb: u64) -> Self {
+        Self {
+            osc1: MixOsc::new(),
+            osc2: MixOsc::new(),
+            ringmod: RingMod::new(),
+            filt: ModFilt::new(),
+            env_amp: Env::new(),
+            env_filt: Env::new(),
+            vca: Amp::new(),
+            modsection: ModSection::new_with_seeds(seeda, seedb),
         }
     }
     /// Process the note/gate inputs, passing the parameters to the relevant

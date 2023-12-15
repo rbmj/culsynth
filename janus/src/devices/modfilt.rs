@@ -74,6 +74,7 @@ impl<'a, Smp> From<MutModFiltParams<'a, Smp>> for ModFiltParams<'a, Smp> {
     }
 }
 
+#[derive(Clone)]
 pub struct ModFilt<Smp> {
     filter: Filt<Smp>,
     outbuf: BufferT<Smp>,
@@ -206,6 +207,7 @@ impl<'a> From<MutModFiltParamsFxP<'a>> for ModFiltParamsFxP<'a> {
     }
 }
 
+#[derive(Clone)]
 pub struct ModFiltFxP {
     filter: FiltFxP,
     modbuf: BufferT<NoteFxP>,

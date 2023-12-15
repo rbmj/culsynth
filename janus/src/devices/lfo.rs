@@ -145,6 +145,7 @@ impl<'a, Smp: Float> From<MutLfoParams<'a, Smp>> for LfoParams<'a, Smp> {
     }
 }
 
+#[derive(Clone)]
 pub struct Lfo<Smp> {
     outbuf: BufferT<Smp>,
     rng: SmallRng,
@@ -297,6 +298,7 @@ impl<'a> From<MutLfoParamsFxP<'a>> for LfoParamsFxP<'a> {
 }
 
 /// A fixed-point LFO:
+#[derive(Clone)]
 pub struct LfoFxP {
     outbuf: BufferT<SampleFxP>,
     rng: SmallRng,

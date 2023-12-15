@@ -2,8 +2,8 @@ use crate::pluginparams::{
     EnvPluginParams, FiltPluginParams, JanusParams, LfoPluginParams, ModMatrixPluginParams,
     OscPluginParams, RingModPluginParams,
 };
-use crate::voicealloc::{MonoSynth, MonoSynthFxP, VoiceAllocator};
-use crate::ContextReader;
+use crate::voicealloc::{MonoSynth, MonoSynthFxP, PolySynth, PolySynthFxP, VoiceAllocator};
+use crate::{ContextReader, VoiceMode};
 use egui::widgets;
 use janus::context::{Context, ContextFxP};
 use janus::devices::LfoWave;
@@ -255,6 +255,7 @@ struct JanusEditor {
     context: ContextReader,
     last_note: Option<i8>,
     show_mod_matrix: bool,
+    show_settings: bool,
 }
 
 impl JanusEditor {
@@ -271,6 +272,7 @@ impl JanusEditor {
             context: ctx,
             last_note: None,
             show_mod_matrix: false,
+            show_settings: false,
         }
     }
     /// Helper function to handle keyboard input
@@ -515,8 +517,12 @@ impl JanusEditor {
                 let third = width / 3f32;
                 ui.columns(3, |columns| {
                     columns[0].horizontal_centered(|ui| {
-                        //ui.label("CPU PERCENT");
-                        ui.label("");
+                        if ui.button("Settings").clicked() {
+                            self.show_settings = true;
+                        }
+                        if ui.button("Mod Matrix").clicked() {
+                            self.show_mod_matrix = true;
+                        }
                     });
                     columns[0].expand_to_include_x(third);
                     columns[1].expand_to_include_x(width - third);
@@ -590,6 +596,80 @@ impl JanusEditor {
             });
         });
     }
+    fn draw_settings(
+        ui: &mut egui::Ui,
+        context: &ContextReader,
+        _egui_ctx: &egui::Context,
+    ) -> Option<Box<dyn VoiceAllocator>> {
+        let voice_mode = context.voice_mode();
+        let (sr, fixed_point) = context.get();
+        let context_strs = ["32 bit float", "16 bit fixed"];
+        let fixed_point_idx: usize = if fixed_point { 1 } else { 0 };
+        let fixed_context = ContextFxP::maybe_create(sr);
+        let mut new_is_fixed = fixed_point;
+        let mut new_voice_mode = voice_mode;
+        ui.vertical(|ui| {
+            /*
+            // Doesn't currently work
+            ui.horizontal(|ui| {
+                if ui.button("Zoom In").clicked() {
+                    egui::gui_zoom::zoom_in(egui_ctx);
+                }
+                if ui.button("Zoom Out").clicked() {
+                    egui::gui_zoom::zoom_out(egui_ctx);
+                }
+            });
+            */
+            ui.label(format!(
+                "Sample Rate: {}.{} kHz",
+                sr / 1000,
+                (sr % 1000) / 100
+            ));
+            ui.horizontal(|ui| {
+                egui::ComboBox::from_id_source("FloatFixedSelect")
+                    .selected_text(context_strs[fixed_point_idx])
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(&mut new_is_fixed, false, context_strs[0]);
+                        ui.add_enabled_ui(fixed_context.is_some(), |ui| {
+                            ui.selectable_value(&mut new_is_fixed, true, context_strs[1]);
+                        });
+                    });
+                egui::ComboBox::from_id_source("MonoPoly")
+                    .selected_text(voice_mode.to_str())
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(
+                            &mut new_voice_mode,
+                            VoiceMode::Mono,
+                            VoiceMode::Mono.to_str(),
+                        );
+                        ui.selectable_value(
+                            &mut new_voice_mode,
+                            VoiceMode::Poly16,
+                            VoiceMode::Poly16.to_str(),
+                        );
+                    });
+            });
+        });
+        //FIXME: Allocating 4 instead of 16 voices for performance reasons
+        if new_is_fixed != fixed_point || new_voice_mode != voice_mode {
+            if new_is_fixed {
+                fixed_context.map(|ctx| {
+                    let ret: Box<dyn VoiceAllocator> = match new_voice_mode {
+                        VoiceMode::Mono => Box::new(MonoSynthFxP::new(ctx)),
+                        VoiceMode::Poly16 => Box::new(PolySynthFxP::new(4, ctx)),
+                    };
+                    ret
+                })
+            } else {
+                Some(match new_voice_mode {
+                    VoiceMode::Mono => Box::new(MonoSynth::new(Context::new(sr as f32))),
+                    VoiceMode::Poly16 => Box::new(PolySynth::new(4, Context::new(sr as f32))),
+                })
+            }
+        } else {
+            None
+        }
+    }
     fn draw_modmatrix(matrix: &ModMatrixPluginParams, ui: &mut egui::Ui, setter: &ParamSetter) {
         egui::Grid::new("MODMATRIX").show(ui, |ui| {
             ui.label("");
@@ -631,17 +711,22 @@ impl JanusEditor {
         self.draw_status_bar(egui_ctx);
         self.draw_kbd_panel(egui_ctx);
         egui::CentralPanel::default().show(egui_ctx, |ui| {
-            ui.vertical(|ui| {
-                self.draw_main_controls(setter, ui);
-                if ui.button("Open Mod Matrix").clicked() {
-                    self.show_mod_matrix = true;
-                }
-            });
+            self.draw_main_controls(setter, ui);
         });
         egui::Window::new("Modulation Matrix")
             .open(&mut self.show_mod_matrix)
             .show(egui_ctx, |ui| {
                 Self::draw_modmatrix(&self.params.modmatrix, ui, setter);
+            });
+        egui::Window::new("Settings")
+            .open(&mut self.show_settings)
+            .show(egui_ctx, |ui| {
+                if let Some(mut synth) = Self::draw_settings(ui, &self.context, &egui_ctx) {
+                    synth.initialize(self.context.bufsz());
+                    if let Err(e) = self.synth_channel.try_send(synth) {
+                        nih_log!("{}", e);
+                    }
+                }
             });
     }
     pub fn initialize(&mut self, egui_ctx: &egui::Context) {

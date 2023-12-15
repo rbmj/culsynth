@@ -71,6 +71,7 @@ impl<'a, Smp> OscSync<'a, Smp> {
 }
 
 /// A floating point Oscillator providing Sine, Square, Sawtooth, and Triangle outputs.
+#[derive(Clone)]
 pub struct Osc<Smp> {
     sinbuf: BufferT<Smp>,
     sqbuf: BufferT<Smp>,
@@ -307,6 +308,7 @@ impl<'a> OscParamsFxP<'a> {
 }
 
 /// A fixed-point oscillator providing sine, square, triangle, and sawtooth waves.
+#[derive(Clone)]
 pub struct OscFxP {
     sinbuf: BufferT<SampleFxP>,
     sqbuf: BufferT<SampleFxP>,

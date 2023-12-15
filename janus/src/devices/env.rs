@@ -3,7 +3,7 @@ use super::*;
 use super::EnvParamFxP;
 
 /// Internal tag representing the current state of the envelope
-#[derive(Eq, PartialEq)]
+#[derive(Eq, PartialEq, Clone, Copy)]
 enum EnvState {
     Release,
     Attack,
@@ -85,6 +85,7 @@ impl<'a, Smp: Float> From<MutEnvParams<'a, Smp>> for EnvParams<'a, Smp> {
 
 /// A floating-point ADSR envelope generator.  See [EnvParams] for the definitions
 /// of the parameters
+#[derive(Clone)]
 pub struct Env<Smp> {
     state: EnvState,
     outbuf: BufferT<Smp>,
@@ -250,6 +251,7 @@ impl<'a> From<MutEnvParamsFxP<'a>> for EnvParamsFxP<'a> {
 
 /// A fixed point ADSR envelope generator.  See [EnvParamsFxP] for the fixed point
 /// definitions of the parameters.
+#[derive(Clone)]
 pub struct EnvFxP {
     state: EnvState,
     outbuf: BufferT<ScalarFxP>,

@@ -1,5 +1,6 @@
 use super::*;
 
+#[derive(Clone)]
 pub struct Amp<Smp> {
     outbuf: BufferT<Smp>,
 }
@@ -25,6 +26,7 @@ impl<Smp: Float> Default for Amp<Smp> {
     }
 }
 
+#[derive(Clone)]
 pub struct AmpFxP {
     outbuf: BufferT<SampleFxP>,
 }

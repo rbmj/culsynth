@@ -6,6 +6,7 @@ pub trait GenericContext {
     fn is_fixed_point(&self) -> bool;
 }
 
+#[derive(Clone, Copy)]
 pub struct Context<Smp: Float> {
     pub sample_rate: Smp,
 }
@@ -31,7 +32,7 @@ impl<Smp: Float> GenericContext for Context<Smp> {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 pub struct ContextFxP {
     pub sample_rate: FixedSampleRate,
 }
@@ -65,7 +66,7 @@ impl GenericContext for ContextFxP {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 pub enum FixedSampleRate {
     #[default]
     Khz44_1,

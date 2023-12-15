@@ -1,5 +1,6 @@
 use super::*;
 
+#[derive(Clone)]
 pub struct MixOsc<Smp> {
     outbuf: BufferT<Smp>,
     osc: Osc<Smp>,
@@ -129,6 +130,7 @@ impl<Smp: Float> Default for MixOsc<Smp> {
     }
 }
 
+#[derive(Clone)]
 pub struct MixOscFxP {
     outbuf: BufferT<SampleFxP>,
     osc: OscFxP,

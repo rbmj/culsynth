@@ -2,8 +2,8 @@
 //! framework.  Most of GUI code is in the [editor] module.
 use janus::context::{Context, ContextFxP, GenericContext};
 use nih_plug::prelude::*;
-use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering::Relaxed;
+use std::sync::atomic::{AtomicU32, AtomicUsize};
 use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
 use std::sync::{atomic::AtomicI32, Arc};
 
@@ -23,9 +23,27 @@ use pluginparams::JanusParams;
 mod voicealloc;
 use voicealloc::{MonoSynth, MonoSynthFxP, VoiceAllocator};
 
+#[derive(Default, Clone, Copy, PartialEq)]
+#[repr(u8)]
+pub enum VoiceMode {
+    #[default]
+    Mono,
+    Poly16,
+}
+
+impl VoiceMode {
+    pub fn to_str(&self) -> &'static str {
+        match self {
+            Self::Mono => "Mono",
+            Self::Poly16 => "Poly16",
+        }
+    }
+}
+
 struct PluginContext {
     sample_rate: AtomicI32,
     bufsz: AtomicUsize,
+    voice_mode: AtomicU32,
 }
 
 impl Default for PluginContext {
@@ -33,6 +51,7 @@ impl Default for PluginContext {
         Self {
             sample_rate: AtomicI32::new(-44100),
             bufsz: AtomicUsize::new(2048),
+            voice_mode: AtomicU32::new(0),
         }
     }
 }
@@ -62,6 +81,10 @@ impl ContextReader {
     }
     pub fn bufsz(&self) -> usize {
         self.context.bufsz.load(Relaxed)
+    }
+    pub fn voice_mode(&self) -> VoiceMode {
+        let mode_u32 = self.context.voice_mode.load(Relaxed);
+        unsafe { std::mem::transmute((mode_u32 & 0xFF) as u8) }
     }
 }
 
@@ -117,10 +140,11 @@ impl JanusPlugin {
         }
         self.context.sample_rate.store(value, Relaxed);
     }
-    fn update_context(&mut self, ctx: &dyn GenericContext) {
+    fn update_context(&mut self, ctx: &dyn GenericContext, mode: VoiceMode) {
         let sr = ctx.sample_rate();
         let fixed = ctx.is_fixed_point();
-        self.update_sample_rate(sr, fixed)
+        self.update_sample_rate(sr, fixed);
+        self.context.voice_mode.store(mode as u32, Relaxed);
     }
     fn get_context_reader(&mut self) -> ContextReader {
         ContextReader {
@@ -206,7 +230,8 @@ impl Plugin for JanusPlugin {
             buffer_config.sample_rate,
             buffer_config.max_buffer_size,
         );
-        let bufsz = buffer_config.max_buffer_size;
+        // JACK doesn't seem to honor max_buffer_size, so allocate more...
+        let bufsz = std::cmp::max(buffer_config.max_buffer_size, 2048);
         self.glob_params.allocate(bufsz);
         self.osc1_params.allocate(bufsz);
         self.osc2_params.allocate(bufsz);
@@ -240,7 +265,14 @@ impl Plugin for JanusPlugin {
         context: &mut impl ProcessContext<Self>,
     ) -> ProcessStatus {
         if let Ok(synth) = self.synth_rx.try_recv() {
-            self.update_context(synth.get_context());
+            self.update_context(
+                synth.get_context(),
+                if synth.is_poly() {
+                    VoiceMode::Poly16
+                } else {
+                    VoiceMode::Mono
+                },
+            );
             self.voices = Some(synth);
         }
         let voices = match self.voices {
@@ -298,7 +330,7 @@ impl Plugin for JanusPlugin {
                         voices.aftertouch((pressure * 127f32) as u8);
                     }
                     NoteEvent::MidiPitchBend { value, .. } => {
-                        voices.pitch_bend(((value - 0.5) * (i16::MAX as f32)) as i16);
+                        voices.pitch_bend((((value - 0.5) * (i16::MAX as f32)) as i16) << 1);
                     }
                     _ => (),
                 }
