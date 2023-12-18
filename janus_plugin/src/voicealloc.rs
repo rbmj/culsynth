@@ -2,10 +2,7 @@
 //! and having it "decide" how to handle the notes based on the polyphony mode,
 //! selected logic form (fixed, float32, float64), etc.
 
-use crate::parambuf::{
-    EnvParamBuffer, FiltParamBuffer, GlobalParamBuffer, LfoParamBuffer, OscParamBuffer,
-    RingModParamBuffer,
-};
+use crate::parambuf::{PluginParamBuf, PluginParamBufFxP};
 use crate::pluginparams::ModMatrixPluginParams;
 use janus::context::{Context, ContextFxP, GenericContext};
 use janus::voice::{Voice, VoiceFxP};
@@ -57,17 +54,7 @@ pub trait VoiceAllocator: Send {
     fn process(
         &mut self,
         matrix_p: &ModMatrixPluginParams,
-        glob_p: &mut GlobalParamBuffer,
-        o1p: &mut OscParamBuffer,
-        o2p: &mut OscParamBuffer,
-        rp: &mut RingModParamBuffer,
-        fp: &mut FiltParamBuffer,
-        efp: &mut EnvParamBuffer,
-        eap: &mut EnvParamBuffer,
-        l1p: &LfoParamBuffer,
-        l2p: &mut LfoParamBuffer,
-        e1p: &EnvParamBuffer,
-        e2p: &mut EnvParamBuffer,
+        glob_p: &mut PluginParamBufFxP,
     ) -> &[f32];
     /// Get the process context for this voice allocator.
     fn get_context(&self) -> &dyn GenericContext;

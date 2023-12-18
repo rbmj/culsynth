@@ -94,17 +94,7 @@ impl VoiceAllocator for MonoSynthFxP {
     fn process(
         &mut self,
         matrix_p: &ModMatrixPluginParams,
-        glob_p: &mut GlobalParamBuffer,
-        osc1_p: &mut OscParamBuffer,
-        osc2_p: &mut OscParamBuffer,
-        ring_p: &mut RingModParamBuffer,
-        filt_p: &mut FiltParamBuffer,
-        filt_env_p: &mut EnvParamBuffer,
-        amp_env_p: &mut EnvParamBuffer,
-        lfo1_p: &LfoParamBuffer,
-        lfo2_p: &mut LfoParamBuffer,
-        env1_p: &EnvParamBuffer,
-        env2_p: &mut EnvParamBuffer,
+        params: &mut PluginParamBufFxP,
     ) -> &[f32] {
         let mut processed: usize = 0;
         let matrix = matrix_p.build_matrix();
@@ -117,17 +107,17 @@ impl VoiceAllocator for MonoSynthFxP {
                 &self.velbuf[processed..self.index],
                 &self.aftertouchbuf[processed..self.index],
                 &self.modwheelbuf[processed..self.index],
-                glob_p.sync(processed, self.index),
-                osc1_p.params_mut(processed, self.index),
-                osc2_p.params_mut(processed, self.index),
-                ring_p.params_mut(processed, self.index),
-                filt_p.params_mut(processed, self.index),
-                filt_env_p.params_mut(processed, self.index),
-                amp_env_p.params_mut(processed, self.index),
-                lfo1_p.params(processed, self.index),
-                lfo2_p.params_mut(processed, self.index),
-                env1_p.params(processed, self.index),
-                env2_p.params_mut(processed, self.index),
+                params.global.sync_mut(processed, self.index),
+                params.osc1.params_mut(processed, self.index),
+                params.osc2.params_mut(processed, self.index),
+                params.ringmod.params_mut(processed, self.index),
+                params.filt.params_mut(processed, self.index),
+                params.env_filt.params_mut(processed, self.index),
+                params.env_amp.params_mut(processed, self.index),
+                params.lfo1.params(processed, self.index),
+                params.lfo2.params_mut(processed, self.index),
+                params.env1.params(processed, self.index),
+                params.env2.params_mut(processed, self.index),
             );
             for smp in thisiter {
                 self.outbuf[processed] = smp.to_num::<f32>();
@@ -149,6 +139,7 @@ impl VoiceAllocator for MonoSynthFxP {
 #[derive(Default, Clone)]
 pub struct MonoSynth {
     voice: Voice<f32>,
+    params: PluginParamBuf,
     outbuf: Vec<f32>,
     notebuf: Vec<f32>,
     gatebuf: Vec<f32>,
@@ -183,6 +174,7 @@ impl VoiceAllocator for MonoSynth {
         self.velbuf.resize(sz, 0f32);
         self.aftertouchbuf.resize(sz, 0f32);
         self.modwheelbuf.resize(sz, 0f32);
+        self.params.allocate(sz as u32);
         self.index = 0;
         self.note = 69f32; //A440, nice
         self.gate = 0f32;
@@ -230,18 +222,9 @@ impl VoiceAllocator for MonoSynth {
     fn process(
         &mut self,
         matrix_p: &ModMatrixPluginParams,
-        glob_p: &mut GlobalParamBuffer,
-        osc1_p: &mut OscParamBuffer,
-        osc2_p: &mut OscParamBuffer,
-        ring_p: &mut RingModParamBuffer,
-        filt_p: &mut FiltParamBuffer,
-        filt_env_p: &mut EnvParamBuffer,
-        amp_env_p: &mut EnvParamBuffer,
-        lfo1_p: &LfoParamBuffer,
-        lfo2_p: &mut LfoParamBuffer,
-        env1_p: &EnvParamBuffer,
-        env2_p: &mut EnvParamBuffer,
+        params: &mut PluginParamBufFxP,
     ) -> &[f32] {
+        params.into_float(&mut self.params);
         let mut processed: usize = 0;
         let matrix = matrix_p.build_matrix_float();
         while processed < self.index {
@@ -253,17 +236,17 @@ impl VoiceAllocator for MonoSynth {
                 &self.velbuf[processed..self.index],
                 &self.aftertouchbuf[processed..self.index],
                 &self.modwheelbuf[processed..self.index],
-                glob_p.sync_float(processed, self.index),
-                osc1_p.params_float_mut(processed, self.index),
-                osc2_p.params_float_mut(processed, self.index),
-                ring_p.params_float_mut(processed, self.index),
-                filt_p.params_float_mut(processed, self.index),
-                filt_env_p.params_float_mut(processed, self.index),
-                amp_env_p.params_float_mut(processed, self.index),
-                lfo1_p.params_float(processed, self.index),
-                lfo2_p.params_float_mut(processed, self.index),
-                env1_p.params_float(processed, self.index),
-                env2_p.params_float_mut(processed, self.index),
+                self.params.global.sync_mut(processed, self.index),
+                self.params.osc1.params_mut(processed, self.index),
+                self.params.osc2.params_mut(processed, self.index),
+                self.params.ringmod.params_mut(processed, self.index),
+                self.params.filt.params_mut(processed, self.index),
+                self.params.env_filt.params_mut(processed, self.index),
+                self.params.env_amp.params_mut(processed, self.index),
+                self.params.lfo1.params(processed, self.index),
+                self.params.lfo2.params_mut(processed, self.index),
+                self.params.env1.params(processed, self.index),
+                self.params.env2.params_mut(processed, self.index),
             );
             for smp in thisiter {
                 self.outbuf[processed] = *smp;

@@ -12,10 +12,7 @@ mod editor;
 mod fixedparam;
 
 pub mod parambuf;
-use parambuf::{
-    EnvParamBuffer, FiltParamBuffer, GlobalParamBuffer, LfoParamBuffer, OscParamBuffer,
-    RingModParamBuffer,
-};
+use parambuf::PluginParamBufFxP;
 
 pub mod pluginparams;
 use pluginparams::JanusParams;
@@ -92,17 +89,7 @@ impl ContextReader {
 pub struct JanusPlugin {
     params: Arc<JanusParams>,
 
-    glob_params: GlobalParamBuffer,
-    osc1_params: OscParamBuffer,
-    osc2_params: OscParamBuffer,
-    ringmod_params: RingModParamBuffer,
-    filt_params: FiltParamBuffer,
-    env_amp_params: EnvParamBuffer,
-    env_filt_params: EnvParamBuffer,
-    lfo1_params: LfoParamBuffer,
-    lfo2_params: LfoParamBuffer,
-    env1_params: EnvParamBuffer,
-    env2_params: EnvParamBuffer,
+    parambuf: PluginParamBufFxP,
 
     /// Used by the GUI thread to send MIDI events to the audio thread when,
     /// for example, a user presses a key on a on screen virtual keyboard.
@@ -159,17 +146,7 @@ impl Default for JanusPlugin {
         let (synth_tx, synth_rx) = sync_channel::<Box<dyn VoiceAllocator>>(1);
         Self {
             params: Arc::new(JanusParams::default()),
-            glob_params: Default::default(),
-            osc1_params: Default::default(),
-            osc2_params: Default::default(),
-            ringmod_params: Default::default(),
-            filt_params: Default::default(),
-            env_amp_params: Default::default(),
-            env_filt_params: Default::default(),
-            lfo1_params: Default::default(),
-            lfo2_params: Default::default(),
-            env1_params: Default::default(),
-            env2_params: Default::default(),
+            parambuf: Default::default(),
             midi_tx,
             midi_rx,
             synth_tx,
@@ -232,17 +209,7 @@ impl Plugin for JanusPlugin {
         );
         // JACK doesn't seem to honor max_buffer_size, so allocate more...
         let bufsz = std::cmp::max(buffer_config.max_buffer_size, 2048);
-        self.glob_params.allocate(bufsz);
-        self.osc1_params.allocate(bufsz);
-        self.osc2_params.allocate(bufsz);
-        self.ringmod_params.allocate(bufsz);
-        self.filt_params.allocate(bufsz);
-        self.env_amp_params.allocate(bufsz);
-        self.env_filt_params.allocate(bufsz);
-        self.lfo1_params.allocate(bufsz);
-        self.lfo2_params.allocate(bufsz);
-        self.env1_params.allocate(bufsz);
-        self.env2_params.allocate(bufsz);
+        self.parambuf.allocate(bufsz);
         let mut voice_alloc: Box<dyn VoiceAllocator> = if buffer_config.sample_rate == 44100f32 {
             Box::new(MonoSynthFxP::new(ContextFxP::new_441()))
         } else if buffer_config.sample_rate == 48000f32 {
@@ -290,20 +257,7 @@ impl Plugin for JanusPlugin {
         assert!(buffer.samples() <= self.context.bufsz.load(Relaxed));
         let mut next_event = context.next_event();
         for (sample_id, _channel_samples) in buffer.iter_samples().enumerate() {
-            self.glob_params.update_index(index, &self.params.osc_sync);
-            self.osc1_params.update_index(index, &self.params.osc1);
-            self.osc2_params.update_index(index, &self.params.osc2);
-            self.ringmod_params
-                .update_index(index, &self.params.ringmod);
-            self.filt_params.update_index(index, &self.params.filt);
-            self.env_amp_params
-                .update_index(index, &self.params.env_vca);
-            self.env_filt_params
-                .update_index(index, &self.params.env_vcf);
-            self.env1_params.update_index(index, &self.params.env1);
-            self.env2_params.update_index(index, &self.params.env2);
-            self.lfo1_params.update_index(index, &self.params.lfo1);
-            self.lfo2_params.update_index(index, &self.params.lfo2);
+            self.parambuf.update_index(index, &self.params);
 
             // Process MIDI events:
             while let Some(event) = next_event {
@@ -339,33 +293,7 @@ impl Plugin for JanusPlugin {
             voices.sample_tick();
             index += 1;
         }
-        if !(voices.get_context().is_fixed_point()) {
-            self.glob_params.conv_float();
-            self.osc1_params.conv_float();
-            self.osc2_params.conv_float();
-            self.ringmod_params.conv_float();
-            self.filt_params.conv_float();
-            self.env_amp_params.conv_float();
-            self.env_filt_params.conv_float();
-            self.lfo1_params.conv_float();
-            self.lfo2_params.conv_float();
-            self.env1_params.conv_float();
-            self.env2_params.conv_float();
-        }
-        let output = voices.process(
-            &self.params.modmatrix,
-            &mut self.glob_params,
-            &mut self.osc1_params,
-            &mut self.osc2_params,
-            &mut self.ringmod_params,
-            &mut self.filt_params,
-            &mut self.env_filt_params,
-            &mut self.env_amp_params,
-            &self.lfo1_params,
-            &mut self.lfo2_params,
-            &self.env1_params,
-            &mut self.env2_params,
-        );
+        let output = voices.process(&self.params.modmatrix, &mut self.parambuf);
         index = 0;
         for channel_samples in buffer.iter_samples() {
             for smp in channel_samples {

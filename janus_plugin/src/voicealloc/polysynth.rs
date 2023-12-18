@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
 use super::*;
-use nih_plug::{nih_error, nih_trace};
+use nih_plug::nih_error;
 use rand::random;
 
 struct PolySynthVoice {
@@ -44,6 +44,7 @@ impl Default for PolySynthVoice {
 
 pub struct PolySynth {
     voices: Vec<PolySynthVoice>,
+    params: PluginParamBuf,
     active_voices: VecDeque<usize>,
     inactive_voices: VecDeque<usize>,
     outbuf: Vec<f32>,
@@ -63,6 +64,7 @@ impl PolySynth {
             voices: std::iter::repeat_with(|| PolySynthVoice::new())
                 .take(num_voices)
                 .collect(),
+            params: PluginParamBuf::default(),
             active_voices: VecDeque::new(),
             inactive_voices: VecDeque::new(),
             outbuf: Vec::default(),
@@ -77,7 +79,6 @@ impl PolySynth {
         }
     }
     fn note_on_i(&mut self, voice_index: usize, note: u8, vel: u8) {
-        nih_trace!("\tAssigned Voice #{}", voice_index);
         self.active_voices.push_back(voice_index);
         let voice = &mut self.voices[voice_index];
         voice.note = note;
@@ -88,6 +89,7 @@ impl PolySynth {
 
 impl VoiceAllocator for PolySynth {
     fn initialize(&mut self, sz: usize) {
+        self.params.allocate(sz as u32);
         self.active_voices.reserve(sz);
         self.active_voices.clear();
         self.inactive_voices.reserve(sz);
@@ -113,7 +115,6 @@ impl VoiceAllocator for PolySynth {
         self.index += 1;
     }
     fn note_on(&mut self, note: u8, velocity: u8) {
-        nih_trace!("Poly Note On: {}", note);
         if let Some(i) = self.inactive_voices.pop_front() {
             self.note_on_i(i, note, velocity);
         } else if let Some(i) = self.active_voices.pop_front() {
@@ -123,14 +124,12 @@ impl VoiceAllocator for PolySynth {
         }
     }
     fn note_off(&mut self, note: u8, _velocity: u8) {
-        nih_trace!("Poly Note Off: {}", note);
         if let Some((act_idx, vox_idx)) = self
             .active_voices
             .iter()
             .enumerate()
             .find(|(_, idx)| self.voices[**idx].note == note)
         {
-            nih_trace!("\tVoice {} Off", *vox_idx);
             self.inactive_voices.push_back(*vox_idx);
             self.voices[*vox_idx].gate = 0f32;
             self.active_voices.remove(act_idx);
@@ -159,17 +158,7 @@ impl VoiceAllocator for PolySynth {
     fn process(
         &mut self,
         matrix_p: &ModMatrixPluginParams,
-        glob_p: &mut GlobalParamBuffer,
-        osc1_p: &mut OscParamBuffer,
-        osc2_p: &mut OscParamBuffer,
-        ring_p: &mut RingModParamBuffer,
-        filt_p: &mut FiltParamBuffer,
-        filt_env_p: &mut EnvParamBuffer,
-        amp_env_p: &mut EnvParamBuffer,
-        lfo1_p: &LfoParamBuffer,
-        lfo2_p: &mut LfoParamBuffer,
-        env1_p: &EnvParamBuffer,
-        env2_p: &mut EnvParamBuffer,
+        params: &mut PluginParamBufFxP,
     ) -> &[f32] {
         let matrix = matrix_p.build_matrix_float();
         for smp in self.outbuf.iter_mut() {
@@ -177,6 +166,7 @@ impl VoiceAllocator for PolySynth {
         }
         for voice in self.voices.iter_mut() {
             let mut processed: usize = 0;
+            params.into_float(&mut self.params);
             while processed < self.index {
                 let thisiter = voice.voice.process(
                     &self.ctx,
@@ -186,17 +176,17 @@ impl VoiceAllocator for PolySynth {
                     &voice.velbuf[processed..self.index],
                     &self.aftertouchbuf[processed..self.index],
                     &self.modwheelbuf[processed..self.index],
-                    glob_p.sync_float(processed, self.index),
-                    osc1_p.params_float_mut(processed, self.index),
-                    osc2_p.params_float_mut(processed, self.index),
-                    ring_p.params_float_mut(processed, self.index),
-                    filt_p.params_float_mut(processed, self.index),
-                    filt_env_p.params_float_mut(processed, self.index),
-                    amp_env_p.params_float_mut(processed, self.index),
-                    lfo1_p.params_float(processed, self.index),
-                    lfo2_p.params_float_mut(processed, self.index),
-                    env1_p.params_float(processed, self.index),
-                    env2_p.params_float_mut(processed, self.index),
+                    self.params.global.sync_mut(processed, self.index),
+                    self.params.osc1.params_mut(processed, self.index),
+                    self.params.osc2.params_mut(processed, self.index),
+                    self.params.ringmod.params_mut(processed, self.index),
+                    self.params.filt.params_mut(processed, self.index),
+                    self.params.env_filt.params_mut(processed, self.index),
+                    self.params.env_amp.params_mut(processed, self.index),
+                    self.params.lfo1.params(processed, self.index),
+                    self.params.lfo2.params_mut(processed, self.index),
+                    self.params.env1.params(processed, self.index),
+                    self.params.env2.params_mut(processed, self.index),
                 );
                 for smp in thisiter {
                     self.outbuf[processed] += *smp;
@@ -250,6 +240,7 @@ impl PolySynthVoiceFxP {
 
 pub struct PolySynthFxP {
     voices: Vec<PolySynthVoiceFxP>,
+    params: PluginParamBufFxP,
     active_voices: VecDeque<usize>,
     inactive_voices: VecDeque<usize>,
     outbuf: Vec<f32>,
@@ -265,12 +256,11 @@ pub struct PolySynthFxP {
 
 impl PolySynthFxP {
     pub fn new(num_voices: usize, context: ContextFxP) -> Self {
-        // FIXME: this clone()s everything, which results in the same S&H
-        // random values across all voices :(
         Self {
             voices: std::iter::repeat_with(|| PolySynthVoiceFxP::new())
                 .take(num_voices)
                 .collect(),
+            params: PluginParamBufFxP::default(),
             active_voices: VecDeque::new(),
             inactive_voices: VecDeque::new(),
             outbuf: Vec::new(),
@@ -295,6 +285,7 @@ impl PolySynthFxP {
 
 impl VoiceAllocator for PolySynthFxP {
     fn initialize(&mut self, sz: usize) {
+        self.params.allocate(sz as u32);
         self.active_voices.reserve(sz);
         self.inactive_voices.reserve(sz);
         self.outbuf.resize(sz, 0f32);
@@ -368,17 +359,7 @@ impl VoiceAllocator for PolySynthFxP {
     fn process(
         &mut self,
         matrix_p: &ModMatrixPluginParams,
-        glob_p: &mut GlobalParamBuffer,
-        osc1_p: &mut OscParamBuffer,
-        osc2_p: &mut OscParamBuffer,
-        ring_p: &mut RingModParamBuffer,
-        filt_p: &mut FiltParamBuffer,
-        filt_env_p: &mut EnvParamBuffer,
-        amp_env_p: &mut EnvParamBuffer,
-        lfo1_p: &LfoParamBuffer,
-        lfo2_p: &mut LfoParamBuffer,
-        env1_p: &EnvParamBuffer,
-        env2_p: &mut EnvParamBuffer,
+        params: &mut PluginParamBufFxP,
     ) -> &[f32] {
         let matrix = matrix_p.build_matrix();
         for smp in self.outbuf.iter_mut() {
@@ -386,6 +367,7 @@ impl VoiceAllocator for PolySynthFxP {
         }
         for voice in self.voices.iter_mut() {
             let mut processed: usize = 0;
+            params.copy_to(&mut self.params);
             while processed < self.index {
                 let thisiter = voice.voice.process(
                     &self.ctx,
@@ -395,17 +377,17 @@ impl VoiceAllocator for PolySynthFxP {
                     &voice.velbuf[processed..self.index],
                     &self.aftertouchbuf[processed..self.index],
                     &self.modwheelbuf[processed..self.index],
-                    glob_p.sync(processed, self.index),
-                    osc1_p.params_mut(processed, self.index),
-                    osc2_p.params_mut(processed, self.index),
-                    ring_p.params_mut(processed, self.index),
-                    filt_p.params_mut(processed, self.index),
-                    filt_env_p.params_mut(processed, self.index),
-                    amp_env_p.params_mut(processed, self.index),
-                    lfo1_p.params(processed, self.index),
-                    lfo2_p.params_mut(processed, self.index),
-                    env1_p.params(processed, self.index),
-                    env2_p.params_mut(processed, self.index),
+                    self.params.global.sync_mut(processed, self.index),
+                    self.params.osc1.params_mut(processed, self.index),
+                    self.params.osc2.params_mut(processed, self.index),
+                    self.params.ringmod.params_mut(processed, self.index),
+                    self.params.filt.params_mut(processed, self.index),
+                    self.params.env_filt.params_mut(processed, self.index),
+                    self.params.env_amp.params_mut(processed, self.index),
+                    self.params.lfo1.params(processed, self.index),
+                    self.params.lfo2.params_mut(processed, self.index),
+                    self.params.env1.params(processed, self.index),
+                    self.params.env2.params_mut(processed, self.index),
                 );
                 for smp in thisiter {
                     self.outbuf[processed] += smp.to_num::<f32>();
