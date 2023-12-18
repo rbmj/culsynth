@@ -477,37 +477,6 @@ impl JanusEditor {
             }
         });
     }
-    fn sr_context_menu(
-        ui: &mut egui::Ui,
-        sr: u32,
-        fixed_point: bool,
-    ) -> Option<Box<dyn VoiceAllocator>> {
-        let fixed_context = ContextFxP::maybe_create(sr);
-        let mut new_synth: Option<Box<dyn VoiceAllocator>> = None;
-        ui.vertical(|ui| {
-            ui.horizontal(|ui| {
-                if fixed_context.is_none() {
-                    ui.set_enabled(false);
-                }
-                if ui.selectable_label(fixed_point, "Fixed").clicked() {
-                    ui.close_menu();
-                    if let Some(context) = fixed_context {
-                        if !fixed_point {
-                            new_synth = Some(Box::new(MonoSynthFxP::new(context)));
-                        }
-                    }
-                }
-            });
-            if ui.selectable_label(!fixed_point, "Float").clicked() {
-                ui.close_menu();
-                if fixed_point {
-                    let ctx = Context::new(sr as f32);
-                    new_synth = Some(Box::new(MonoSynth::new(ctx)));
-                }
-            }
-        });
-        new_synth
-    }
     fn draw_status_bar(&mut self, egui_ctx: &egui::Context) {
         egui::TopBottomPanel::top("status")
             .frame(egui::Frame::none().fill(egui::Color32::from_gray(32)))
@@ -540,16 +509,7 @@ impl JanusEditor {
                                 sr / 1000,
                                 (sr % 1000) / 100,
                                 fixed_str,
-                            ))
-                            .context_menu(|ui| {
-                                let new_synth = Self::sr_context_menu(ui, sr, fixed_point);
-                                if let Some(mut synth) = new_synth {
-                                    synth.initialize(self.context.bufsz());
-                                    if let Err(e) = self.synth_channel.try_send(synth) {
-                                        nih_log!("{}", e);
-                                    }
-                                }
-                            });
+                            ));
                         },
                     );
                     columns[1].centered_and_justified(|ui| {
