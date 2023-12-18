@@ -4,3 +4,5 @@ To get functionality:
 
 $ pip install matplotlib
 $ pip install jupyter
+$ pip install ipywidgets
+$ jupyter nbextension enable --py widgetsnbextension # May require a --sys-prefix

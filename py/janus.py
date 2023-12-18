@@ -1,6 +1,12 @@
 from ctypes import *
+import sys
 
-_lib = CDLL('../target/debug/janus.dll')
+_is_windows = sys.platform.startswith('win')
+
+if _is_windows:
+    _lib = CDLL('../target/debug/janus.dll')
+else:
+    _lib = CDLL('../target/debug/libjanus.so')
 
 _janus_osc_u16_new = _lib.janus_osc_u16_new
 _janus_osc_u16_new.argtypes = []
