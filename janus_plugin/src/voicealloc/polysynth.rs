@@ -89,20 +89,21 @@ impl PolySynth {
 
 impl VoiceAllocator for PolySynth {
     fn initialize(&mut self, sz: usize) {
-        self.params.allocate(sz as u32);
-        self.active_voices.reserve(sz);
         self.active_voices.clear();
-        self.inactive_voices.reserve(sz);
+        self.active_voices.reserve(self.voices.len());
         self.inactive_voices.clear();
+        self.inactive_voices.reserve(self.voices.len());
+        for (i, voice) in self.voices.iter_mut().enumerate() {
+            voice.initialize(sz);
+            self.inactive_voices.push_back(i);
+        }
+
+        self.params.allocate(sz as u32);
         self.outbuf.resize(sz, 0f32);
         self.aftertouchbuf.resize(sz, 0f32);
         self.modwheelbuf.resize(sz, 0f32);
         self.index = 0;
         self.set_pitch_bend_range(2, 2);
-        for (i, voice) in self.voices.iter_mut().enumerate() {
-            voice.initialize(sz);
-            self.inactive_voices.push_back(i);
-        }
     }
     fn sample_tick(&mut self) {
         self.aftertouchbuf[self.index] = self.aftertouch;
@@ -285,18 +286,21 @@ impl PolySynthFxP {
 
 impl VoiceAllocator for PolySynthFxP {
     fn initialize(&mut self, sz: usize) {
+        self.active_voices.clear();
+        self.active_voices.reserve(self.voices.len());
+        self.inactive_voices.clear();
+        self.inactive_voices.reserve(self.voices.len());
+        for (i, voice) in self.voices.iter_mut().enumerate() {
+            voice.initialize(sz);
+            self.inactive_voices.push_back(i);
+        }
+
         self.params.allocate(sz as u32);
-        self.active_voices.reserve(sz);
-        self.inactive_voices.reserve(sz);
         self.outbuf.resize(sz, 0f32);
         self.aftertouchbuf.resize(sz, ScalarFxP::ZERO);
         self.modwheelbuf.resize(sz, ScalarFxP::ZERO);
         self.index = 0;
         self.set_pitch_bend_range(2, 2);
-        for (i, voice) in self.voices.iter_mut().enumerate() {
-            voice.initialize(sz);
-            self.inactive_voices.push_back(i);
-        }
     }
     fn sample_tick(&mut self) {
         self.aftertouchbuf[self.index] = self.aftertouch;
