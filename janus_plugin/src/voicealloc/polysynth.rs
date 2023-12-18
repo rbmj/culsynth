@@ -190,7 +190,7 @@ impl VoiceAllocator for PolySynth {
                     self.params.env2.params_mut(processed, self.index),
                 );
                 for smp in thisiter {
-                    self.outbuf[processed] += *smp;
+                    self.outbuf[processed] += *smp / 16f32;
                     processed += 1;
                 }
             }
@@ -394,7 +394,7 @@ impl VoiceAllocator for PolySynthFxP {
                     self.params.env2.params_mut(processed, self.index),
                 );
                 for smp in thisiter {
-                    self.outbuf[processed] += smp.to_num::<f32>();
+                    self.outbuf[processed] += smp.unwrapped_shr(4).to_num::<f32>();
                     processed += 1;
                 }
             }
