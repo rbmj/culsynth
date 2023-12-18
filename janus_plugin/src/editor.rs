@@ -13,6 +13,8 @@ use nih_plug_egui::{create_egui_editor, egui, EguiState};
 use std::sync::{mpsc::SyncSender, Arc};
 
 mod kbd;
+mod param_widget;
+use param_widget::ParamWidget;
 
 fn param_slider<'a>(setter: &'a ParamSetter, param: &'a IntParam) -> egui::widgets::Slider<'a> {
     let range = param.range();
@@ -42,204 +44,6 @@ fn param_slider<'a>(setter: &'a ParamSetter, param: &'a IntParam) -> egui::widge
     .custom_formatter(move |f, _| {
         param.normalized_value_to_string(range2.normalize(f as i32), false)
     })
-}
-
-trait PluginWidget {
-    fn draw_on(&self, ui: &mut egui::Ui, setter: &ParamSetter, label: &str);
-}
-
-fn draw_osc(
-    osc: &OscPluginParams,
-    ui: &mut egui::Ui,
-    setter: &ParamSetter,
-    label: &str,
-    draw_sync: bool,
-    sync_on: bool,
-) -> bool {
-    let mut sync_clicked = false;
-    ui.vertical(|ui| {
-        if draw_sync {
-            ui.horizontal(|ui| {
-                ui.label(label);
-                ui.label(" - ");
-                let sync_str = if sync_on {
-                    "Sync On"
-                } else {
-                    "Click to Enable Sync"
-                };
-                sync_clicked = ui.selectable_label(sync_on, sync_str).clicked();
-            });
-        } else {
-            ui.label(label);
-        }
-        egui::Grid::new(label).show(ui, |ui| {
-            ui.add(param_slider(setter, &osc.course).vertical());
-            ui.add(param_slider(setter, &osc.fine).vertical());
-            ui.add(param_slider(setter, &osc.shape).vertical());
-            ui.add(param_slider(setter, &osc.sin).vertical());
-            ui.add(param_slider(setter, &osc.tri).vertical());
-            ui.add(param_slider(setter, &osc.sq).vertical());
-            ui.add(param_slider(setter, &osc.saw).vertical());
-            ui.end_row();
-            ui.label("CRS");
-            ui.label("FIN");
-            ui.label("SHP");
-            ui.label(janus::util::SIN_CHARSTR);
-            ui.label(janus::util::TRI_CHARSTR);
-            ui.label(janus::util::SQ_CHARSTR);
-            ui.label(janus::util::SAW_CHARSTR);
-        });
-    });
-    sync_clicked
-}
-
-impl PluginWidget for OscPluginParams {
-    fn draw_on(&self, ui: &mut egui::Ui, setter: &ParamSetter, label: &str) {
-        draw_osc(self, ui, setter, label, false, false);
-    }
-}
-
-impl<T: Fn()> PluginWidget for (&OscPluginParams, bool, T) {
-    fn draw_on(&self, ui: &mut egui::Ui, setter: &ParamSetter, label: &str) {
-        if draw_osc(self.0, ui, setter, label, true, self.1) {
-            self.2()
-        }
-    }
-}
-
-impl PluginWidget for LfoPluginParams {
-    fn draw_on(&self, ui: &mut egui::Ui, setter: &ParamSetter, label: &str) {
-        ui.vertical(|ui| {
-            ui.label(label);
-            ui.horizontal(|ui| {
-                egui::Grid::new(label).show(ui, |ui| {
-                    ui.add(param_slider(setter, &self.rate).vertical());
-                    ui.add(param_slider(setter, &self.depth).vertical());
-                    ui.end_row();
-                    ui.label("Rate");
-                    ui.label("Depth");
-                });
-                ui.vertical(|ui| {
-                    let cur_wave = self.wave.value();
-                    for wave in LfoWave::waves() {
-                        if ui
-                            .selectable_label(cur_wave == *wave as i32, wave.to_str_short())
-                            .clicked()
-                        {
-                            setter.begin_set_parameter(&self.wave);
-                            setter.set_parameter(&self.wave, *wave as i32);
-                            setter.end_set_parameter(&self.wave);
-                        }
-                    }
-                });
-                ui.vertical(|ui| {
-                    if ui
-                        .selectable_label(self.retrigger.value(), "Retrigger")
-                        .clicked()
-                    {
-                        setter.begin_set_parameter(&self.retrigger);
-                        setter.set_parameter(&self.retrigger, !self.retrigger.value());
-                        setter.end_set_parameter(&self.retrigger);
-                    }
-                    if ui
-                        .selectable_label(self.bipolar.value(), "Bipolar")
-                        .clicked()
-                    {
-                        setter.begin_set_parameter(&self.bipolar);
-                        setter.set_parameter(&self.bipolar, !self.bipolar.value());
-                        setter.end_set_parameter(&self.bipolar);
-                    }
-                });
-            });
-        });
-    }
-}
-
-impl PluginWidget for RingModPluginParams {
-    fn draw_on(&self, ui: &mut egui::Ui, setter: &ParamSetter, label: &str) {
-        ui.vertical(|ui| {
-            ui.label(label);
-            egui::Grid::new(label).show(ui, |ui| {
-                ui.add(param_slider(setter, &self.mix_a).vertical());
-                ui.add(param_slider(setter, &self.mix_b).vertical());
-                ui.add(param_slider(setter, &self.mix_mod).vertical());
-                ui.end_row();
-                ui.label("Osc 1");
-                ui.label("Osc 2");
-                ui.label("Ring");
-            });
-        });
-    }
-}
-
-impl PluginWidget for FiltPluginParams {
-    fn draw_on(&self, ui: &mut egui::Ui, setter: &ParamSetter, label: &str) {
-        ui.vertical(|ui| {
-            ui.label(label);
-            egui::Grid::new(label).show(ui, |ui| {
-                ui.add(param_slider(setter, &self.cutoff).vertical());
-                ui.add(param_slider(setter, &self.res).vertical());
-                ui.add(param_slider(setter, &self.kbd).vertical());
-                ui.add(param_slider(setter, &self.vel).vertical());
-                ui.add(param_slider(setter, &self.env).vertical());
-                ui.add(param_slider(setter, &self.low).vertical());
-                ui.add(param_slider(setter, &self.band).vertical());
-                ui.add(param_slider(setter, &self.high).vertical());
-                ui.end_row();
-                ui.label("Cut");
-                ui.label("Res");
-                ui.label("Kbd");
-                ui.label("Vel");
-                ui.label("Env");
-                ui.label("Low");
-                ui.label("Band");
-                ui.label("High");
-            });
-        });
-    }
-}
-
-impl PluginWidget for EnvPluginParams {
-    fn draw_on(&self, ui: &mut egui::Ui, setter: &ParamSetter, label: &str) {
-        ui.vertical(|ui| {
-            ui.label(label);
-            egui::Grid::new(label).show(ui, |ui| {
-                ui.add(param_slider(setter, &self.a).vertical());
-                ui.add(param_slider(setter, &self.d).vertical());
-                ui.add(param_slider(setter, &self.s).vertical());
-                ui.add(param_slider(setter, &self.r).vertical());
-                ui.end_row();
-                ui.label("A");
-                ui.label("D");
-                ui.label("S");
-                ui.label("R");
-            });
-        });
-    }
-}
-
-/// Map a keyboard key to a MIDI note number, or `None` if unmapped.
-fn key_to_notenum(k: egui::Key) -> Option<i8> {
-    match k {
-        egui::Key::A => Some(janus::midi_const::C4 as i8),
-        egui::Key::S => Some(janus::midi_const::D4 as i8),
-        egui::Key::D => Some(janus::midi_const::E4 as i8),
-        egui::Key::F => Some(janus::midi_const::F4 as i8),
-        egui::Key::G => Some(janus::midi_const::G4 as i8),
-        egui::Key::H => Some(janus::midi_const::A4 as i8),
-        egui::Key::J => Some(janus::midi_const::B4 as i8),
-        egui::Key::K => Some(janus::midi_const::C5 as i8),
-        egui::Key::L => Some(janus::midi_const::D5 as i8),
-
-        egui::Key::W => Some(janus::midi_const::Db4 as i8),
-        egui::Key::E => Some(janus::midi_const::Eb4 as i8),
-        egui::Key::T => Some(janus::midi_const::Gb4 as i8),
-        egui::Key::Y => Some(janus::midi_const::Ab4 as i8),
-        egui::Key::U => Some(janus::midi_const::Bb4 as i8),
-        egui::Key::O => Some(janus::midi_const::Db5 as i8),
-        egui::Key::P => Some(janus::midi_const::Eb5 as i8),
-        _ => None,
-    }
 }
 
 // Makes sense to also define this here, makes it a bit easier to keep track of
@@ -322,13 +126,11 @@ impl JanusEditor {
             ui.horizontal(|ui| {
                 self.params.osc1.draw_on(ui, setter, "Oscillator 1");
                 ui.separator();
-                let sync_on = self.params.osc_sync.value();
-                (&self.params.osc2, sync_on, || {
-                    setter.begin_set_parameter(&self.params.osc_sync);
-                    setter.set_parameter(&self.params.osc_sync, !sync_on);
-                    setter.end_set_parameter(&self.params.osc_sync);
-                })
-                    .draw_on(ui, setter, "Oscillator 2");
+                param_widget::osc_with_sync(&self.params.osc2, &self.params.osc_sync).draw_on(
+                    ui,
+                    setter,
+                    "Oscillator 2",
+                );
                 ui.separator();
                 self.params
                     .ringmod

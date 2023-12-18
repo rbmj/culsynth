@@ -3,6 +3,30 @@ use nih_plug_egui::egui;
 use piano_keyboard::Rectangle as PianoRectangle;
 use piano_keyboard::{Element, Keyboard2d, KeyboardBuilder};
 
+/// Map a keyboard key to a MIDI note number, or `None` if unmapped.
+fn key_to_notenum(k: egui::Key) -> Option<i8> {
+    match k {
+        egui::Key::A => Some(janus::midi_const::C4 as i8),
+        egui::Key::S => Some(janus::midi_const::D4 as i8),
+        egui::Key::D => Some(janus::midi_const::E4 as i8),
+        egui::Key::F => Some(janus::midi_const::F4 as i8),
+        egui::Key::G => Some(janus::midi_const::G4 as i8),
+        egui::Key::H => Some(janus::midi_const::A4 as i8),
+        egui::Key::J => Some(janus::midi_const::B4 as i8),
+        egui::Key::K => Some(janus::midi_const::C5 as i8),
+        egui::Key::L => Some(janus::midi_const::D5 as i8),
+
+        egui::Key::W => Some(janus::midi_const::Db4 as i8),
+        egui::Key::E => Some(janus::midi_const::Eb4 as i8),
+        egui::Key::T => Some(janus::midi_const::Gb4 as i8),
+        egui::Key::Y => Some(janus::midi_const::Ab4 as i8),
+        egui::Key::U => Some(janus::midi_const::Bb4 as i8),
+        egui::Key::O => Some(janus::midi_const::Db5 as i8),
+        egui::Key::P => Some(janus::midi_const::Eb5 as i8),
+        _ => None,
+    }
+}
+
 pub struct KbdPanel {
     last_note: Option<i8>,
 }
@@ -21,7 +45,7 @@ impl KbdPanel {
             for evt in i.events.iter() {
                 if let egui::Event::Key{key, pressed, repeat, ..} = evt {
                     if *repeat { continue; }
-                    if let Some(mut k) = super::key_to_notenum(*key) {
+                    if let Some(mut k) = key_to_notenum(*key) {
                         if !(*pressed) {
                             k += -128; //Note off
                         }
