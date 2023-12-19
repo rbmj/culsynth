@@ -185,8 +185,7 @@ impl JanusEditor {
                 fixed_context.map(|ctx| {
                     let ret: Box<dyn VoiceAllocator> = match new_voice_mode {
                         VoiceMode::Mono => Box::new(MonoSynthFxP::new(ctx)),
-                        //FIXME: Allocating 8 instead of 16 voices for performance reasons
-                        VoiceMode::Poly16 => Box::new(PolySynthFxP::new(8, ctx)),
+                        VoiceMode::Poly16 => Box::new(PolySynthFxP::new(16, ctx)),
                     };
                     ret
                 })
