@@ -224,7 +224,7 @@ impl VoiceAllocator for MonoSynth {
         matrix_p: &ModMatrixPluginParams,
         params: &mut PluginParamBufFxP,
     ) -> &[f32] {
-        params.into_float(&mut self.params);
+        params.into_float(&mut self.params, self.index);
         let mut processed: usize = 0;
         let matrix = matrix_p.build_matrix_float();
         while processed < self.index {

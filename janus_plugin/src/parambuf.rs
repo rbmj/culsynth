@@ -57,6 +57,15 @@ impl EnvParamBuf {
             release: &mut self.release[base..end],
         }
     }
+    pub fn copy_to(&self, buf: &mut Self, len: usize) {
+        let len = std::cmp::min(len, self.len());
+        for idx in 0..std::cmp::min(len, buf.len()) {
+            buf.attack[idx] = self.attack[idx];
+            buf.decay[idx] = self.decay[idx];
+            buf.sustain[idx] = self.sustain[idx];
+            buf.release[idx] = self.release[idx];
+        }
+    }
 }
 
 impl EnvParamBufFxP {
@@ -101,16 +110,18 @@ impl EnvParamBufFxP {
         self.sustain[idx] = ScalarFxP::from_bits(p.s.smoothed.next() as u16);
         self.release[idx] = EnvParamFxP::from_bits(p.r.smoothed.next() as u16);
     }
-    pub fn into_float(&self, buf: &mut EnvParamBuf) {
-        for idx in 0..std::cmp::min(self.len(), buf.len()) {
+    pub fn into_float(&self, buf: &mut EnvParamBuf, len: usize) {
+        let len = std::cmp::min(len, self.len());
+        for idx in 0..std::cmp::min(len, buf.len()) {
             buf.attack[idx] = self.attack[idx].to_num();
             buf.decay[idx] = self.decay[idx].to_num();
             buf.sustain[idx] = self.sustain[idx].to_num();
             buf.release[idx] = self.release[idx].to_num();
         }
     }
-    pub fn copy_to(&self, buf: &mut Self) {
-        for idx in 0..std::cmp::min(self.len(), buf.len()) {
+    pub fn copy_to(&self, buf: &mut Self, len: usize) {
+        let len = std::cmp::min(len, self.len());
+        for idx in 0..std::cmp::min(len, buf.len()) {
             buf.attack[idx] = self.attack[idx];
             buf.decay[idx] = self.decay[idx];
             buf.sustain[idx] = self.sustain[idx];
@@ -144,8 +155,9 @@ impl RingModParamBufFxP {
             buf.resize(sz as usize, ScalarFxP::ZERO);
         }
     }
-    pub fn into_float(&self, buf: &mut RingModParamBuf) {
-        for i in 0..std::cmp::min(self.len(), buf.len()) {
+    pub fn into_float(&self, buf: &mut RingModParamBuf, len: usize) {
+        let len = std::cmp::min(len, self.len());
+        for i in 0..std::cmp::min(len, buf.len()) {
             buf.mix_a[i] = self.mix_a[i].to_num();
             buf.mix_b[i] = self.mix_b[i].to_num();
             buf.mix_mod[i] = self.mix_mod[i].to_num();
@@ -170,8 +182,9 @@ impl RingModParamBufFxP {
         self.mix_b[idx] = ScalarFxP::from_bits(p.mix_b.smoothed.next() as u16);
         self.mix_mod[idx] = ScalarFxP::from_bits(p.mix_mod.smoothed.next() as u16);
     }
-    pub fn copy_to(&self, buf: &mut Self) {
-        for idx in 0..std::cmp::min(self.len(), buf.len()) {
+    pub fn copy_to(&self, buf: &mut Self, len: usize) {
+        let len = std::cmp::min(len, self.len());
+        for idx in 0..std::cmp::min(len, buf.len()) {
             buf.mix_a[idx] = self.mix_a[idx];
             buf.mix_b[idx] = self.mix_b[idx];
             buf.mix_mod[idx] = self.mix_mod[idx];
@@ -218,6 +231,14 @@ impl RingModParamBuf {
             mix_out: &mut self.mix_mod[base..end],
         }
     }
+    pub fn copy_to(&self, buf: &mut Self, len: usize) {
+        let len = std::cmp::min(len, self.len());
+        for idx in 0..std::cmp::min(len, buf.len()) {
+            buf.mix_a[idx] = self.mix_a[idx];
+            buf.mix_b[idx] = self.mix_b[idx];
+            buf.mix_mod[idx] = self.mix_mod[idx];
+        }
+    }
 }
 
 #[derive(Default, Clone)]
@@ -243,8 +264,9 @@ impl GlobalParamBufFxP {
             buf.resize(sz as usize, ScalarFxP::ZERO);
         }
     }
-    pub fn into_float(&self, buf: &mut GlobalParamBuf) {
-        for i in 0..self.len() {
+    pub fn into_float(&self, buf: &mut GlobalParamBuf, len: usize) {
+        let len = std::cmp::min(len, self.len());
+        for i in 0..std::cmp::min(len, buf.len()) {
             buf.sync[i] = self.sync[i].to_bits().into();
         }
     }
@@ -258,8 +280,9 @@ impl GlobalParamBufFxP {
             ScalarFxP::ZERO
         };
     }
-    pub fn copy_to(&self, buf: &mut Self) {
-        for idx in 0..std::cmp::min(self.len(), buf.len()) {
+    pub fn copy_to(&self, buf: &mut Self, len: usize) {
+        let len = std::cmp::min(len, self.len());
+        for idx in 0..std::cmp::min(len, buf.len()) {
             buf.sync[idx] = self.sync[idx];
         }
     }
@@ -290,6 +313,12 @@ impl GlobalParamBuf {
     }
     pub fn sync_mut(&mut self, base: usize, end: usize) -> &mut [f32] {
         &mut self.sync[base..end]
+    }
+    pub fn copy_to(&self, buf: &mut Self, len: usize) {
+        let len = std::cmp::min(len, self.len());
+        for idx in 0..std::cmp::min(len, buf.len()) {
+            buf.sync[idx] = self.sync[idx];
+        }
     }
 }
 
@@ -324,8 +353,9 @@ impl OscParamBufFxP {
         self.tri.resize(sz as usize, ScalarFxP::ZERO);
         self.saw.resize(sz as usize, ScalarFxP::ZERO);
     }
-    pub fn into_float(&self, buf: &mut OscParamBuf) {
-        for i in 0..std::cmp::min(self.len(), buf.len()) {
+    pub fn into_float(&self, buf: &mut OscParamBuf, len: usize) {
+        let len = std::cmp::min(len, self.len());
+        for i in 0..std::cmp::min(len, buf.len()) {
             buf.tune[i] = self.tune[i].to_num();
             buf.shape[i] = self.shape[i].to_num();
             buf.sin[i] = self.sin[i].to_num();
@@ -366,8 +396,9 @@ impl OscParamBufFxP {
             ((p.course.smoothed.next() << 9) + p.fine.smoothed.next()) as i16,
         )
     }
-    pub fn copy_to(&self, buf: &mut Self) {
-        for idx in 0..std::cmp::min(self.len(), buf.len()) {
+    pub fn copy_to(&self, buf: &mut Self, len: usize) {
+        let len = std::cmp::min(len, self.len());
+        for idx in 0..std::cmp::min(len, buf.len()) {
             buf.shape[idx] = self.shape[idx];
             buf.sin[idx] = self.sin[idx];
             buf.sq[idx] = self.sq[idx];
@@ -431,6 +462,17 @@ impl OscParamBuf {
             saw: &mut self.saw[base..end],
         }
     }
+    pub fn copy_to(&self, buf: &mut Self, len: usize) {
+        let len = std::cmp::min(len, self.len());
+        for idx in 0..std::cmp::min(len, buf.len()) {
+            buf.shape[idx] = self.shape[idx];
+            buf.sin[idx] = self.sin[idx];
+            buf.sq[idx] = self.sq[idx];
+            buf.tri[idx] = self.tri[idx];
+            buf.saw[idx] = self.saw[idx];
+            buf.tune[idx] = self.tune[idx];
+        }
+    }
 }
 
 #[derive(Default, Clone)]
@@ -458,8 +500,9 @@ impl LfoParamBufFxP {
         self.freq.resize(sz as usize, LfoFreqFxP::ONE);
         self.depth.resize(sz as usize, ScalarFxP::MAX);
     }
-    pub fn into_float(&self, buf: &mut LfoParamBuf) {
-        for i in 0..std::cmp::min(self.len(), buf.len()) {
+    pub fn into_float(&self, buf: &mut LfoParamBuf, len: usize) {
+        let len = std::cmp::min(len, self.len());
+        for i in 0..std::cmp::min(len, buf.len()) {
             buf.freq[i] = self.freq[i].to_num();
             buf.depth[i] = self.depth[i].to_num();
             buf.opts[i] = self.opts[i];
@@ -484,8 +527,9 @@ impl LfoParamBufFxP {
         self.depth[idx] = ScalarFxP::from_bits(p.depth.smoothed.next() as u16);
         self.opts[idx] = LfoOptions::from(p);
     }
-    pub fn copy_to(&self, buf: &mut Self) {
-        for idx in 0..std::cmp::min(self.len(), buf.len()) {
+    pub fn copy_to(&self, buf: &mut Self, len: usize) {
+        let len = std::cmp::min(len, self.len());
+        for idx in 0..std::cmp::min(len, buf.len()) {
             buf.freq[idx] = self.freq[idx];
             buf.depth[idx] = self.depth[idx];
             buf.opts[idx] = self.opts[idx];
@@ -532,6 +576,14 @@ impl LfoParamBuf {
             opts: &mut self.opts[base..end],
         }
     }
+    pub fn copy_to(&self, buf: &mut Self, len: usize) {
+        let len = std::cmp::min(len, self.len());
+        for idx in 0..std::cmp::min(len, buf.len()) {
+            buf.freq[idx] = self.freq[idx];
+            buf.depth[idx] = self.depth[idx];
+            buf.opts[idx] = self.opts[idx];
+        }
+    }
 }
 
 #[derive(Default, Clone)]
@@ -573,8 +625,9 @@ impl FiltParamBufFxP {
             buf.resize(sz as usize, ScalarFxP::ZERO);
         }
     }
-    pub fn into_float(&self, buf: &mut FiltParamBuf) {
-        for i in 0..std::cmp::min(self.len(), buf.len()) {
+    pub fn into_float(&self, buf: &mut FiltParamBuf, len: usize) {
+        let len = std::cmp::min(len, self.len());
+        for i in 0..std::cmp::min(len, buf.len()) {
             buf.env_mod[i] = self.env_mod[i].to_num();
             buf.vel_mod[i] = self.vel_mod[i].to_num();
             buf.kbd[i] = self.kbd[i].to_num();
@@ -619,8 +672,9 @@ impl FiltParamBufFxP {
         self.band_mix[idx] = ScalarFxP::from_bits(p.band.smoothed.next() as u16);
         self.high_mix[idx] = ScalarFxP::from_bits(p.high.smoothed.next() as u16);
     }
-    pub fn copy_to(&self, buf: &mut Self) {
-        for idx in 0..std::cmp::min(self.len(), buf.len()) {
+    pub fn copy_to(&self, buf: &mut Self, len: usize) {
+        let len = std::cmp::min(len, self.len());
+        for idx in 0..std::cmp::min(len, buf.len()) {
             buf.env_mod[idx] = self.env_mod[idx];
             buf.vel_mod[idx] = self.vel_mod[idx];
             buf.kbd[idx] = self.kbd[idx];
@@ -696,6 +750,19 @@ impl FiltParamBuf {
             high_mix: &mut self.high_mix[base..end],
         }
     }
+    pub fn copy_to(&self, buf: &mut Self, len: usize) {
+        let len = std::cmp::min(len, self.len());
+        for idx in 0..std::cmp::min(len, buf.len()) {
+            buf.env_mod[idx] = self.env_mod[idx];
+            buf.vel_mod[idx] = self.vel_mod[idx];
+            buf.kbd[idx] = self.kbd[idx];
+            buf.cutoff[idx] = self.cutoff[idx];
+            buf.resonance[idx] = self.resonance[idx];
+            buf.low_mix[idx] = self.low_mix[idx];
+            buf.band_mix[idx] = self.band_mix[idx];
+            buf.high_mix[idx] = self.high_mix[idx];
+        }
+    }
 }
 
 #[derive(Default, Clone)]
@@ -740,31 +807,31 @@ impl PluginParamBufFxP {
         self.lfo1.update_index(index, &p.lfo1);
         self.lfo2.update_index(index, &p.lfo2);
     }
-    pub fn into_float(&self, buf: &mut PluginParamBuf) {
-        self.global.into_float(&mut buf.global);
-        self.osc1.into_float(&mut buf.osc1);
-        self.osc2.into_float(&mut buf.osc2);
-        self.ringmod.into_float(&mut buf.ringmod);
-        self.filt.into_float(&mut buf.filt);
-        self.env_filt.into_float(&mut buf.env_filt);
-        self.env_amp.into_float(&mut buf.env_amp);
-        self.lfo1.into_float(&mut buf.lfo1);
-        self.lfo2.into_float(&mut buf.lfo2);
-        self.env1.into_float(&mut buf.env1);
-        self.env2.into_float(&mut buf.env2);
+    pub fn into_float(&self, buf: &mut PluginParamBuf, len: usize) {
+        self.global.into_float(&mut buf.global, len);
+        self.osc1.into_float(&mut buf.osc1, len);
+        self.osc2.into_float(&mut buf.osc2, len);
+        self.ringmod.into_float(&mut buf.ringmod, len);
+        self.filt.into_float(&mut buf.filt, len);
+        self.env_filt.into_float(&mut buf.env_filt, len);
+        self.env_amp.into_float(&mut buf.env_amp, len);
+        self.lfo1.into_float(&mut buf.lfo1, len);
+        self.lfo2.into_float(&mut buf.lfo2, len);
+        self.env1.into_float(&mut buf.env1, len);
+        self.env2.into_float(&mut buf.env2, len);
     }
-    pub fn copy_to(&self, buf: &mut Self) {
-        self.global.copy_to(&mut buf.global);
-        self.osc1.copy_to(&mut buf.osc1);
-        self.osc2.copy_to(&mut buf.osc2);
-        self.ringmod.copy_to(&mut buf.ringmod);
-        self.filt.copy_to(&mut buf.filt);
-        self.env_filt.copy_to(&mut buf.env_filt);
-        self.env_amp.copy_to(&mut buf.env_amp);
-        self.lfo1.copy_to(&mut buf.lfo1);
-        self.lfo2.copy_to(&mut buf.lfo2);
-        self.env1.copy_to(&mut buf.env1);
-        self.env2.copy_to(&mut buf.env2);
+    pub fn copy_to(&self, buf: &mut Self, len: usize) {
+        self.global.copy_to(&mut buf.global, len);
+        self.osc1.copy_to(&mut buf.osc1, len);
+        self.osc2.copy_to(&mut buf.osc2, len);
+        self.ringmod.copy_to(&mut buf.ringmod, len);
+        self.filt.copy_to(&mut buf.filt, len);
+        self.env_filt.copy_to(&mut buf.env_filt, len);
+        self.env_amp.copy_to(&mut buf.env_amp, len);
+        self.lfo1.copy_to(&mut buf.lfo1, len);
+        self.lfo2.copy_to(&mut buf.lfo2, len);
+        self.env1.copy_to(&mut buf.env1, len);
+        self.env2.copy_to(&mut buf.env2, len);
     }
 }
 
@@ -796,5 +863,18 @@ impl PluginParamBuf {
         self.lfo2.allocate(sz);
         self.env1.allocate(sz);
         self.env2.allocate(sz);
+    }
+    pub fn copy_to(&self, buf: &mut Self, len: usize) {
+        self.global.copy_to(&mut buf.global, len);
+        self.osc1.copy_to(&mut buf.osc1, len);
+        self.osc2.copy_to(&mut buf.osc2, len);
+        self.ringmod.copy_to(&mut buf.ringmod, len);
+        self.filt.copy_to(&mut buf.filt, len);
+        self.env_filt.copy_to(&mut buf.env_filt, len);
+        self.env_amp.copy_to(&mut buf.env_amp, len);
+        self.lfo1.copy_to(&mut buf.lfo1, len);
+        self.lfo2.copy_to(&mut buf.lfo2, len);
+        self.env1.copy_to(&mut buf.env1, len);
+        self.env2.copy_to(&mut buf.env2, len);
     }
 }

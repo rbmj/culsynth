@@ -45,6 +45,7 @@ impl Default for PolySynthVoice {
 pub struct PolySynth {
     voices: Vec<PolySynthVoice>,
     params: PluginParamBuf,
+    params_backup: PluginParamBuf,
     active_voices: VecDeque<usize>,
     inactive_voices: VecDeque<usize>,
     outbuf: Vec<f32>,
@@ -65,6 +66,7 @@ impl PolySynth {
                 .take(num_voices)
                 .collect(),
             params: PluginParamBuf::default(),
+            params_backup: PluginParamBuf::default(),
             active_voices: VecDeque::new(),
             inactive_voices: VecDeque::new(),
             outbuf: Vec::default(),
@@ -99,6 +101,7 @@ impl VoiceAllocator for PolySynth {
         }
 
         self.params.allocate(sz as u32);
+        self.params_backup.allocate(sz as u32);
         self.outbuf.resize(sz, 0f32);
         self.aftertouchbuf.resize(sz, 0f32);
         self.modwheelbuf.resize(sz, 0f32);
@@ -165,9 +168,10 @@ impl VoiceAllocator for PolySynth {
         for smp in self.outbuf.iter_mut() {
             *smp = 0f32;
         }
+        params.into_float(&mut self.params_backup, self.index);
         for voice in self.voices.iter_mut() {
             let mut processed: usize = 0;
-            params.into_float(&mut self.params);
+            self.params_backup.copy_to(&mut self.params, self.index);
             while processed < self.index {
                 let thisiter = voice.voice.process(
                     &self.ctx,
@@ -371,7 +375,7 @@ impl VoiceAllocator for PolySynthFxP {
         }
         for voice in self.voices.iter_mut() {
             let mut processed: usize = 0;
-            params.copy_to(&mut self.params);
+            params.copy_to(&mut self.params, self.index);
             while processed < self.index {
                 let thisiter = voice.voice.process(
                     &self.ctx,

@@ -180,20 +180,20 @@ impl JanusEditor {
                     });
             });
         });
-        //FIXME: Allocating 4 instead of 16 voices for performance reasons
         if new_is_fixed != fixed_point || new_voice_mode != voice_mode {
             if new_is_fixed {
                 fixed_context.map(|ctx| {
                     let ret: Box<dyn VoiceAllocator> = match new_voice_mode {
                         VoiceMode::Mono => Box::new(MonoSynthFxP::new(ctx)),
-                        VoiceMode::Poly16 => Box::new(PolySynthFxP::new(4, ctx)),
+                        //FIXME: Allocating 8 instead of 16 voices for performance reasons
+                        VoiceMode::Poly16 => Box::new(PolySynthFxP::new(8, ctx)),
                     };
                     ret
                 })
             } else {
                 Some(match new_voice_mode {
                     VoiceMode::Mono => Box::new(MonoSynth::new(Context::new(sr as f32))),
-                    VoiceMode::Poly16 => Box::new(PolySynth::new(4, Context::new(sr as f32))),
+                    VoiceMode::Poly16 => Box::new(PolySynth::new(16, Context::new(sr as f32))),
                 })
             }
         } else {

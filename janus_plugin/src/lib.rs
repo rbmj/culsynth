@@ -216,12 +216,19 @@ impl Plugin for JanusPlugin {
         let bufsz = std::cmp::max(buffer_config.max_buffer_size, 2048);
         self.parambuf.allocate(bufsz);
         let mut voice_alloc: Box<dyn VoiceAllocator> =
-            Box::new(PolySynth::new(4, Context::new(buffer_config.sample_rate)));
+            Box::new(PolySynth::new(16, Context::new(buffer_config.sample_rate)));
         voice_alloc.initialize(bufsz as usize);
         let ctx = voice_alloc.get_context();
-        self.update_sample_rate(ctx.sample_rate(), ctx.is_fixed_point());
-        self.voices = Some(voice_alloc);
+        self.update_context(
+            ctx,
+            if voice_alloc.is_poly() {
+                VoiceMode::Poly16
+            } else {
+                VoiceMode::Mono
+            },
+        );
         self.context.bufsz.store(bufsz as usize, Relaxed);
+        self.voices = Some(voice_alloc);
         true
     }
 
