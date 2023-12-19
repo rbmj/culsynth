@@ -49,12 +49,19 @@ pub(crate) type PhaseFxP = fixedmath::I4F28;
 /// );
 /// ```
 pub enum OscSync<'a, Smp> {
+    /// No sync behavior - do not calculate
     Off,
+    /// This is the master oscillator, and calculate sync information when
+    /// in-place whenever the supplied slice is non-zero
     Master(&'a mut [Smp]),
+    /// This is the slave oscillator, and sync it to the master using the
+    /// information in the slice provided
     Slave(&'a [Smp]),
 }
 
 impl<'a, Smp> OscSync<'a, Smp> {
+    /// For [OscSync::Off] returns `None`, and otherwise returns `Some(len)`,
+    /// where `len` is the length of sync data slice.
     pub fn len(&self) -> Option<usize> {
         match self {
             OscSync::Off => None,
@@ -62,6 +69,8 @@ impl<'a, Smp> OscSync<'a, Smp> {
             OscSync::Slave(x) => Some(x.len()),
         }
     }
+    /// This is empty if the subslice is empty.  [OscSync::Off] is
+    /// considered to be non-empty.
     pub fn is_empty(&self) -> bool {
         match self.len() {
             Some(x) => x == 0,
@@ -94,9 +103,11 @@ pub struct OscOutput<'a, Smp> {
 }
 
 impl<'a, Smp> OscOutput<'a, Smp> {
+    /// The length of the oscillator output slices
     pub fn len(&self) -> usize {
         self.sin.len()
     }
+    /// True if `self.len() == 0`
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -118,6 +129,7 @@ impl<'a, Smp> OscParams<'a, Smp> {
         let x = core::cmp::min(self.shape.len(), self.tune.len());
         self.sync.len().map_or(x, |y| core::cmp::min(x, y))
     }
+    /// True if any subslice is empty
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -290,10 +302,13 @@ pub struct OscParamsFxP<'a> {
 }
 
 impl<'a> OscParamsFxP<'a> {
+    /// The length of this parameter pack, considered to be the length of the
+    /// shortest subslice
     pub fn len(&self) -> usize {
         let x = core::cmp::min(self.shape.len(), self.tune.len());
         self.sync.len().map_or(x, |y| core::cmp::min(x, y))
     }
+    /// True if any subslice is empty
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }

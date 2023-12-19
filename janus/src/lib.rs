@@ -16,6 +16,7 @@
 //! system, but does require some duplication of code throughout the crate.
 
 #![no_std]
+#![warn(missing_docs)]
 
 mod fixedmath;
 pub mod util;
@@ -54,12 +55,15 @@ pub type EnvParamFxP = fixedmath::U3F13;
 ///
 /// TODO: should this be a newtype?
 pub type LfoFreqFxP = fixedmath::U7F9;
+/// A signed value in the range `[-1, 1)` - used where we need a signed version
+/// of a [ScalarFxP]
 pub type IScalarFxP = fixedmath::I1F15;
 
 fn min_size(sizes: &[usize]) -> usize {
     *sizes.iter().min().unwrap_or(&0)
 }
 
+/// A trait encompassing 16 bit fixed point numbers
 pub trait Fixed16: fixed::traits::Fixed {
     //none required currently
 }

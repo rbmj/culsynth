@@ -24,6 +24,7 @@ impl<'a, Smp> FiltParams<'a, Smp> {
     pub fn len(&self) -> usize {
         core::cmp::min(self.cutoff.len(), self.resonance.len())
     }
+    /// Returns true if any subslice is empty
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -128,6 +129,7 @@ impl<'a> FiltParamsFxP<'a> {
     pub fn len(&self) -> usize {
         core::cmp::min(self.cutoff.len(), self.resonance.len())
     }
+    /// Returns true if any subslice is empty
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -147,6 +149,7 @@ impl<'a> MutFiltParamsFxP<'a> {
     pub fn len(&self) -> usize {
         core::cmp::min(self.cutoff.len(), self.resonance.len())
     }
+    /// Returns true if any subslice is empty
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }

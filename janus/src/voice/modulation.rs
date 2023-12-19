@@ -6,19 +6,28 @@ use crate::devices::*;
 use crate::{min_size, STATIC_BUFFER_SIZE};
 use crate::{EnvParamFxP, IScalarFxP, LfoFreqFxP, SampleFxP, ScalarFxP, SignedNoteFxP};
 
+/// An enum representing a choice in modulation source
 #[repr(u16)]
 #[derive(Clone, Copy)]
 pub enum ModSrc {
+    /// MIDI Note On velocity
     Velocity,
+    /// MIDI Channel aftertouch
     Aftertouch,
+    /// The modulation wheel (MIDI CC #1)
     ModWheel,
+    /// Modulation envelope #1
     Env1,
+    /// Modulation envelope #2
     Env2,
+    /// LFO #1
     Lfo1,
+    /// LFO #2
     Lfo2,
 }
 
 impl ModSrc {
+    /// An array containing all possible `ModSrc` values, in order
     pub const ELEM: [ModSrc; Self::numel()] = [
         ModSrc::Velocity,
         ModSrc::Aftertouch,
@@ -28,18 +37,23 @@ impl ModSrc {
         ModSrc::Lfo1,
         ModSrc::Lfo2,
     ];
+    /// An iterator over all the different elements in `ModSrc`
     pub const fn elements() -> &'static [ModSrc] {
         &Self::ELEM
     }
+    /// The first value in elements
     pub const fn min() -> Self {
         Self::Velocity
     }
+    /// The last value in elements
     pub const fn max() -> Self {
         Self::Lfo2
     }
+    /// The number of different modualtion sources
     pub const fn numel() -> usize {
         1 + Self::max() as usize - Self::min() as usize
     }
+    /// The string representation of the modulation source
     pub const fn to_str(&self) -> &'static str {
         match self {
             Self::Velocity => "Velocity",
@@ -53,50 +67,94 @@ impl ModSrc {
     }
 }
 
+/// An enum representing a modulation destination
 #[repr(u16)]
 #[derive(Clone, Copy, PartialEq, Default)]
 pub enum ModDest {
+    /// The default is `ModDest::Null`, which is equivalent to no modulation
     #[default]
     Null,
+    /// Course tune for oscillator 1, ranging from -32 to +32 semitones
     Osc1Course,
+    /// Fine tune for oscillator 1, ranging from -2 to +2 semitones
     Osc1Fine,
+    /// The wave shape (phase distortion) of oscillator 1
     Osc1Shape,
+    /// The mix of the sine wave output for oscillator 1
     Osc1Sin,
+    /// The mix of the square wave output for oscillator 1
     Osc1Sq,
+    /// The mix of the triangel wave output for oscillator 1
     Osc1Tri,
+    /// The mix of the sawtooth wave output for oscillator 1
     Osc1Saw,
+    /// Course tune for oscillator 2, ranging from -32 to +32 semitones
     Osc2Course,
+    /// Fine tune for oscillator 1, ranging from -2 to +2 semitones
     Osc2Fine,
+    /// The wave shape (phase distortion) of oscillator 2
     Osc2Shape,
+    /// The mix of the sine wave output for oscillator 2
     Osc2Sin,
+    /// The mix of the square wave output for oscillator 2
     Osc2Sq,
+    /// The mix of the triangle wave output for oscillator 2
     Osc2Tri,
+    /// The mix of the sawtooth wave output for oscillator 2
     Osc2Saw,
+    /// The mix of the dry signal from oscillator 1 in the output of the
+    /// ring modulation section
     RingOsc1,
+    /// The mix of the dry signal from oscillator 2 in the output of the
+    /// ring modulation section
     RingOsc2,
+    /// The mix of the wet (modulated) signal in the output of the ring
+    /// modulation section
     RingMod,
+    /// The filter cutoff frequency
     FiltCutoff,
+    /// The filter resonance parameter
     FiltRes,
+    /// The filter envelope modulation
     FiltEnv,
+    /// The filter keyboard tracking
     FiltKbd,
+    /// The filter velocity modulation
     FiltVel,
+    /// The filter low-pass output mix
     FiltLow,
+    /// The filter band-pass output mix
     FiltBand,
+    /// The filter high-pass output mix
     FiltHigh,
+    /// The filter envelope attack
     EnvFiltA,
+    /// The filter envelope decay
     EnvFiltD,
+    /// The filter envelope sustain
     EnvFiltS,
+    /// The filter envelope release
     EnvFiltR,
+    /// The VCA envelope attack
     EnvAmpA,
+    /// The VCA envelope decay
     EnvAmpD,
+    /// The VCA envelope sustain
     EnvAmpS,
+    /// The VCA envelope release
     EnvAmpR,
 
+    /// The rate/frequency of LFO 2, in Hz
     Lfo2Rate,
+    /// The modulation depth of LFO 2, from 0 to 1
     Lfo2Depth,
+    /// The attack of modulation envelope 2
     Env2A,
+    /// The decay of modulation envelope 2
     Env2D,
+    /// The sustain of modulation envelope 2
     Env2S,
+    /// The release of modulation envelope 2
     Env2R,
 }
 
@@ -115,6 +173,7 @@ impl ModDest {
             val => val,
         }
     }
+    /// The string representation of this modulation destination.
     pub const fn to_str(&self) -> &'static str {
         match self {
             Self::Null => "NONE",
@@ -159,21 +218,33 @@ impl ModDest {
             Self::Env2R => "Env2R",
         }
     }
+    /// The first modulation destination, in order
     pub const fn min() -> Self {
         Self::Null
     }
+    /// The last modulation destination, in order
     pub const fn max() -> Self {
         Self::Env2R
     }
+    /// The last modulation destination before the secondary destinations
+    ///
+    /// The secondary modulation destinations are invalid destinations from
+    /// LFO2/ENV2 to avoid self/co-modulation
     pub const fn max_secondary() -> Self {
         Self::EnvAmpR
     }
+    /// An iterator over all modulation destinations
     pub fn elements() -> impl core::iter::Iterator<Item = ModDest> {
         Self::elements_secondary_if(false)
     }
+    /// An iterator over all non-secondary modulation destinations
+    ///
+    /// FIXME: Bad name
     pub fn elements_secondary() -> impl core::iter::Iterator<Item = ModDest> {
         Self::elements_secondary_if(true)
     }
+    /// An iterator that excludes the secondary modulation destinations if the
+    /// argument is true, and includes them if it is false
     pub fn elements_secondary_if(sec: bool) -> impl core::iter::Iterator<Item = ModDest> {
         let max = if sec {
             Self::max_secondary()
@@ -204,6 +275,9 @@ impl TryFrom<&str> for ModDest {
     }
 }
 
+/// A struct to allow expressing the different modulation destinations for a
+/// particular oscillator.  See [OSC1_MOD_DEST]/[OSC2_MOD_DEST] and
+/// [Modulator]/[ModulatorFxP]
 pub struct OscModDest {
     course: ModDest,
     fine: ModDest,
@@ -214,6 +288,7 @@ pub struct OscModDest {
     saw: ModDest,
 }
 
+/// The modulation destinations corresponding to oscillator 1
 pub const OSC1_MOD_DEST: OscModDest = OscModDest {
     course: ModDest::Osc1Course,
     fine: ModDest::Osc1Fine,
@@ -224,6 +299,7 @@ pub const OSC1_MOD_DEST: OscModDest = OscModDest {
     saw: ModDest::Osc1Saw,
 };
 
+/// The modulation destinations corresponding to oscillator 2
 pub const OSC2_MOD_DEST: OscModDest = OscModDest {
     course: ModDest::Osc2Course,
     fine: ModDest::Osc2Fine,
@@ -234,6 +310,9 @@ pub const OSC2_MOD_DEST: OscModDest = OscModDest {
     saw: ModDest::Osc2Saw,
 };
 
+/// A struct to allow expressing the different modulation destinations for a
+/// particular oscillator.  See [ENV_AMP_MOD_DEST]/[ENV_FILT_MOD_DEST] and
+/// [Modulator]/[ModulatorFxP]
 pub struct EnvModDest {
     attack: ModDest,
     decay: ModDest,
@@ -241,6 +320,7 @@ pub struct EnvModDest {
     release: ModDest,
 }
 
+/// The modulation destinations corresponding to the VCA envelope
 pub const ENV_AMP_MOD_DEST: EnvModDest = EnvModDest {
     attack: ModDest::EnvAmpA,
     decay: ModDest::EnvAmpD,
@@ -248,6 +328,7 @@ pub const ENV_AMP_MOD_DEST: EnvModDest = EnvModDest {
     release: ModDest::EnvAmpR,
 };
 
+/// The modulation destinations corresponding to the filter envelope
 pub const ENV_FILT_MOD_DEST: EnvModDest = EnvModDest {
     attack: ModDest::EnvFiltA,
     decay: ModDest::EnvFiltD,
@@ -261,6 +342,8 @@ type ModMatrixRowEntries<Smp> = [(ModDest, Smp); MOD_SLOTS];
 type ModMatrixEntryFxP = (ModSrc, ModMatrixRowEntriesFxP);
 type ModMatrixRow<Smp> = (ModSrc, ModMatrixRowEntries<Smp>);
 
+/// A struct used to modulate fixed-point parameters.  Obtained from
+/// [ModSectionFxP]
 pub struct ModulatorFxP<'a> {
     velocity: &'a [ScalarFxP],
     aftertouch: &'a [ScalarFxP],
@@ -273,6 +356,8 @@ pub struct ModulatorFxP<'a> {
 }
 
 impl<'a> ModulatorFxP<'a> {
+    /// The "length" of this modulator, i.e. the length of parameter slice it
+    /// has sufficient data to modulate
     pub fn len(&self) -> usize {
         min_size(&[
             self.velocity.len(),
@@ -284,6 +369,7 @@ impl<'a> ModulatorFxP<'a> {
             self.env2.len(),
         ])
     }
+    /// True if `self.len() == 0`
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -351,12 +437,16 @@ impl<'a> ModulatorFxP<'a> {
         }
         true
     }
+    /// Modulate all of the parameters in `params` for the envelope specified by
+    /// `dest`, which should be either [ENV_AMP_MOD_DEST] or [ENV_FILT_MOD_DEST]
     pub fn modulate_env(&self, params: &mut MutEnvParamsFxP, dest: &EnvModDest) {
         self.modulate(dest.attack, params.attack);
         self.modulate(dest.decay, params.decay);
         self.modulate(dest.sustain, params.sustain);
         self.modulate(dest.release, params.release);
     }
+    /// Modulate all of the parameters in `params` for the oscillator specified by
+    /// `dest`, which should be either [OSC1_MOD_DEST] or [OSC2_MOD_DEST]
     pub fn modulate_osc(&self, params: &mut MutMixOscParamsFxP, dest: &OscModDest) {
         // Use a temporary buffer here to avoid _massive_ duplication of code
         let mut buf = [SignedNoteFxP::ZERO; STATIC_BUFFER_SIZE];
@@ -384,11 +474,13 @@ impl<'a> ModulatorFxP<'a> {
         self.modulate(dest.tri, params.tri);
         self.modulate(dest.saw, params.saw);
     }
+    /// Modulate the ring modulator parameters
     pub fn modulate_ring(&self, params: &mut MutRingModParamsFxP) {
         self.modulate(ModDest::RingOsc1, params.mix_a);
         self.modulate(ModDest::RingOsc2, params.mix_b);
         self.modulate(ModDest::RingMod, params.mix_out);
     }
+    /// Modulate the filter parameters
     pub fn modulate_filt(&self, params: &mut MutModFiltParamsFxP) {
         self.modulate(ModDest::FiltEnv, params.env_mod);
         self.modulate(ModDest::FiltVel, params.vel_mod);
@@ -401,17 +493,27 @@ impl<'a> ModulatorFxP<'a> {
     }
 }
 
+/// A parameter pack representing the different parameters to the [ModSectionFxP]
 pub struct ModSectionParamsFxP<'a> {
+    /// MIDI Velocity
     pub velocity: &'a [ScalarFxP],
+    /// MIDI Channel aftertouch
     pub aftertouch: &'a [ScalarFxP],
+    /// Modulation wheel (MIDI CC #1)
     pub modwheel: &'a [ScalarFxP],
+    /// Parameters for LFO 1
     pub lfo1_params: LfoParamsFxP<'a>,
+    /// Parameters for LFO 2
     pub lfo2_params: MutLfoParamsFxP<'a>,
+    /// Parameters for Envelope 1
     pub env1_params: EnvParamsFxP<'a>,
+    /// Parameters for Envelope 2
     pub env2_params: MutEnvParamsFxP<'a>,
 }
 
 impl<'a> ModSectionParamsFxP<'a> {
+    /// The length of this parameter pack, defined as the length of the shortest
+    /// subslice
     pub fn len(&self) -> usize {
         min_size(&[
             self.velocity.len(),
@@ -423,12 +525,15 @@ impl<'a> ModSectionParamsFxP<'a> {
             self.env2_params.len(),
         ])
     }
+    /// True if any subslice is empty
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 }
 
+/// The actual data that describes the fixed point modulation matrix
 pub struct ModMatrixFxP {
+    /// The rows of the matrix, one per [ModSrc]
     pub rows: [ModMatrixEntryFxP; ModSrc::numel()],
 }
 
@@ -441,6 +546,8 @@ impl Default for ModMatrixFxP {
 }
 
 impl ModMatrixFxP {
+    /// If there is an entry in this matrix from `src` to `dest`, return the
+    /// modulation depth, else return None
     pub fn get_modulation(&self, src: ModSrc, dest: ModDest) -> Option<IScalarFxP> {
         self.rows[src as usize]
             .1
@@ -449,6 +556,8 @@ impl ModMatrixFxP {
     }
 }
 
+/// The actual modulation section, containing the modulation LFOs and Envelopes and
+/// logic to build the [ModulatorFxP].
 #[derive(Clone)]
 pub struct ModSectionFxP {
     lfo1: LfoFxP,
@@ -458,6 +567,8 @@ pub struct ModSectionFxP {
 }
 
 impl ModSectionFxP {
+    /// Build a new modulation section, seeding the LFO RNGs (for S+H/S+G) from
+    /// the seeds seed1 and seed2
     pub fn new_with_seeds(seed1: u64, seed2: u64) -> Self {
         Self {
             lfo1: LfoFxP::new(seed1),
@@ -466,6 +577,9 @@ impl ModSectionFxP {
             env2: Default::default(),
         }
     }
+    /// Build a [ModulatorFxP] from all the required data, to include the
+    /// processing context, the gate signal, the [ModSectionParamsFxP], and
+    /// the actual [ModMatrixFxP].
     pub fn process<'a>(
         &'a mut self,
         ctx: &ContextFxP,
@@ -486,9 +600,9 @@ impl ModSectionFxP {
             aftertouch: params.aftertouch,
             modwheel: params.modwheel,
             lfo1: lfo1_out,
-            lfo2: fixed_zerobuf_signed::<SampleFxP>(),
+            lfo2: fixed_zerobuf::<SampleFxP>(),
             env1: env1_out,
-            env2: fixed_zerobuf_unsigned::<ScalarFxP>(),
+            env2: fixed_zerobuf::<ScalarFxP>(),
             matrix: entries,
         };
         modulator.modulate(
@@ -537,6 +651,8 @@ impl Default for ModSectionFxP {
     }
 }
 
+/// A struct used to modulate floating-point parameters.  Obtained from
+/// [ModSection]
 pub struct Modulator<'a, Smp: Float> {
     velocity: &'a [Smp],
     aftertouch: &'a [Smp],
@@ -549,6 +665,8 @@ pub struct Modulator<'a, Smp: Float> {
 }
 
 impl<'a, Smp: Float> Modulator<'a, Smp> {
+    /// The "length" of this modulator, i.e. the length of parameter slice it
+    /// has sufficient data to modulate
     pub fn len(&self) -> usize {
         min_size(&[
             self.velocity.len(),
@@ -560,10 +678,11 @@ impl<'a, Smp: Float> Modulator<'a, Smp> {
             self.env2.len(),
         ])
     }
+    /// True if `self.len() == 0`
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
-    pub fn coeff_from_fixed<T: crate::Fixed16>() -> Smp {
+    fn coeff_from_fixed<T: crate::Fixed16>() -> Smp {
         let num_bits = if T::IS_SIGNED { 15 } else { 16 } - T::FRAC_NBITS as i32;
         if num_bits == -1 {
             Smp::ONE_HALF
@@ -602,6 +721,8 @@ impl<'a, Smp: Float> Modulator<'a, Smp> {
         }
         true
     }
+    /// Modulate all of the parameters in `params` for the envelope specified by
+    /// `dest`, which should be either [ENV_AMP_MOD_DEST] or [ENV_FILT_MOD_DEST]
     pub fn modulate_env(&self, params: &mut MutEnvParams<Smp>, dest: &EnvModDest) {
         let coeff = Self::coeff_from_fixed::<EnvParamFxP>();
         self.modulate(dest.attack, params.attack, coeff);
@@ -613,6 +734,8 @@ impl<'a, Smp: Float> Modulator<'a, Smp> {
         );
         self.modulate(dest.release, params.release, coeff);
     }
+    /// Modulate all of the parameters in `params` for the oscillator specified by
+    /// `dest`, which should be either [OSC1_MOD_DEST] or [OSC2_MOD_DEST]
     pub fn modulate_osc(&self, params: &mut MutMixOscParams<Smp>, dest: &OscModDest) {
         let coeff = Self::coeff_from_fixed::<ScalarFxP>();
         self.modulate(dest.fine, params.tune, Smp::TWO);
@@ -623,12 +746,14 @@ impl<'a, Smp: Float> Modulator<'a, Smp> {
         self.modulate(dest.tri, params.tri, coeff);
         self.modulate(dest.saw, params.saw, coeff);
     }
+    /// Modulate the ring modulator parameters
     pub fn modulate_ring(&self, params: &mut MutRingModParams<Smp>) {
         let coeff = Self::coeff_from_fixed::<ScalarFxP>();
         self.modulate(ModDest::RingOsc1, params.mix_a, coeff);
         self.modulate(ModDest::RingOsc2, params.mix_b, coeff);
         self.modulate(ModDest::RingMod, params.mix_out, coeff);
     }
+    /// Modulate the filter parameters
     pub fn modulate_filt(&self, params: &mut MutModFiltParams<Smp>) {
         let coeff = Self::coeff_from_fixed::<ScalarFxP>();
         let filt_coeff = Self::coeff_from_fixed::<crate::NoteFxP>();
@@ -643,17 +768,27 @@ impl<'a, Smp: Float> Modulator<'a, Smp> {
     }
 }
 
+/// A parameter pack representing the different parameters to the [ModSectionFxP]
 pub struct ModSectionParams<'a, Smp: Float> {
+    /// MIDI Velocity
     pub velocity: &'a [Smp],
+    /// MIDI Channel aftertouch
     pub aftertouch: &'a [Smp],
+    /// Modulation wheel (MIDI CC #1)
     pub modwheel: &'a [Smp],
+    /// Parameters for LFO 1
     pub lfo1_params: LfoParams<'a, Smp>,
+    /// Parameters for LFO 2
     pub lfo2_params: MutLfoParams<'a, Smp>,
+    /// Parameters for Envelope 1
     pub env1_params: EnvParams<'a, Smp>,
+    /// Parameters for Envelope 2
     pub env2_params: MutEnvParams<'a, Smp>,
 }
 
+/// A struct representing the actual modulation matrix
 pub struct ModMatrix<Smp: Float> {
+    /// The actual rows of the modulation matrix, one per [ModSrc]
     pub rows: [ModMatrixRow<Smp>; ModSrc::numel()],
 }
 
@@ -666,6 +801,8 @@ impl<Smp: Float> Default for ModMatrix<Smp> {
 }
 
 impl<Smp: Float> ModMatrix<Smp> {
+    /// If there is an entry in this matrix from `src` to `dest`, return the
+    /// modulation depth, else return None
     pub fn get_modulation(&self, src: ModSrc, dest: ModDest) -> Option<Smp> {
         self.rows[src as usize]
             .1
@@ -674,6 +811,8 @@ impl<Smp: Float> ModMatrix<Smp> {
     }
 }
 
+/// The actual modulation section, containing the modulation LFOs and Envelopes and
+/// logic to build the [Modulator].
 #[derive(Clone)]
 pub struct ModSection<Smp: Float> {
     lfo1: Lfo<Smp>,
@@ -683,6 +822,8 @@ pub struct ModSection<Smp: Float> {
 }
 
 impl<Smp: Float> ModSection<Smp> {
+    /// Build a new modulation section, seeding the LFO RNGs (for S+H/S+G) from
+    /// the seeds seed1 and seed2
     pub fn new_with_seeds(seed1: u64, seed2: u64) -> Self {
         Self {
             lfo1: Lfo::new(seed1),
@@ -691,6 +832,9 @@ impl<Smp: Float> ModSection<Smp> {
             env2: Default::default(),
         }
     }
+    /// Build a [Modulator] from all the required data, to include the
+    /// processing context, the gate signal, the [ModSectionParams], and
+    /// the actual [ModMatrix].
     pub fn process<'a>(
         &'a mut self,
         ctx: &Context<Smp>,

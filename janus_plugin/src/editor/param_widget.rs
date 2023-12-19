@@ -1,9 +1,49 @@
+//! This module contains a trait and convenience methods to draw the UI for
+//! setting synthesizer parameters.
+
 use super::*;
 
+/// Returns a [egui::widgets::Slider] that can manipulate an [IntParam], getting
+/// the range and to/from string information from the parameter itself.
+pub fn param_slider<'a>(setter: &'a ParamSetter, param: &'a IntParam) -> egui::widgets::Slider<'a> {
+    let range = param.range();
+    let range2 = range; //need a copy to move into the other closure...
+    let (min, max) = match range {
+        IntRange::Linear { min: x, max: y } => (x, y),
+        IntRange::Reversed(IntRange::Linear { min: x, max: y }) => (*x, *y),
+        _ => std::unreachable!(),
+    };
+    widgets::Slider::from_get_set(min as f64..=max as f64, |new_value| match new_value {
+        Some(value) => {
+            setter.begin_set_parameter(param);
+            setter.set_parameter(param, value as i32);
+            setter.end_set_parameter(param);
+            value
+        }
+        None => param.value() as f64,
+    })
+    .integer()
+    .show_value(false)
+    .suffix(param.unit())
+    .custom_parser(move |s| {
+        param
+            .string_to_normalized_value(s)
+            .map(|x| range.unnormalize(x) as f64)
+    })
+    .custom_formatter(move |f, _| {
+        param.normalized_value_to_string(range2.normalize(f as i32), false)
+    })
+}
+
+/// A trait that provides a user interface for setting parameters on a given
+/// type to avoid code duplication.
 pub trait ParamWidget {
+    /// Draw the interface on `ui`
     fn draw_on(&self, ui: &mut egui::Ui, setter: &ParamSetter, label: &str);
 }
 
+/// Internal function to draw an oscillator UI, used for both the sync and
+/// non-sync drawing functions
 fn draw_osc(
     osc: &OscPluginParams,
     ui: &mut egui::Ui,
@@ -60,6 +100,7 @@ pub struct OscPluginParamsWithSync<'a> {
     param: &'a BoolParam,
 }
 
+/// Draw an oscillator as well as a button to enable/disable oscillator sync
 pub fn osc_with_sync<'a>(
     osc: &'a OscPluginParams,
     sync: &'a BoolParam,

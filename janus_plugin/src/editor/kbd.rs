@@ -27,6 +27,9 @@ fn key_to_notenum(k: egui::Key) -> Option<i8> {
     }
 }
 
+/// A keyboard panel that provides a UI to provide note events to the synth
+/// without having a MIDI controller.  It will currently draw itself as an
+/// [egui::TopBottomPanel]
 pub struct KbdPanel {
     last_note: Option<i8>,
 }
@@ -205,8 +208,9 @@ impl KbdPanel {
     /// Draw the bottom keyboard panel and handle keyboard/mouse input so the
     /// user can interact with the plugin without a MIDI controller
     ///
-    /// The return value is a Vec of MIDI note on/off events, with off denoted
-    /// by (notenum - 128)
+    /// The return value is a Vec of MIDI note numbers, with a value >= zero
+    /// indicating a Note On for that note, and a negative number representing
+    /// a Note Off for (value + 128)
     pub fn show(&mut self, egui_ctx: &egui::Context) -> Vec<i8> {
         let mut ret: Vec<i8> = Default::default();
         egui::TopBottomPanel::bottom("keyboard").show(egui_ctx, |ui| {

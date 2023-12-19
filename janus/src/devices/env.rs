@@ -40,11 +40,13 @@ impl<'a, Smp> EnvParams<'a, Smp> {
             self.release.len(),
         ])
     }
+    /// This pack is empty if any of the constituent slices is empty
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 }
 
+/// A mutable floating-point envelope parameter pack (see [EnvParams])
 pub struct MutEnvParams<'a, Smp> {
     /// The attack (rise to peak) time of the envelope, in seconds.
     pub attack: &'a mut [Smp],
@@ -67,6 +69,7 @@ impl<'a, Smp> MutEnvParams<'a, Smp> {
             self.release.len(),
         ])
     }
+    /// This parameter pack is empty if any constituent slice is empty
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -200,11 +203,14 @@ impl<'a> EnvParamsFxP<'a> {
             self.release.len(),
         ])
     }
+    /// This parameter pack if any constituent slice is empty
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 }
 
+/// A mutable version of the fixed-point envelope parameter pack
+/// (see [EnvParamsFxP])
 pub struct MutEnvParamsFxP<'a> {
     /// The attack (rise) time of the envelope, in seconds, as a fixed point number
     /// (see [EnvParamFxP]).
@@ -233,6 +239,7 @@ impl<'a> MutEnvParamsFxP<'a> {
             self.release.len(),
         ])
     }
+    /// This parameter pack is empty if any constituent slice is empty
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }

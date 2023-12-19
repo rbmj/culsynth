@@ -10,6 +10,9 @@ const RANDOM_SEED: u64 = 0xce607a9d25ec3d88u64; //random 64 bit integer
 
 #[repr(transparent)]
 #[derive(Clone, Copy)]
+/// A struct to package together the various LFO configuration options in one
+/// convenient struct that fits in 16 bits.  We could get away with packing
+/// it in 8 bits, but we'll use 16 to allow for future expansion
 pub struct LfoOptions {
     bits: u16,
 }
@@ -17,16 +20,20 @@ pub struct LfoOptions {
 impl LfoOptions {
     const BIPOLAR: u16 = 1 << 8;
     const RETRIGGER: u16 = 1 << 9;
+    /// The LFO Waveform (Sine, Square, Sample+Hold, etc.)
     pub fn wave(&self) -> Option<LfoWave> {
         let value = (self.bits & 0xFF) as u8;
         LfoWave::try_from(value).ok()
     }
+    /// Is this LFO unipolar (0:1) or bipolar (-1:1)?
     pub fn bipolar(&self) -> bool {
         self.bits & Self::BIPOLAR != 0
     }
+    /// Does this LFO retrigger/reset on each gate?
     pub fn retrigger(&self) -> bool {
         self.bits & Self::RETRIGGER != 0
     }
+    /// Pack the LFO parameters into a `LfoOptions` value
     pub fn new(wave: LfoWave, bipolar: bool, retrigger: bool) -> Self {
         LfoOptions {
             bits: (wave as u16)
@@ -37,6 +44,7 @@ impl LfoOptions {
 }
 
 impl Default for LfoOptions {
+    /// The default value is a bipolar, retriggering sine wave
     fn default() -> Self {
         Self::new(LfoWave::Sine, true, true)
     }
@@ -44,13 +52,20 @@ impl Default for LfoOptions {
 
 #[derive(Default, Clone, Copy)]
 #[repr(u8)]
+/// The LFO waveform in use
 pub enum LfoWave {
+    /// Sine wave is default
     #[default]
     Sine,
+    /// Square wave
     Square,
+    /// Triangle wave
     Triangle,
+    /// Sawtooth wave
     Saw,
+    /// Sample and Hold
     SampleHold,
+    /// Sample and Glide
     SampleGlide,
 }
 
@@ -63,9 +78,11 @@ impl LfoWave {
         Self::SampleHold,
         Self::SampleGlide,
     ];
+    /// Returns a slice to all of the possible LfoWaves
     pub const fn waves() -> &'static [LfoWave] {
         &Self::ELEM
     }
+    /// Provides the name of the waveform (long-format)
     pub const fn to_str(&self) -> &'static str {
         [
             "Sine",
@@ -76,6 +93,10 @@ impl LfoWave {
             "Sample & Glide",
         ][*self as usize]
     }
+    /// Provides the name of the waveform (long-format)
+    ///
+    /// This is a single character (for waveforms with unicode representations)
+    /// or up to three character abbreviation (e.g. "S+H")
     pub const fn to_str_short(&self) -> &'static str {
         [
             crate::util::SIN_CHARSTR,
@@ -105,31 +126,45 @@ impl TryFrom<u8> for LfoWave {
     }
 }
 
+/// A struct packaging together several slices to act as parameters for an LFO
 pub struct LfoParams<'a, Smp: Float> {
+    /// The frequency of the LFO, in Hz
     pub freq: &'a [Smp],
+    /// The depth of oscillation, between 0 and 1
     pub depth: &'a [Smp],
+    /// The options, including waveform and retriggering (see [LfoOptions])
     pub opts: &'a [LfoOptions],
 }
 
 impl<'a, Smp: Float> LfoParams<'a, Smp> {
+    /// The length of this parameter pack is defined as the length of the
+    /// smallest subslice
     pub fn len(&self) -> usize {
         min_size(&[self.freq.len(), self.depth.len(), self.opts.len()])
     }
+    /// True if any slice is zero length
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 }
 
+/// A mutable LFO parameter pack (see [LfoParams])
 pub struct MutLfoParams<'a, Smp: Float> {
+    /// The frequency of the LFO, in Hz
     pub freq: &'a mut [Smp],
+    /// The depth of oscillation, between 0 and 1
     pub depth: &'a mut [Smp],
+    /// The options, including waveform and retriggering (see [LfoOptions])
     pub opts: &'a mut [LfoOptions],
 }
 
 impl<'a, Smp: Float> MutLfoParams<'a, Smp> {
+    /// The length of this parameter pack is defined as the length of the
+    /// smallest subslice
     pub fn len(&self) -> usize {
         min_size(&[self.freq.len(), self.depth.len(), self.opts.len()])
     }
+    /// True if any slice is zero length
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -145,6 +180,7 @@ impl<'a, Smp: Float> From<MutLfoParams<'a, Smp>> for LfoParams<'a, Smp> {
     }
 }
 
+/// A floating-point LFO
 #[derive(Clone)]
 pub struct Lfo<Smp> {
     outbuf: BufferT<Smp>,
@@ -257,31 +293,45 @@ impl<Smp: Float> Default for Lfo<Smp> {
     }
 }
 
+/// A fixed-point LFO parameter pack
 pub struct LfoParamsFxP<'a> {
+    /// The frequency of the LFO, in Hz
     pub freq: &'a [LfoFreqFxP],
+    /// The depth of oscillation, as a number between 0 and 1
     pub depth: &'a [ScalarFxP],
+    /// The options for this LFO (see [LfoOptions])
     pub opts: &'a [LfoOptions],
 }
 
 impl<'a> LfoParamsFxP<'a> {
+    /// The length of this parameter pack is defined as the length of the
+    /// smallest subslice
     pub fn len(&self) -> usize {
         min_size(&[self.freq.len(), self.depth.len(), self.opts.len()])
     }
+    /// Returns true if any subslice is empty
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 }
 
+/// A mutable fixed-point LFO parameter pack (see [LfoParamsFxP])
 pub struct MutLfoParamsFxP<'a> {
+    /// The frequency of the LFO, in Hz
     pub freq: &'a mut [LfoFreqFxP],
+    /// The depth of oscillation, as a number between 0 and 1
     pub depth: &'a mut [ScalarFxP],
+    /// The options for this LFO (see [LfoOptions])
     pub opts: &'a mut [LfoOptions],
 }
 
 impl<'a> MutLfoParamsFxP<'a> {
+    /// The length of this parameter pack is defined as the length of the
+    /// smallest subslice
     pub fn len(&self) -> usize {
         min_size(&[self.freq.len(), self.depth.len(), self.opts.len()])
     }
+    /// Returns true if any subslice is empty
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }

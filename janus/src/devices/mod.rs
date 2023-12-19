@@ -9,30 +9,17 @@ mod modfilt;
 mod osc;
 mod ringmod;
 
-use super::{
+use crate::context::{Context, ContextFxP};
+use crate::{
     fixedmath, EnvParamFxP, LfoFreqFxP, NoteFxP, SampleFxP, ScalarFxP, SignedNoteFxP, USampleFxP,
 };
+use crate::{min_size, BufferT, Fixed16, STATIC_BUFFER_SIZE};
 
-use super::context::Context;
-use super::context::ContextFxP;
-use super::min_size;
-use super::BufferT;
-use super::STATIC_BUFFER_SIZE;
-
-use fixed::traits::Fixed;
-use fixed::types::extra::LeEqU16;
 static U16_ZEROBUF: [u16; STATIC_BUFFER_SIZE] = [0u16; STATIC_BUFFER_SIZE];
-pub fn fixed_zerobuf_signed<T: Fixed>() -> &'static [fixed::FixedI16<T::Frac>]
-where
-    T::Frac: LeEqU16,
-{
-    // Fixed is #[repr(transparent)], so this is valid:
-    unsafe { core::mem::transmute(&U16_ZEROBUF[0..STATIC_BUFFER_SIZE]) }
-}
-pub fn fixed_zerobuf_unsigned<T: Fixed>() -> &'static [fixed::FixedU16<T::Frac>]
-where
-    T::Frac: LeEqU16,
-{
+
+/// Get a slice to a buffer of [STATIC_BUFFER_SIZE] fixed-point zero values
+/// for any 16-bit fixed point type
+pub fn fixed_zerobuf<T: Fixed16>() -> &'static [T] {
     // Fixed is #[repr(transparent)], so this is valid:
     unsafe { core::mem::transmute(&U16_ZEROBUF[0..STATIC_BUFFER_SIZE]) }
 }
@@ -40,18 +27,30 @@ where
 /// Types must implement this trait to instantiate any of the generic devices
 /// in this module.  Implementations are provided for `f32` and `f64`.
 pub trait Float: num_traits::Float + num_traits::FloatConst + From<u16> + Default + Copy {
+    /// 0
     const ZERO: Self;
+    /// 1
     const ONE: Self;
+    /// 2
     const TWO: Self;
+    /// 3
     const THREE: Self;
+    /// 1/2
     const ONE_HALF: Self;
+    /// 0.98
     const POINT_NINE_EIGHT: Self;
+    /// 0xF000 / 0xFFFF
     const RES_MAX: Self;
+    /// 127 * (0xFFFF / 0x10000)
     const NOTE_MAX: Self;
+    /// 0.9375
     const SHAPE_CLIP: Self;
+    /// Creates a value of this type from a u16.  Functionality provided by
+    /// the trait (uses the `From<u16>` implementation)
     fn from_u16(x: u16) -> Self {
         <Self as From<u16>>::from(x)
     }
+    /// Return a buffer of zeros
     fn zerobuf<'a>() -> &'a [Self; STATIC_BUFFER_SIZE];
 }
 

@@ -1,4 +1,5 @@
 #[allow(non_upper_case_globals)]
+#[allow(missing_docs)]
 mod detail {
     pub const C0: u8 = 12;
     pub const Db0: u8 = 13;

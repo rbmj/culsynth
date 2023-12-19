@@ -24,6 +24,7 @@ impl<'a, Smp> RingModParams<'a, Smp> {
     pub fn len(&self) -> usize {
         min_size(&[self.mix_a.len(), self.mix_b.len(), self.mix_out.len()])
     }
+    /// True if any subslice is empty
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -45,6 +46,7 @@ impl<'a, Smp> MutRingModParams<'a, Smp> {
     pub fn len(&self) -> usize {
         min_size(&[self.mix_a.len(), self.mix_b.len(), self.mix_out.len()])
     }
+    /// True if any subslice is empty
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -61,6 +63,7 @@ impl<'a, Smp> From<MutRingModParams<'a, Smp>> for RingModParams<'a, Smp> {
 }
 
 impl<Smp: Float> RingMod<Smp> {
+    /// Constructor
     pub fn new() -> Self {
         Self {
             outbuf: [Smp::ZERO; STATIC_BUFFER_SIZE],
@@ -112,6 +115,7 @@ impl<'a> RingModParamsFxP<'a> {
     pub fn len(&self) -> usize {
         min_size(&[self.mix_a.len(), self.mix_b.len(), self.mix_out.len()])
     }
+    /// True if any subslice is empty.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -133,6 +137,7 @@ impl<'a> MutRingModParamsFxP<'a> {
     pub fn len(&self) -> usize {
         min_size(&[self.mix_a.len(), self.mix_b.len(), self.mix_out.len()])
     }
+    /// True if any subslice is empty
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }

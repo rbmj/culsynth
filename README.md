@@ -25,6 +25,16 @@ For Rust dependencies, see `Cargo.toml`.
 
 On Linux, the following packages (Debian names provided, but should be similar on other
 distros) need to be installed:
- - `libx11-xcb-dev`
- - `libxcb-icccm4-dev`
- - `libxcb-dri2-0-dev`
+
+- `libx11-xcb-dev`
+- `libxcb-icccm4-dev`
+- `libxcb-dri2-0-dev`
+
+## Future Work
+
+[ ] Documentation - currently exists, but very light on specifics/examples
+[ ] Better UI for modulation - currently must manually edit the matrix
+[ ] Fixed point profiling/optimization
+[ ] More MIDI CC implementations, patch memory, etc.
+[ ] Port to RPi Pico
+[ ] WebASM backend (explore feasibility)
