@@ -7,6 +7,9 @@ edition = "2021"
 name = "janus"
 path = "src/lib.rs"
 crate_type = ["cdylib"]
+# Documentation will live in the binding header itself instead of the rust
+# implementation file
+doc = false
 
 [dependencies]
 janus = { path = "../janus" }

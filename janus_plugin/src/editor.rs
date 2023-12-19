@@ -14,37 +14,7 @@ use std::sync::{mpsc::SyncSender, Arc};
 
 mod kbd;
 mod param_widget;
-use param_widget::ParamWidget;
-
-fn param_slider<'a>(setter: &'a ParamSetter, param: &'a IntParam) -> egui::widgets::Slider<'a> {
-    let range = param.range();
-    let range2 = range; //need a copy to move into the other closure...
-    let (min, max) = match range {
-        IntRange::Linear { min: x, max: y } => (x, y),
-        IntRange::Reversed(IntRange::Linear { min: x, max: y }) => (*x, *y),
-        _ => std::unreachable!(),
-    };
-    widgets::Slider::from_get_set(min as f64..=max as f64, |new_value| match new_value {
-        Some(value) => {
-            setter.begin_set_parameter(param);
-            setter.set_parameter(param, value as i32);
-            setter.end_set_parameter(param);
-            value
-        }
-        None => param.value() as f64,
-    })
-    .integer()
-    .show_value(false)
-    .suffix(param.unit())
-    .custom_parser(move |s| {
-        param
-            .string_to_normalized_value(s)
-            .map(|x| range.unnormalize(x) as f64)
-    })
-    .custom_formatter(move |f, _| {
-        param.normalized_value_to_string(range2.normalize(f as i32), false)
-    })
-}
+use param_widget::{param_slider, ParamWidget};
 
 // Makes sense to also define this here, makes it a bit easier to keep track of
 pub(crate) fn default_state() -> Arc<EguiState> {
