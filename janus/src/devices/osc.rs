@@ -24,7 +24,9 @@ pub(crate) type PhaseFxP = fixedmath::I4F28;
 /// ```
 /// use janus::midi_const;
 /// use janus::devices::*;
+/// use janus::context::Context;
 /// const NUMSAMPLES: usize = 256;
+/// let ctx = Context::new(48000f32);
 /// let mut osc1 = Osc::<f32>::new();
 /// let mut osc2 = Osc::<f32>::new();
 /// let osc1_pitch = [midi_const::A4 as f32; NUMSAMPLES];
@@ -32,6 +34,7 @@ pub(crate) type PhaseFxP = fixedmath::I4F28;
 /// let zerobuf = [0f32; NUMSAMPLES];
 /// let mut syncbuf = [1f32; NUMSAMPLES];
 /// osc1.process(
+///     &ctx,
 ///     &osc1_pitch,
 ///     OscParams {
 ///         tune: &zerobuf,
@@ -40,6 +43,7 @@ pub(crate) type PhaseFxP = fixedmath::I4F28;
 ///     },
 /// );
 /// osc2.process(
+///     &ctx,
 ///     &osc2_pitch,
 ///     OscParams {
 ///         tune: &zerobuf,
