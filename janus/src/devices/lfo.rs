@@ -400,8 +400,10 @@ impl LfoFxP {
             STATIC_BUFFER_SIZE,
         ]);
         const FRAC_2_PI: ScalarFxP = ScalarFxP::lit("0x0.a2fa");
+        const TWO: SampleFxP = SampleFxP::lit("2");
+        const ONE_HALF: SampleFxP = SampleFxP::lit("0.5");
         for i in 0..numsamples {
-            let this_gate = gate[i] > SampleFxP::lit("0.5");
+            let this_gate = gate[i] > ONE_HALF;
             if opts[i].retrigger() && this_gate && !self.last_gate {
                 self.phase = PhaseFxP::ZERO;
             }
@@ -419,9 +421,9 @@ impl LfoFxP {
                 }
                 LfoWave::Triangle => {
                     if self.phase < PhaseFxP::FRAC_PI_2.unwrapped_neg() {
-                        frac_2phase_pi.unwrapped_neg() - SampleFxP::lit("2")
+                        frac_2phase_pi.unwrapped_neg() - TWO
                     } else if self.phase > PhaseFxP::FRAC_PI_2 {
-                        SampleFxP::lit("2") - frac_2phase_pi
+                        TWO - frac_2phase_pi
                     } else {
                         frac_2phase_pi
                     }

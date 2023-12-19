@@ -368,6 +368,7 @@ impl OscFxP {
         let tune = params.tune;
         let mut sync = params.sync;
         const FRAC_2_PI: ScalarFxP = ScalarFxP::lit("0x0.a2fa");
+        const TWO: SampleFxP = SampleFxP::lit("2");
         for i in 0..numsamples {
             //generate waveforms (piecewise defined)
             let frac_2phase_pi = apply_scalar_i(SampleFxP::from_num(self.phase), FRAC_2_PI);
@@ -383,7 +384,7 @@ impl OscFxP {
                     self.sinbuf[i] =
                         fixedmath::cos_fixed(SampleFxP::from_num(self.phase + PhaseFxP::FRAC_PI_2))
                             .unwrapped_neg();
-                    self.tribuf[i] = frac_2phase_pi.unwrapped_neg() - SampleFxP::lit("2");
+                    self.tribuf[i] = frac_2phase_pi.unwrapped_neg() - TWO;
                 } else {
                     // phase in [-pi/2, 0)
                     self.sinbuf[i] = fixedmath::sin_fixed(SampleFxP::from_num(self.phase));
@@ -400,7 +401,7 @@ impl OscFxP {
                     // sin(x) = cos(x-pi/2)
                     self.sinbuf[i] =
                         fixedmath::cos_fixed(SampleFxP::from_num(self.phase - PhaseFxP::FRAC_PI_2));
-                    self.tribuf[i] = SampleFxP::lit("2") - frac_2phase_pi;
+                    self.tribuf[i] = TWO - frac_2phase_pi;
                 }
             }
             // we need to divide by 2^12 here, but we're increasing the fractional part by 10

@@ -289,10 +289,11 @@ pub fn exp_fixed(x: I3F13) -> U8F24 {
         (Scalar::lit("0x0.c2eb"), 0, 4),
         (Scalar::lit("0x0.8476"), 0, 6),
     ];
+    const ONE_HALF: I3F13 = I3F13::lit("0.5");
     // Note: x.int() rounds towards -inf, not zero for fixed point numbers
     let x_int = x.int().to_num::<i8>(); //in the range [-4, 4)
     let index = (x_int + 4) as usize;
-    let frac_exp = exp_fixed_small(I0F16::from_num(x.frac() - I3F13::lit("0.5")));
+    let frac_exp = exp_fixed_small(I0F16::from_num(x.frac() - ONE_HALF));
     let (multiplier, right, left) = LOOKUP_TABLE[index];
     // do a 16 bit widening multiply, then we'll store in a 64 bit fixed point number to make
     // sure we retain all precision on shifting.
@@ -304,8 +305,9 @@ pub fn exp_fixed(x: I3F13) -> U8F24 {
 // We'll leave it as 16 semitones/oct here for convenience (so this is
 // just bit twiddling)
 fn note_to_value(note: Note) -> I3F13 {
+    const C64: I19F13 = I19F13::lit("64");
     //subtract 64 to make it centered about zero
-    let note_signed = I19F13::from_num(note) - I19F13::lit("64");
+    let note_signed = I19F13::from_num(note) - C64;
     //divide down to 16 semitones/octave
     I3F13::from_num(note_signed.unwrapped_shr(4))
 }

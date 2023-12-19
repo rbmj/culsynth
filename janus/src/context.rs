@@ -109,9 +109,11 @@ impl FixedSampleRate {
     /// An unsigned, 16 bit fixed-point number representing the quantity
     /// (2 * pi * 4096) / (sample_rate)
     pub const fn frac_2pi4096_sr(&self) -> ScalarFxP {
+        const RET441: ScalarFxP = ScalarFxP::lit("0x0.9566");
+        const RET480: ScalarFxP = ScalarFxP::lit("0x0.8942");
         match self {
-            Self::Khz44_1 => ScalarFxP::lit("0x0.9566"),
-            Self::Khz48_0 => ScalarFxP::lit("0x0.8942"),
+            Self::Khz44_1 => RET441,
+            Self::Khz48_0 => RET480,
         }
     }
 }
