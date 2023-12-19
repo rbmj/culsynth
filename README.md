@@ -32,9 +32,9 @@ distros) need to be installed:
 
 ## Future Work
 
--[ ] Documentation - currently exists, but very light on specifics/examples
--[ ] Better UI for modulation - currently must manually edit the matrix
--[ ] Fixed point profiling/optimization
--[ ] More MIDI CC implementations, patch memory, etc.
--[ ] Port to RPi Pico
--[ ] WebASM backend (explore feasibility)
+- [ ] Documentation - currently exists, but very light on specifics/examples
+- [ ] Better UI for modulation - currently must manually edit the matrix
+- [ ] Fixed point profiling/optimization
+- [ ] More MIDI CC implementations, patch memory, etc.
+- [ ] Port to RPi Pico
+- [ ] WebASM backend (explore feasibility)
