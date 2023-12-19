@@ -289,6 +289,7 @@ pub fn exp_fixed(x: I3F13) -> U8F24 {
         (Scalar::lit("0x0.c2eb"), 0, 4),
         (Scalar::lit("0x0.8476"), 0, 6),
     ];
+    // Note: x.int() rounds towards -inf, not zero for fixed point numbers
     let x_int = x.int().to_num::<i8>(); //in the range [-4, 4)
     let index = (x_int + 4) as usize;
     let frac_exp = exp_fixed_small(I0F16::from_num(x.frac() - I3F13::lit("0.5")));

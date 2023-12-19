@@ -257,13 +257,13 @@ impl<Smp: Float> Lfo<Smp> {
                         // phase in [-pi, pi/2)
                         // Use the identity sin(x) = -cos(x+pi/2) since our taylor series
                         // approximations are centered about zero and this will be more accurate
-                        Smp::cos(self.phase + Smp::FRAC_PI_2()).neg()
+                        Smp::fcos(self.phase + Smp::FRAC_PI_2()).neg()
                     } else if self.phase < Smp::FRAC_PI_2() {
                         // phase in [pi/2, pi)
                         // sin(x) = cos(x-pi/2)
-                        Smp::cos(self.phase - Smp::FRAC_PI_2())
+                        Smp::fcos(self.phase - Smp::FRAC_PI_2())
                     } else {
-                        Smp::sin(self.phase)
+                        Smp::fsin(self.phase)
                     }
                 }
                 LfoWave::SampleHold => self.rand_smps[0],

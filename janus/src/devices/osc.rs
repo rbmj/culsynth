@@ -184,38 +184,38 @@ impl<Smp: Float> Osc<Smp> {
         for i in 0..numsamples {
             //generate waveforms (piecewise defined)
             let frac_2phase_pi = self.phase * Smp::FRAC_2_PI();
-            self.sawbuf[i] = frac_2phase_pi / (Smp::one() + Smp::one());
+            self.sawbuf[i] = frac_2phase_pi / Smp::TWO;
             if self.phase < Smp::ZERO {
-                self.sqbuf[i] = Smp::one().neg();
+                self.sqbuf[i] = Smp::ONE.neg();
                 if self.phase < Smp::FRAC_PI_2().neg() {
                     // phase in [-pi, pi/2)
                     // sin(x) = -cos(x+pi/2)
                     // TODO: Use fast approximation?
-                    self.sinbuf[i] = (self.phase + Smp::FRAC_PI_2()).cos().neg();
+                    self.sinbuf[i] = (self.phase + Smp::FRAC_PI_2()).fcos().neg();
                     // Subtract (1+1) because traits :eyeroll:
                     self.tribuf[i] = frac_2phase_pi.neg() - Smp::TWO;
                 } else {
                     // phase in [-pi/2, 0)
-                    self.sinbuf[i] = self.phase.sin();
+                    self.sinbuf[i] = self.phase.fsin();
                     //triangle
                     self.tribuf[i] = frac_2phase_pi;
                 }
             } else {
-                self.sqbuf[i] = Smp::one();
+                self.sqbuf[i] = Smp::ONE;
                 if self.phase < Smp::FRAC_PI_2() {
                     // phase in [0, pi/2)
-                    self.sinbuf[i] = self.phase.sin();
+                    self.sinbuf[i] = self.phase.fsin();
                     self.tribuf[i] = frac_2phase_pi;
                 } else {
                     // phase in [pi/2, pi)
                     // sin(x) = cos(x-pi/2)
-                    self.sinbuf[i] = (self.phase - Smp::FRAC_PI_2()).cos();
+                    self.sinbuf[i] = (self.phase - Smp::FRAC_PI_2()).fcos();
                     self.tribuf[i] = Smp::TWO - frac_2phase_pi;
                 }
             }
             //calculate the next phase
-            let phase_per_sample =
-                midi_note_to_frequency(note[i] + tune[i]) * Smp::TAU() / ctx.sample_rate;
+            let freq = (note[i] + tune[i]).midi_to_freq();
+            let phase_per_sample = freq * Smp::TAU() / ctx.sample_rate;
             let shape_clip = Smp::SHAPE_CLIP;
             let shp = if shape[i] < shape_clip {
                 shape[i]
@@ -228,7 +228,7 @@ impl<Smp: Float> Osc<Smp> {
                     self.phase = Smp::ZERO;
                 }
             }
-            let phase_per_smp_adj = if self.phase < Smp::zero() {
+            let phase_per_smp_adj = if self.phase < Smp::ZERO {
                 phase_per_sample * (Smp::ONE / (Smp::ONE + shp))
             } else {
                 phase_per_sample * (Smp::ONE / (Smp::ONE - shp))

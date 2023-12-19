@@ -1,6 +1,6 @@
 //! This contains all the code required to generate the actual plugins using the `nih-plug`
 //! framework.  Most of GUI code is in the [editor] module.
-use janus::context::{Context, ContextFxP, GenericContext};
+use janus::context::{Context, GenericContext};
 use nih_plug::prelude::*;
 use std::sync::atomic::Ordering::Relaxed;
 use std::sync::atomic::{AtomicU32, AtomicUsize};
@@ -18,7 +18,7 @@ pub mod pluginparams;
 use pluginparams::JanusParams;
 
 mod voicealloc;
-use voicealloc::{MonoSynth, MonoSynthFxP, VoiceAllocator};
+use voicealloc::{PolySynth, VoiceAllocator};
 
 #[derive(Default, Clone, Copy, PartialEq)]
 #[repr(u8)]
@@ -202,21 +202,21 @@ impl Plugin for JanusPlugin {
         _context: &mut impl InitContext<Self>,
     ) -> bool {
         // TODO
-        nih_trace!(
+        nih_log!(
             "Initializing Plugin with {}Hz SR and {} sample buffers",
             buffer_config.sample_rate,
             buffer_config.max_buffer_size,
         );
+        if janus::USE_LIBM {
+            nih_log!("Using libm for floating-point math");
+        } else {
+            nih_log!("Using internal floating-point math");
+        }
         // JACK doesn't seem to honor max_buffer_size, so allocate more...
         let bufsz = std::cmp::max(buffer_config.max_buffer_size, 2048);
         self.parambuf.allocate(bufsz);
-        let mut voice_alloc: Box<dyn VoiceAllocator> = if buffer_config.sample_rate == 44100f32 {
-            Box::new(MonoSynthFxP::new(ContextFxP::new_441()))
-        } else if buffer_config.sample_rate == 48000f32 {
-            Box::new(MonoSynthFxP::new(ContextFxP::new_480()))
-        } else {
-            Box::new(MonoSynth::new(Context::new(buffer_config.sample_rate)))
-        };
+        let mut voice_alloc: Box<dyn VoiceAllocator> =
+            Box::new(PolySynth::new(4, Context::new(buffer_config.sample_rate)));
         voice_alloc.initialize(bufsz as usize);
         let ctx = voice_alloc.get_context();
         self.update_sample_rate(ctx.sample_rate(), ctx.is_fixed_point());

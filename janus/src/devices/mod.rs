@@ -24,9 +24,14 @@ pub fn fixed_zerobuf<T: Fixed16>() -> &'static [T] {
     unsafe { core::mem::transmute(&U16_ZEROBUF[0..STATIC_BUFFER_SIZE]) }
 }
 
+#[cfg(not(feature = "libm"))]
+use num_traits::float::FloatCore as NumTraitsFloat;
+#[cfg(feature = "libm")]
+use num_traits::Float as NumTraitsFloat;
+
 /// Types must implement this trait to instantiate any of the generic devices
 /// in this module.  Implementations are provided for `f32` and `f64`.
-pub trait Float: num_traits::Float + num_traits::FloatConst + From<u16> + Default + Copy {
+pub trait Float: NumTraitsFloat + num_traits::FloatConst + From<u16> + Default + Copy {
     /// 0
     const ZERO: Self;
     /// 1
@@ -52,6 +57,14 @@ pub trait Float: num_traits::Float + num_traits::FloatConst + From<u16> + Defaul
     }
     /// Return a buffer of zeros
     fn zerobuf<'a>() -> &'a [Self; STATIC_BUFFER_SIZE];
+    /// Returns the sine of self
+    fn fsin(self) -> Self;
+    /// Returns the cosine of self
+    fn fcos(self) -> Self;
+    /// Returns the tangent of self
+    fn ftan(self) -> Self;
+    /// Convert a MIDI note number to a frequency
+    fn midi_to_freq(self) -> Self;
 }
 
 static F32_ZEROBUF: [f32; STATIC_BUFFER_SIZE] = [0f32; STATIC_BUFFER_SIZE];
@@ -67,6 +80,34 @@ impl Float for f32 {
     const SHAPE_CLIP: f32 = 0.9375f32;
     fn zerobuf<'a>() -> &'a [Self; STATIC_BUFFER_SIZE] {
         &F32_ZEROBUF
+    }
+    fn fsin(self) -> Self {
+        #[cfg(not(feature = "libm"))]
+        let ret = crate::float_approx::sin_approx(self);
+        #[cfg(feature = "libm")]
+        let ret = <Self as NumTraitsFloat>::sin(self);
+        ret
+    }
+    fn fcos(self) -> Self {
+        #[cfg(not(feature = "libm"))]
+        let ret = crate::float_approx::cos_approx(self);
+        #[cfg(feature = "libm")]
+        let ret = <Self as NumTraitsFloat>::cos(self);
+        ret
+    }
+    fn ftan(self) -> Self {
+        #[cfg(not(feature = "libm"))]
+        let ret = crate::float_approx::tan_approx(self);
+        #[cfg(feature = "libm")]
+        let ret = <Self as NumTraitsFloat>::tan(self);
+        ret
+    }
+    fn midi_to_freq(self) -> Self {
+        #[cfg(not(feature = "libm"))]
+        let ret = crate::float_approx::midi_note_to_frequency(self);
+        #[cfg(feature = "libm")]
+        let ret = 440f32 * ((self - 69f32) / 12f32).exp2();
+        ret
     }
 }
 
@@ -84,14 +125,34 @@ impl Float for f64 {
     fn zerobuf<'a>() -> &'a [Self; STATIC_BUFFER_SIZE] {
         &F64_ZEROBUF
     }
-}
-
-/// Converts a MIDI note number to a frequency
-fn midi_note_to_frequency<T: Float>(note: T) -> T {
-    let c69 = T::from_u16(69);
-    let c12 = T::from_u16(12);
-    let c440 = T::from_u16(440);
-    c440 * ((note - c69) / c12).exp2()
+    fn fsin(self) -> Self {
+        #[cfg(not(feature = "libm"))]
+        let ret = crate::float_approx::sin_approx(self);
+        #[cfg(feature = "libm")]
+        let ret = <Self as NumTraitsFloat>::sin(self);
+        ret
+    }
+    fn fcos(self) -> Self {
+        #[cfg(not(feature = "libm"))]
+        let ret = crate::float_approx::cos_approx(self);
+        #[cfg(feature = "libm")]
+        let ret = <Self as NumTraitsFloat>::cos(self);
+        ret
+    }
+    fn ftan(self) -> Self {
+        #[cfg(not(feature = "libm"))]
+        let ret = crate::float_approx::tan_approx(self);
+        #[cfg(feature = "libm")]
+        let ret = <Self as NumTraitsFloat>::tan(self);
+        ret
+    }
+    fn midi_to_freq(self) -> Self {
+        #[cfg(not(feature = "libm"))]
+        let ret = crate::float_approx::midi_note_to_frequency(self);
+        #[cfg(feature = "libm")]
+        let ret = 440f64 * ((self - 69f64) / 12f64).exp2();
+        ret
+    }
 }
 
 pub use amp::{Amp, AmpFxP};

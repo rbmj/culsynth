@@ -19,7 +19,12 @@
 #![warn(missing_docs)]
 
 mod fixedmath;
+mod float_approx;
 pub mod util;
+
+/// True if using [libm] for floating-point math, false if using internal
+/// approximation functions
+pub const USE_LIBM: bool = cfg!(feature = "libm");
 
 /// This module contains `u8` constants for MIDI note numbers, using standard
 /// musical notation.  For example, `midi_const::Db4` is the note a semitone

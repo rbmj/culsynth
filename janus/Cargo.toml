@@ -11,6 +11,9 @@ crate_type = ["rlib"]
 
 [dependencies]
 fixed = "1.24"
-num-traits = "0.2"
-rand = {version = "0.8.5", features = ["small_rng"]}
-tinyvec = {version = "1.6.0", features = ["rustc_1_40"]}
+num-traits = { version = "0.2", default-features = false }
+rand = { version = "0.8.5", features = ["small_rng"] }
+tinyvec = { version = "1.6.0", features = ["rustc_1_40"] }
+
+[features]
+libm = ["num-traits/libm"]
