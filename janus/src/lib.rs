@@ -22,7 +22,7 @@ mod fixedmath;
 mod float_approx;
 pub mod util;
 
-/// True if using [libm] for floating-point math, false if using internal
+/// True if using libm for floating-point math, false if using internal
 /// approximation functions
 pub const USE_LIBM: bool = cfg!(feature = "libm");
 
