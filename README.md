@@ -3,6 +3,8 @@
 Janus is currently a DSP library and [nih-plug](https://github.com/robbert-vdh/nih-plug)
 based virtual instrument written in Rust.
 
+![Screenshot](screenshot.png)
+
 ## Goals
 
 The eventual goal is to create a synthesizer that can be deployed both as a virtual
