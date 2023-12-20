@@ -1,6 +1,6 @@
 //! This contains all the code required to generate the actual plugins using the `nih-plug`
 //! framework.  Most of GUI code is in the [editor] module.
-use janus::context::{Context, GenericContext};
+use culsynth::context::{Context, GenericContext};
 use nih_plug::prelude::*;
 use std::sync::atomic::Ordering::Relaxed;
 use std::sync::atomic::{AtomicU32, AtomicUsize};
@@ -15,7 +15,7 @@ pub mod parambuf;
 use parambuf::PluginParamBufFxP;
 
 pub mod pluginparams;
-use pluginparams::JanusParams;
+use pluginparams::CulSynthParams;
 
 mod voicealloc;
 use voicealloc::{PolySynth, VoiceAllocator};
@@ -86,8 +86,8 @@ impl ContextReader {
 }
 
 /// Contains all of the global state for the plugin
-pub struct JanusPlugin {
-    params: Arc<JanusParams>,
+pub struct CulSynthPlugin {
+    params: Arc<CulSynthParams>,
 
     parambuf: PluginParamBufFxP,
 
@@ -119,7 +119,7 @@ pub struct JanusPlugin {
     context: Arc<PluginContext>,
 }
 
-impl JanusPlugin {
+impl CulSynthPlugin {
     fn update_sample_rate(&mut self, sr: u32, fixed: bool) {
         let mut value = sr as i32;
         if fixed {
@@ -140,12 +140,12 @@ impl JanusPlugin {
     }
 }
 
-impl Default for JanusPlugin {
+impl Default for CulSynthPlugin {
     fn default() -> Self {
         let (midi_tx, midi_rx) = sync_channel::<i8>(32);
         let (synth_tx, synth_rx) = sync_channel::<Box<dyn VoiceAllocator>>(1);
         Self {
-            params: Arc::new(JanusParams::default()),
+            params: Arc::new(CulSynthParams::default()),
             parambuf: Default::default(),
             midi_tx,
             midi_rx,
@@ -157,10 +157,10 @@ impl Default for JanusPlugin {
     }
 }
 
-impl Plugin for JanusPlugin {
-    const NAME: &'static str = "Janus";
+impl Plugin for CulSynthPlugin {
+    const NAME: &'static str = "CulSynth";
     const VENDOR: &'static str = "rbmj";
-    const URL: &'static str = "https://github.com/rbmj/janus";
+    const URL: &'static str = "https://github.com/rbmj/culsynth";
     const EMAIL: &'static str = "rbmj@verizon.net";
 
     const VERSION: &'static str = env!("CARGO_PKG_VERSION");
@@ -207,7 +207,7 @@ impl Plugin for JanusPlugin {
             buffer_config.sample_rate,
             buffer_config.max_buffer_size,
         );
-        if janus::USE_LIBM {
+        if culsynth::USE_LIBM {
             nih_log!("Using libm for floating-point math");
         } else {
             nih_log!("Using internal floating-point math");
@@ -317,9 +317,9 @@ impl Plugin for JanusPlugin {
     }
 }
 
-impl ClapPlugin for JanusPlugin {
-    const CLAP_ID: &'static str = "com.rbmj.janus";
-    const CLAP_DESCRIPTION: Option<&'static str> = Some("Janus Softsynth");
+impl ClapPlugin for CulSynthPlugin {
+    const CLAP_ID: &'static str = "com.rbmj.culsynth";
+    const CLAP_DESCRIPTION: Option<&'static str> = Some("Culsynth Softsynth");
     const CLAP_MANUAL_URL: Option<&'static str> = Some(Self::URL);
     const CLAP_SUPPORT_URL: Option<&'static str> = None;
     const CLAP_FEATURES: &'static [ClapFeature] = &[
@@ -329,10 +329,10 @@ impl ClapPlugin for JanusPlugin {
     ];
 }
 
-impl Vst3Plugin for JanusPlugin {
-    const VST3_CLASS_ID: [u8; 16] = *b"JanusSynthesizer";
+impl Vst3Plugin for CulSynthPlugin {
+    const VST3_CLASS_ID: [u8; 16] = *b"CulSySynthesizer";
     const VST3_SUBCATEGORIES: &'static [Vst3SubCategory] = &[Vst3SubCategory::Synth];
 }
 
-nih_export_clap!(JanusPlugin);
-nih_export_vst3!(JanusPlugin);
+nih_export_clap!(CulSynthPlugin);
+nih_export_vst3!(CulSynthPlugin);

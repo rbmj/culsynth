@@ -1,9 +1,9 @@
 use crate::pluginparams::{
-    EnvPluginParams, FiltPluginParams, JanusParams, LfoPluginParams, OscPluginParams,
+    CulSynthParams, EnvPluginParams, FiltPluginParams, LfoPluginParams, OscPluginParams,
     RingModPluginParams,
 };
-use janus::devices::*;
-use janus::{EnvParamFxP, LfoFreqFxP, NoteFxP, ScalarFxP, SignedNoteFxP};
+use culsynth::devices::*;
+use culsynth::{EnvParamFxP, LfoFreqFxP, NoteFxP, ScalarFxP, SignedNoteFxP};
 
 #[derive(Default, Clone)]
 pub struct EnvParamBufFxP {
@@ -368,7 +368,7 @@ impl OscParamBufFxP {
         MixOscParamsFxP {
             tune: &self.tune[base..end],
             shape: &self.shape[base..end],
-            sync: janus::devices::OscSync::Off,
+            sync: culsynth::devices::OscSync::Off,
             sin: &self.sin[base..end],
             sq: &self.sq[base..end],
             tri: &self.tri[base..end],
@@ -379,7 +379,7 @@ impl OscParamBufFxP {
         MutMixOscParamsFxP {
             tune: &mut self.tune[base..end],
             shape: &mut self.shape[base..end],
-            sync: janus::devices::OscSync::Off,
+            sync: culsynth::devices::OscSync::Off,
             sin: &mut self.sin[base..end],
             sq: &mut self.sq[base..end],
             tri: &mut self.tri[base..end],
@@ -444,7 +444,7 @@ impl OscParamBuf {
         MixOscParams {
             tune: &self.tune[base..end],
             shape: &self.shape[base..end],
-            sync: janus::devices::OscSync::Off,
+            sync: culsynth::devices::OscSync::Off,
             sin: &self.sin[base..end],
             sq: &self.sq[base..end],
             tri: &self.tri[base..end],
@@ -455,7 +455,7 @@ impl OscParamBuf {
         MutMixOscParams {
             tune: &mut self.tune[base..end],
             shape: &mut self.shape[base..end],
-            sync: janus::devices::OscSync::Off,
+            sync: culsynth::devices::OscSync::Off,
             sin: &mut self.sin[base..end],
             sq: &mut self.sq[base..end],
             tri: &mut self.tri[base..end],
@@ -794,7 +794,7 @@ impl PluginParamBufFxP {
         self.env1.allocate(sz);
         self.env2.allocate(sz);
     }
-    pub fn update_index(&mut self, index: usize, p: &JanusParams) {
+    pub fn update_index(&mut self, index: usize, p: &CulSynthParams) {
         self.global.update_index(index, &p.osc_sync);
         self.osc1.update_index(index, &p.osc1);
         self.osc2.update_index(index, &p.osc2);

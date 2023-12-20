@@ -1,17 +1,17 @@
 [package]
-name = "janus_plugin"
+name = "culsynth_plugin"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-description = "Janus Software Synthesizer"
+description = "Culsynth Software Synthesizer"
 
 [lib]
-name = "janus_plugin"
+name = "culsynth_plugin"
 crate-type = ["cdylib", "lib"]
 path = "src/lib.rs"
 
 [[bin]]
-name = "janus-standalone"
+name = "culsynth-standalone"
 path = "src/main.rs"
 
 [dependencies]
@@ -22,4 +22,4 @@ fixed = "1.24"
 piano_keyboard = "0.2.3"
 rand = "0.8"
 
-janus = { path = "../janus" }
+culsynth = { path = "../culsynth" }

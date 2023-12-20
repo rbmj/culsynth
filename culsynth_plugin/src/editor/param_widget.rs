@@ -80,10 +80,10 @@ fn draw_osc(
             ui.label("CRS");
             ui.label("FIN");
             ui.label("SHP");
-            ui.label(janus::util::SIN_CHARSTR);
-            ui.label(janus::util::TRI_CHARSTR);
-            ui.label(janus::util::SQ_CHARSTR);
-            ui.label(janus::util::SAW_CHARSTR);
+            ui.label(culsynth::util::SIN_CHARSTR);
+            ui.label(culsynth::util::TRI_CHARSTR);
+            ui.label(culsynth::util::SQ_CHARSTR);
+            ui.label(culsynth::util::SAW_CHARSTR);
         });
     });
     sync_clicked

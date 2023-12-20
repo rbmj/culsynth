@@ -2,9 +2,9 @@
 resolver = "2"
 
 members = [
-    "janus",
-    "janus_plugin",
-    "janus_bindings",
+    "culsynth",
+    "culsynth_plugin",
+    "culsynth_bindings",
 ]
 
 [profile.dev]

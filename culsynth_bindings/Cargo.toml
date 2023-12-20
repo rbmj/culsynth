@@ -1,12 +1,12 @@
 [package]
-name = "janus_bindings"
+name = "culsynth_bindings"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-description = "Janus DSP Bindings"
+description = "Culsynth DSP Bindings"
 
 [lib]
-name = "janus"
+name = "culsynth"
 path = "src/lib.rs"
 crate_type = ["cdylib"]
 # Documentation will live in the binding header itself instead of the rust
@@ -14,4 +14,4 @@ crate_type = ["cdylib"]
 doc = false
 
 [dependencies]
-janus = { path = "../janus" }
+culsynth = { path = "../culsynth" }

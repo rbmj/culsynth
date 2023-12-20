@@ -1,6 +1,6 @@
-# Janus
+# CulSynth
 
-Janus is currently a DSP library and [nih-plug](https://github.com/robbert-vdh/nih-plug)
+CulSynth is currently a DSP library and [nih-plug](https://github.com/robbert-vdh/nih-plug)
 based virtual instrument written in Rust.
 
 ![Screenshot](screenshot.png)
@@ -13,12 +13,10 @@ with the expressiveness of physical knobs and hardware then seamlessly move thos
 patches into a virtual instrument inside a DAW for further use without requiring
 sampling or reprogramming.
 
-Hence: Janus, with two faces - physical and virtual.
-
 ## Usage
 
 The plugin can either be used as a standalone binary by building and then running
-the `janus-standalone` binary, or can be used as a VST3/CLAP plugin.  Currently
+the `culsynth-standalone` binary, or can be used as a VST3/CLAP plugin.  Currently
 only VST3 is being tested.  Generating the plugin is simple:  just build it for
 your platform then copy the generated `.so` or `.dll` file to your VST plugins
 folder:
@@ -27,14 +25,14 @@ On Linux:
 
 ```bash
 $ cargo build --release
-$ cp target/release/libjanus_plugin.so ~/.vst3/janus.vst3
+$ cp target/release/libculsynth_plugin.so ~/.vst3/culsynth.vst3
 ```
 
 On Windows:
 
 ```bat
 > cargo build --release
-> copy target\release\libjanus_plugin.dll C:\Program Files\Common Files\VST3\janus.vst3
+> copy target\release\libculsynth_plugin.dll C:\Program Files\Common Files\VST3\culsynth.vst3
 ```
 
 ## Licensing
