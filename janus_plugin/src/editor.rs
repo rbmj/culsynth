@@ -268,12 +268,16 @@ impl JanusEditor {
             });
         egui::Window::new("About")
             .open(&mut self.show_about)
+            .collapsible(false)
             .show(egui_ctx, |ui| {
                 ui.vertical_centered(|ui| {
                     ui.label(format!("Janus v{}", env!("CARGO_PKG_VERSION")));
                     ui.label("Copyright 2023 Robert Blair Mason");
                     ui.label("This program is open-source software");
-                    ui.label("(see https://github.com/rbmj/janus for details)");
+                    ui.hyperlink_to(
+                        "(see https://github.com/rbmj/janus for details)",
+                        "https://github.com/rbmj/janus",
+                    );
                 });
             });
     }
