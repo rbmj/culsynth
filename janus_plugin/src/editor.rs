@@ -30,6 +30,7 @@ struct JanusEditor {
     kbd_panel: kbd::KbdPanel,
     show_mod_matrix: bool,
     show_settings: bool,
+    show_about: bool,
 }
 
 impl JanusEditor {
@@ -47,6 +48,7 @@ impl JanusEditor {
             kbd_panel: Default::default(),
             show_mod_matrix: false,
             show_settings: false,
+            show_about: false,
         }
     }
     fn draw_status_bar(&mut self, egui_ctx: &egui::Context) {
@@ -63,6 +65,9 @@ impl JanusEditor {
                         }
                         if ui.button("Mod Matrix").clicked() {
                             self.show_mod_matrix = true;
+                        }
+                        if ui.button("About").clicked() {
+                            self.show_about = true;
                         }
                     });
                     columns[0].expand_to_include_x(third);
@@ -260,6 +265,16 @@ impl JanusEditor {
                         nih_log!("{}", e);
                     }
                 }
+            });
+        egui::Window::new("About")
+            .open(&mut self.show_about)
+            .show(egui_ctx, |ui| {
+                ui.vertical_centered(|ui| {
+                    ui.label(format!("Janus v{}", env!("CARGO_PKG_VERSION")));
+                    ui.label("Copyright 2023 Robert Blair Mason");
+                    ui.label("This program is open-source software");
+                    ui.label("(see https://github.com/rbmj/janus for details)");
+                });
             });
     }
     pub fn initialize(&mut self, egui_ctx: &egui::Context) {

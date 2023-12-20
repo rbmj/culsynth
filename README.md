@@ -17,14 +17,18 @@ Hence: Janus, with two faces - physical and virtual.
 
 This project is licensed under the MIT License.  However, due to the licensing
 of the bindings any plugins built in VST3 format are licensed under the terms of
-the GPLv3.
+the GPLv3.  It incorporates several dependencies under the MIT, Apache v2, BSD,
+ISC, Boost, and ZLib licenses.
+
+This project incorporates fonts from the Noto Project and Google under the terms
+of the SIL Open Font License v1.1 (see `resources/fonts/OFL.txt`).
 
 ## Dependencies
 
 For Rust dependencies, see `Cargo.toml`.
 
 On Linux, the following packages (Debian names provided, but should be similar on other
-distros) need to be installed:
+distros) need to be installed in order to successfully compile:
 
 - `libx11-xcb-dev`
 - `libxcb-icccm4-dev`
