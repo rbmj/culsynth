@@ -15,6 +15,28 @@ sampling or reprogramming.
 
 Hence: Janus, with two faces - physical and virtual.
 
+## Usage
+
+The plugin can either be used as a standalone binary by building and then running
+the `janus-standalone` binary, or can be used as a VST3/CLAP plugin.  Currently
+only VST3 is being tested.  Generating the plugin is simple:  just build it for
+your platform then copy the generated `.so` or `.dll` file to your VST plugins
+folder:
+
+On Linux:
+
+```bash
+$ cargo build --release
+$ cp target/release/libjanus_plugin.so ~/.vst3/janus.vst3
+```
+
+On Windows:
+
+```bat
+> cargo build --release
+> copy target\release\libjanus_plugin.dll C:\Program Files\Common Files\VST3\janus.vst3
+```
+
 ## Licensing
 
 This project is licensed under the MIT License.  However, due to the licensing
