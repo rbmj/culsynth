@@ -4,20 +4,20 @@ import sys
 _is_windows = sys.platform.startswith('win')
 
 if _is_windows:
-    _lib = CDLL('../target/debug/janus.dll')
+    _lib = CDLL('../target/debug/culsynth.dll')
 else:
-    _lib = CDLL('../target/debug/libjanus.so')
+    _lib = CDLL('../target/debug/libculsynth.so')
 
-_janus_osc_u16_new = _lib.janus_osc_u16_new
-_janus_osc_u16_new.argtypes = []
-_janus_osc_u16_new.restype = c_void_p
+_culsynth_osc_u16_new = _lib.culsynth_osc_u16_new
+_culsynth_osc_u16_new.argtypes = []
+_culsynth_osc_u16_new.restype = c_void_p
 
-_janus_osc_u16_free = _lib.janus_osc_u16_free
-_janus_osc_u16_free.argtypes = [c_void_p]
-_janus_osc_u16_free.restype = None
+_culsynth_osc_u16_free = _lib.culsynth_osc_u16_free
+_culsynth_osc_u16_free.argtypes = [c_void_p]
+_culsynth_osc_u16_free.restype = None
 
-_janus_osc_u16_process = _lib.janus_osc_u16_process
-_janus_osc_u16_process.argtypes = [
+_culsynth_osc_u16_process = _lib.culsynth_osc_u16_process
+_culsynth_osc_u16_process.argtypes = [
     c_void_p,
     c_uint32,
     POINTER(c_uint16),
@@ -28,13 +28,13 @@ _janus_osc_u16_process.argtypes = [
     POINTER(POINTER(c_int16)),
     c_uint32
 ]
-_janus_osc_u16_process.restype = c_int32
+_culsynth_osc_u16_process.restype = c_int32
 
 class OscFxP:
     def __init__(self):
-        self.ptr = _janus_osc_u16_new()
+        self.ptr = _culsynth_osc_u16_new()
     def __del__(self):
-        _janus_osc_u16_free(self.ptr)
+        _culsynth_osc_u16_free(self.ptr)
     def process(self, note, shape):
         num_samples = min(len(note), len(shape))
         tri = POINTER(c_int16)()
@@ -49,7 +49,7 @@ class OscFxP:
         tri_list = []
         saw_list = []
         while processed < num_samples:
-            iter_proc = _janus_osc_u16_process(self.ptr,
+            iter_proc = _culsynth_osc_u16_process(self.ptr,
                 c_uint32(num_samples - processed), note_arr, shape_arr,
                 byref(sn), byref(tri), byref(sq), byref(saw), c_uint32(processed))
             sn_list = sn_list + sn[:iter_proc]
@@ -59,16 +59,16 @@ class OscFxP:
             processed += iter_proc
         return (sn_list, sq_list, tri_list, saw_list)
 
-_janus_env_u16_new = _lib.janus_env_u16_new
-_janus_env_u16_new.argtypes = []
-_janus_env_u16_new.restype = c_void_p
+_culsynth_env_u16_new = _lib.culsynth_env_u16_new
+_culsynth_env_u16_new.argtypes = []
+_culsynth_env_u16_new.restype = c_void_p
 
-_janus_env_u16_free = _lib.janus_env_u16_free
-_janus_env_u16_free.argtypes = [c_void_p]
-_janus_env_u16_free.restype = None
+_culsynth_env_u16_free = _lib.culsynth_env_u16_free
+_culsynth_env_u16_free.argtypes = [c_void_p]
+_culsynth_env_u16_free.restype = None
 
-_janus_env_u16_process = _lib.janus_env_u16_process
-_janus_env_u16_process.argtypes = [
+_culsynth_env_u16_process = _lib.culsynth_env_u16_process
+_culsynth_env_u16_process.argtypes = [
     c_void_p,
     c_uint32,
     POINTER(c_int16),
@@ -79,13 +79,13 @@ _janus_env_u16_process.argtypes = [
     POINTER(POINTER(c_uint16)),
     c_uint32
 ]
-_janus_env_u16_process.restype = c_int32
+_culsynth_env_u16_process.restype = c_int32
 
 class EnvFxP:
     def __init__(self):
-        self.ptr = _janus_env_u16_new()
+        self.ptr = _culsynth_env_u16_new()
     def __del__(self):
-        _janus_env_u16_free(self.ptr)
+        _culsynth_env_u16_free(self.ptr)
     def process(self, gate, attack, decay, sustain, release):
         num_samples = min(len(x) for x in [gate, attack, decay, sustain, release])
         signal = POINTER(c_uint16)()
@@ -97,7 +97,7 @@ class EnvFxP:
         processed = 0
         output = []
         while processed < num_samples:
-            iter_proc = _janus_env_u16_process(self.ptr,
+            iter_proc = _culsynth_env_u16_process(self.ptr,
                 c_uint32(num_samples - processed), gate_arr, attack_arr,
                 decay_arr, sustain_arr, release_arr, byref(signal),
                 c_uint32(processed))
@@ -105,16 +105,16 @@ class EnvFxP:
             processed += iter_proc
         return output
     
-_janus_filt_u16_new = _lib.janus_filt_u16_new
-_janus_filt_u16_new.argtypes = []
-_janus_filt_u16_new.restype = c_void_p
+_culsynth_filt_u16_new = _lib.culsynth_filt_u16_new
+_culsynth_filt_u16_new.argtypes = []
+_culsynth_filt_u16_new.restype = c_void_p
 
-_janus_filt_u16_free = _lib.janus_filt_u16_free
-_janus_filt_u16_free.argtypes = [c_void_p]
-_janus_filt_u16_free.restype = None
+_culsynth_filt_u16_free = _lib.culsynth_filt_u16_free
+_culsynth_filt_u16_free.argtypes = [c_void_p]
+_culsynth_filt_u16_free.restype = None
 
-_janus_filt_u16_process = _lib.janus_filt_u16_process
-_janus_filt_u16_process.argtypes = [
+_culsynth_filt_u16_process = _lib.culsynth_filt_u16_process
+_culsynth_filt_u16_process.argtypes = [
     c_void_p,
     c_uint32,
     POINTER(c_int16),
@@ -125,13 +125,13 @@ _janus_filt_u16_process.argtypes = [
     POINTER(POINTER(c_int16)),
     c_uint32
 ]
-_janus_filt_u16_process.restype = c_int32
+_culsynth_filt_u16_process.restype = c_int32
 
 class FiltFxP:
     def __init__(self):
-        self.ptr = _janus_filt_u16_new()
+        self.ptr = _culsynth_filt_u16_new()
     def __del__(self):
-        _janus_filt_u16_free(self.ptr)
+        _culsynth_filt_u16_free(self.ptr)
     def process(self, input, cutoff, resonance):
         num_samples = min(len(x) for x in [input, cutoff, resonance])
         low = POINTER(c_int16)()
@@ -145,7 +145,7 @@ class FiltFxP:
         band_list = []
         high_list = []
         while processed < num_samples:
-            iter_proc = _janus_filt_u16_process(self.ptr,
+            iter_proc = _culsynth_filt_u16_process(self.ptr,
                 c_uint32(num_samples - processed), input_arr, cutoff_arr,
                 resonance_arr, byref(low), byref(band), byref(high),
                 c_uint32(processed))
@@ -156,16 +156,16 @@ class FiltFxP:
         return (low_list, band_list, high_list)
     
 
-_janus_osc_f32_new = _lib.janus_osc_f32_new
-_janus_osc_f32_new.argtypes = []
-_janus_osc_f32_new.restype = c_void_p
+_culsynth_osc_f32_new = _lib.culsynth_osc_f32_new
+_culsynth_osc_f32_new.argtypes = []
+_culsynth_osc_f32_new.restype = c_void_p
 
-_janus_osc_f32_free = _lib.janus_osc_f32_free
-_janus_osc_f32_free.argtypes = [c_void_p]
-_janus_osc_f32_free.restype = None
+_culsynth_osc_f32_free = _lib.culsynth_osc_f32_free
+_culsynth_osc_f32_free.argtypes = [c_void_p]
+_culsynth_osc_f32_free.restype = None
 
-_janus_osc_f32_process = _lib.janus_osc_f32_process
-_janus_osc_f32_process.argtypes = [
+_culsynth_osc_f32_process = _lib.culsynth_osc_f32_process
+_culsynth_osc_f32_process.argtypes = [
     c_void_p,
     c_uint32,
     POINTER(c_float),
@@ -176,13 +176,13 @@ _janus_osc_f32_process.argtypes = [
     POINTER(POINTER(c_float)),
     c_uint32
 ]
-_janus_osc_f32_process.restype = c_int32
+_culsynth_osc_f32_process.restype = c_int32
 
 class OscFloat:
     def __init__(self):
-        self.ptr = _janus_osc_f32_new()
+        self.ptr = _culsynth_osc_f32_new()
     def __del__(self):
-        _janus_osc_f32_free(self.ptr)
+        _culsynth_osc_f32_free(self.ptr)
     def process(self, note, shape):
         num_samples = min(len(note), len(shape))
         tri = POINTER(c_float)()
@@ -197,7 +197,7 @@ class OscFloat:
         tri_list = []
         saw_list = []
         while processed < num_samples:
-            iter_proc = _janus_osc_f32_process(self.ptr,
+            iter_proc = _culsynth_osc_f32_process(self.ptr,
                 c_uint32(num_samples - processed), note_arr, shape_arr,
                 byref(sn), byref(tri), byref(sq), byref(saw), c_uint32(processed))
             sn_list = sn_list + sn[:iter_proc]
@@ -207,16 +207,16 @@ class OscFloat:
             processed += iter_proc
         return (sn_list, sq_list, tri_list, saw_list)
 
-_janus_env_f32_new = _lib.janus_env_f32_new
-_janus_env_f32_new.argtypes = []
-_janus_env_f32_new.restype = c_void_p
+_culsynth_env_f32_new = _lib.culsynth_env_f32_new
+_culsynth_env_f32_new.argtypes = []
+_culsynth_env_f32_new.restype = c_void_p
 
-_janus_env_f32_free = _lib.janus_env_f32_free
-_janus_env_f32_free.argtypes = [c_void_p]
-_janus_env_f32_free.restype = None
+_culsynth_env_f32_free = _lib.culsynth_env_f32_free
+_culsynth_env_f32_free.argtypes = [c_void_p]
+_culsynth_env_f32_free.restype = None
 
-_janus_env_f32_process = _lib.janus_env_f32_process
-_janus_env_f32_process.argtypes = [
+_culsynth_env_f32_process = _lib.culsynth_env_f32_process
+_culsynth_env_f32_process.argtypes = [
     c_void_p,
     c_uint32,
     POINTER(c_float),
@@ -227,13 +227,13 @@ _janus_env_f32_process.argtypes = [
     POINTER(POINTER(c_float)),
     c_uint32
 ]
-_janus_env_f32_process.restype = c_int32
+_culsynth_env_f32_process.restype = c_int32
 
 class EnvFloat:
     def __init__(self):
-        self.ptr = _janus_env_f32_new()
+        self.ptr = _culsynth_env_f32_new()
     def __del__(self):
-        _janus_env_f32_free(self.ptr)
+        _culsynth_env_f32_free(self.ptr)
     def process(self, gate, attack, decay, sustain, release):
         num_samples = min(len(x) for x in [gate, attack, decay, sustain, release])
         signal = POINTER(c_float)()
@@ -245,7 +245,7 @@ class EnvFloat:
         processed = 0
         output = []
         while processed < num_samples:
-            iter_proc = _janus_env_f32_process(self.ptr,
+            iter_proc = _culsynth_env_f32_process(self.ptr,
                 c_uint32(num_samples - processed), gate_arr, attack_arr,
                 decay_arr, sustain_arr, release_arr, byref(signal),
                 c_uint32(processed))
@@ -253,16 +253,16 @@ class EnvFloat:
             processed += iter_proc
         return output
     
-_janus_filt_f32_new = _lib.janus_filt_f32_new
-_janus_filt_f32_new.argtypes = []
-_janus_filt_f32_new.restype = c_void_p
+_culsynth_filt_f32_new = _lib.culsynth_filt_f32_new
+_culsynth_filt_f32_new.argtypes = []
+_culsynth_filt_f32_new.restype = c_void_p
 
-_janus_filt_f32_free = _lib.janus_filt_f32_free
-_janus_filt_f32_free.argtypes = [c_void_p]
-_janus_filt_f32_free.restype = None
+_culsynth_filt_f32_free = _lib.culsynth_filt_f32_free
+_culsynth_filt_f32_free.argtypes = [c_void_p]
+_culsynth_filt_f32_free.restype = None
 
-_janus_filt_f32_process = _lib.janus_filt_f32_process
-_janus_filt_f32_process.argtypes = [
+_culsynth_filt_f32_process = _lib.culsynth_filt_f32_process
+_culsynth_filt_f32_process.argtypes = [
     c_void_p,
     c_uint32,
     POINTER(c_float),
@@ -273,13 +273,13 @@ _janus_filt_f32_process.argtypes = [
     POINTER(POINTER(c_float)),
     c_uint32
 ]
-_janus_filt_f32_process.restype = c_int32
+_culsynth_filt_f32_process.restype = c_int32
 
 class FiltFloat:
     def __init__(self):
-        self.ptr = _janus_filt_f32_new()
+        self.ptr = _culsynth_filt_f32_new()
     def __del__(self):
-        _janus_filt_f32_free(self.ptr)
+        _culsynth_filt_f32_free(self.ptr)
     def process(self, input, cutoff, resonance):
         num_samples = min(len(x) for x in [input, cutoff, resonance])
         low = POINTER(c_float)()
@@ -293,7 +293,7 @@ class FiltFloat:
         band_list = []
         high_list = []
         while processed < num_samples:
-            iter_proc = _janus_filt_f32_process(self.ptr,
+            iter_proc = _culsynth_filt_f32_process(self.ptr,
                 c_uint32(num_samples - processed), input_arr, cutoff_arr,
                 resonance_arr, byref(low), byref(band), byref(high),
                 c_uint32(processed))
