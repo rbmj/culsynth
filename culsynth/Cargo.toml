@@ -1,12 +1,12 @@
 [package]
-name = "janus"
+name = "culsynth"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-description = "Janus DSP Library"
+description = "Culsynth DSP Library"
 
 [lib]
-name = "janus"
+name = "culsynth"
 path = "src/lib.rs"
 crate_type = ["rlib"]
 

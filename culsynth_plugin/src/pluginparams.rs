@@ -1,6 +1,6 @@
-use janus::devices::{LfoOptions, LfoWave};
-use janus::voice::modulation::{ModDest, ModMatrix, ModMatrixFxP, ModSrc};
-use janus::{EnvParamFxP, IScalarFxP, LfoFreqFxP, NoteFxP, ScalarFxP};
+use culsynth::devices::{LfoOptions, LfoWave};
+use culsynth::voice::modulation::{ModDest, ModMatrix, ModMatrixFxP, ModSrc};
+use culsynth::{EnvParamFxP, IScalarFxP, LfoFreqFxP, NoteFxP, ScalarFxP};
 use nih_plug::prelude::*;
 use nih_plug_egui::EguiState;
 
@@ -383,7 +383,7 @@ impl ModMatrixPluginParams {
 
 /// Holds all of the plugin parameters
 #[derive(Params)]
-pub struct JanusParams {
+pub struct CulSynthParams {
     /// The editor state, saved together with the parameter state so the
     /// custom scaling can be restored.
     #[persist = "editor-state"]
@@ -426,7 +426,7 @@ pub struct JanusParams {
     pub modmatrix: ModMatrixPluginParams,
 }
 
-impl Default for JanusParams {
+impl Default for CulSynthParams {
     fn default() -> Self {
         Self {
             editor_state: crate::editor::default_state(),

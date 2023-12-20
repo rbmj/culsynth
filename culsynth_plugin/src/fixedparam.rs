@@ -1,9 +1,8 @@
 use std::sync::Arc;
 
+use culsynth::{NoteFxP, ScalarFxP};
 use fixed::traits::Fixed;
-use janus::{NoteFxP, ScalarFxP};
 use nih_plug::prelude::*;
-
 fn fixed_v2s<F: Fixed>(x: i32) -> String
 where
     i32: TryFrom<F::Bits>,
@@ -31,7 +30,7 @@ fn fixed_s2v_percent(s: &str) -> Option<i32> {
 }
 
 fn fixed_v2s_freq(x: i32) -> String {
-    janus::midi_note_to_frequency(NoteFxP::from_bits(x as u16)).to_string()
+    culsynth::midi_note_to_frequency(NoteFxP::from_bits(x as u16)).to_string()
 }
 
 fn fixed_s2v_freq(s: &str) -> Option<i32> {

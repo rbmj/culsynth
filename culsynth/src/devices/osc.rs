@@ -22,9 +22,9 @@ pub(crate) type PhaseFxP = fixedmath::I4F28;
 /// # Example
 ///
 /// ```
-/// use janus::midi_const;
-/// use janus::devices::*;
-/// use janus::context::Context;
+/// use culsynth::midi_const;
+/// use culsynth::devices::*;
+/// use culsynth::context::Context;
 /// const NUMSAMPLES: usize = 256;
 /// let ctx = Context::new(48000f32);
 /// let mut osc1 = Osc::<f32>::new();

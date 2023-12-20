@@ -1,21 +1,21 @@
-use janus::context::{Context, ContextFxP};
-use janus::devices::*;
-use janus::{EnvParamFxP, NoteFxP, SampleFxP, ScalarFxP, SignedNoteFxP};
+use culsynth::context::{Context, ContextFxP};
+use culsynth::devices::*;
+use culsynth::{EnvParamFxP, NoteFxP, SampleFxP, ScalarFxP, SignedNoteFxP};
 
 #[no_mangle]
-pub extern "C" fn janus_amp_u16_new() -> *mut AmpFxP {
+pub extern "C" fn culsynth_amp_u16_new() -> *mut AmpFxP {
     Box::into_raw(Box::new(AmpFxP::new()))
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn janus_amp_u16_free(p: *mut AmpFxP) {
+pub unsafe extern "C" fn culsynth_amp_u16_free(p: *mut AmpFxP) {
     if !p.is_null() {
         let _ = Box::from_raw(p);
     }
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn janus_amp_u16_process(
+pub unsafe extern "C" fn culsynth_amp_u16_process(
     p: *mut AmpFxP,
     samples: u32,
     signal: *const i16,
@@ -40,19 +40,19 @@ pub unsafe extern "C" fn janus_amp_u16_process(
 }
 
 #[no_mangle]
-pub extern "C" fn janus_amp_f32_new() -> *mut Amp<f32> {
+pub extern "C" fn culsynth_amp_f32_new() -> *mut Amp<f32> {
     Box::into_raw(Box::new(Amp::new()))
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn janus_amp_f32_free(p: *mut Amp<f32>) {
+pub unsafe extern "C" fn culsynth_amp_f32_free(p: *mut Amp<f32>) {
     if !p.is_null() {
         let _ = Box::from_raw(p);
     }
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn janus_amp_f32_process(
+pub unsafe extern "C" fn culsynth_amp_f32_process(
     p: *mut Amp<f32>,
     samples: u32,
     signal: *const f32,
@@ -71,19 +71,19 @@ pub unsafe extern "C" fn janus_amp_f32_process(
 }
 
 #[no_mangle]
-pub extern "C" fn janus_env_u16_new() -> *mut EnvFxP {
+pub extern "C" fn culsynth_env_u16_new() -> *mut EnvFxP {
     Box::into_raw(Box::new(EnvFxP::new()))
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn janus_env_u16_free(p: *mut EnvFxP) {
+pub unsafe extern "C" fn culsynth_env_u16_free(p: *mut EnvFxP) {
     if !p.is_null() {
         let _ = Box::from_raw(p);
     }
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn janus_env_u16_process(
+pub unsafe extern "C" fn culsynth_env_u16_process(
     p: *mut EnvFxP,
     samples: u32,
     gate: *const i16,
@@ -137,19 +137,19 @@ pub unsafe extern "C" fn janus_env_u16_process(
 }
 
 #[no_mangle]
-pub extern "C" fn janus_env_f32_new() -> *mut Env<f32> {
+pub extern "C" fn culsynth_env_f32_new() -> *mut Env<f32> {
     Box::into_raw(Box::new(Env::new()))
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn janus_env_f32_free(p: *mut Env<f32>) {
+pub unsafe extern "C" fn culsynth_env_f32_free(p: *mut Env<f32>) {
     if !p.is_null() {
         let _ = Box::from_raw(p);
     }
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn janus_env_f32_process(
+pub unsafe extern "C" fn culsynth_env_f32_process(
     p: *mut Env<f32>,
     samples: u32,
     gate: *const f32,
@@ -191,19 +191,19 @@ pub unsafe extern "C" fn janus_env_f32_process(
 }
 
 #[no_mangle]
-pub extern "C" fn janus_filt_u16_new() -> *mut FiltFxP {
+pub extern "C" fn culsynth_filt_u16_new() -> *mut FiltFxP {
     Box::into_raw(Box::new(FiltFxP::new()))
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn janus_filt_u16_free(p: *mut FiltFxP) {
+pub unsafe extern "C" fn culsynth_filt_u16_free(p: *mut FiltFxP) {
     if !p.is_null() {
         let _ = Box::from_raw(p);
     }
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn janus_filt_u16_process(
+pub unsafe extern "C" fn culsynth_filt_u16_process(
     p: *mut FiltFxP,
     samples: u32,
     input: *const i16,
@@ -250,19 +250,19 @@ pub unsafe extern "C" fn janus_filt_u16_process(
 }
 
 #[no_mangle]
-pub extern "C" fn janus_filt_f32_new() -> *mut Filt<f32> {
+pub extern "C" fn culsynth_filt_f32_new() -> *mut Filt<f32> {
     Box::into_raw(Box::new(Filt::new()))
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn janus_filt_f32_free(p: *mut Filt<f32>) {
+pub unsafe extern "C" fn culsynth_filt_f32_free(p: *mut Filt<f32>) {
     if !p.is_null() {
         let _ = Box::from_raw(p);
     }
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn janus_filt_f32_process(
+pub unsafe extern "C" fn culsynth_filt_f32_process(
     p: *mut Filt<f32>,
     samples: u32,
     input: *const f32,
@@ -302,19 +302,19 @@ pub unsafe extern "C" fn janus_filt_f32_process(
 }
 
 #[no_mangle]
-pub extern "C" fn janus_osc_u16_new() -> *mut OscFxP {
+pub extern "C" fn culsynth_osc_u16_new() -> *mut OscFxP {
     Box::into_raw(Box::new(OscFxP::new()))
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn janus_osc_u16_free(p: *mut OscFxP) {
+pub unsafe extern "C" fn culsynth_osc_u16_free(p: *mut OscFxP) {
     if !p.is_null() {
         let _ = Box::from_raw(p);
     }
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn janus_osc_u16_process(
+pub unsafe extern "C" fn culsynth_osc_u16_process(
     p: *mut OscFxP,
     samples: u32,
     note: *const u16,
@@ -364,19 +364,19 @@ pub unsafe extern "C" fn janus_osc_u16_process(
 }
 
 #[no_mangle]
-pub extern "C" fn janus_osc_f32_new() -> *mut Osc<f32> {
+pub extern "C" fn culsynth_osc_f32_new() -> *mut Osc<f32> {
     Box::into_raw(Box::new(Osc::<f32>::new()))
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn janus_osc_f32_free(p: *mut Osc<f32>) {
+pub unsafe extern "C" fn culsynth_osc_f32_free(p: *mut Osc<f32>) {
     if !p.is_null() {
         let _ = Box::from_raw(p);
     }
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn janus_osc_f32_process(
+pub unsafe extern "C" fn culsynth_osc_f32_process(
     p: *mut Osc<f32>,
     samples: u32,
     note: *const f32,

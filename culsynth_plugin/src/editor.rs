@@ -1,13 +1,13 @@
 use crate::pluginparams::{
-    EnvPluginParams, FiltPluginParams, JanusParams, LfoPluginParams, ModMatrixPluginParams,
+    EnvPluginParams, FiltPluginParams, CulSynthParams, LfoPluginParams, ModMatrixPluginParams,
     OscPluginParams, RingModPluginParams,
 };
 use crate::voicealloc::{MonoSynth, MonoSynthFxP, PolySynth, PolySynthFxP, VoiceAllocator};
 use crate::{ContextReader, VoiceMode};
 use egui::widgets;
-use janus::context::{Context, ContextFxP};
-use janus::devices::LfoWave;
-use janus::voice::modulation::{ModDest, ModSrc};
+use culsynth::context::{Context, ContextFxP};
+use culsynth::devices::LfoWave;
+use culsynth::voice::modulation::{ModDest, ModSrc};
 use nih_plug::prelude::*;
 use nih_plug_egui::{create_egui_editor, egui, EguiState};
 use std::sync::{mpsc::SyncSender, Arc};
@@ -22,8 +22,8 @@ pub(crate) fn default_state() -> Arc<EguiState> {
 }
 
 /// Struct to hold the global state information for the plugin editor (GUI).
-struct JanusEditor {
-    params: Arc<JanusParams>,
+struct CulSynthEditor {
+    params: Arc<CulSynthParams>,
     midi_channel: SyncSender<i8>,
     synth_channel: SyncSender<Box<dyn VoiceAllocator>>,
     context: ContextReader,
@@ -33,14 +33,14 @@ struct JanusEditor {
     show_about: bool,
 }
 
-impl JanusEditor {
+impl CulSynthEditor {
     pub fn new(
-        p: Arc<JanusParams>,
+        p: Arc<CulSynthParams>,
         midi_tx: SyncSender<i8>,
         synth_tx: SyncSender<Box<dyn VoiceAllocator>>,
         ctx: ContextReader,
     ) -> Self {
-        JanusEditor {
+        CulSynthEditor {
             params: p,
             midi_channel: midi_tx,
             synth_channel: synth_tx,
@@ -90,7 +90,7 @@ impl JanusEditor {
                         },
                     );
                     columns[1].centered_and_justified(|ui| {
-                        ui.label(format!("Janus v{}", env!("CARGO_PKG_VERSION")));
+                        ui.label(format!("CulSynth v{}", env!("CARGO_PKG_VERSION")));
                     });
                 });
             });
@@ -271,12 +271,12 @@ impl JanusEditor {
             .collapsible(false)
             .show(egui_ctx, |ui| {
                 ui.vertical_centered(|ui| {
-                    ui.label(format!("Janus v{}", env!("CARGO_PKG_VERSION")));
+                    ui.label(format!("CulSynth v{}", env!("CARGO_PKG_VERSION")));
                     ui.label("Copyright 2023 Robert Blair Mason");
                     ui.label("This program is open-source software");
                     ui.hyperlink_to(
-                        "(see https://github.com/rbmj/janus for details)",
-                        "https://github.com/rbmj/janus",
+                        "(see https://github.com/rbmj/culsynth for details)",
+                        "https://github.com/rbmj/culsynth",
                     );
                 });
             });
@@ -284,19 +284,19 @@ impl JanusEditor {
     pub fn initialize(&mut self, egui_ctx: &egui::Context) {
         let mut fonts = egui::FontDefinitions::default();
         fonts.font_data.insert(
-            "janus_noto_sans_math".to_owned(),
+            "culsynth_noto_sans_math".to_owned(),
             egui::FontData::from_static(include_bytes!(
                 "../../resources/fonts/NotoSansMath-Regular.ttf"
             )),
         );
         fonts.font_data.insert(
-            "janus_noto_sans_sym".to_owned(),
+            "culsynth_noto_sans_sym".to_owned(),
             egui::FontData::from_static(include_bytes!(
                 "../../resources/fonts/NotoSansSymbols-Regular.ttf"
             )),
         );
         fonts.font_data.insert(
-            "janus_noto_sans_math".to_owned(),
+            "culsynth_noto_sans_math".to_owned(),
             egui::FontData::from_static(include_bytes!(
                 "../../resources/fonts/NotoSansMath-Regular.ttf"
             )),
@@ -306,8 +306,8 @@ impl JanusEditor {
             .get_mut(&egui::FontFamily::Proportional)
             .unwrap()
             .extend_from_slice(&[
-                "janus_noto_sans_math".to_owned(),
-                "janus_noto_sans_sym".to_owned(),
+                "culsynth_noto_sans_math".to_owned(),
+                "culsynth_noto_sans_sym".to_owned(),
             ]);
 
         egui_ctx.set_fonts(fonts);
@@ -315,14 +315,14 @@ impl JanusEditor {
 }
 
 pub fn create(
-    params: Arc<JanusParams>,
+    params: Arc<CulSynthParams>,
     midi_tx: SyncSender<i8>,
     synth_tx: SyncSender<Box<dyn VoiceAllocator>>,
     context: ContextReader,
 ) -> Option<Box<dyn Editor>> {
     create_egui_editor(
         params.editor_state.clone(),
-        JanusEditor::new(params, midi_tx, synth_tx, context),
+        CulSynthEditor::new(params, midi_tx, synth_tx, context),
         |ctx, editor| editor.initialize(ctx),
         |ctx, setter, editor| editor.update(ctx, setter),
     )

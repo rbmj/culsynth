@@ -129,7 +129,7 @@ where
 /// # Examples
 ///
 /// ```no_compile
-/// use janus::fixedmath::{one_over_one_plus, U16F16};
+/// use culsynth::fixedmath::{one_over_one_plus, U16F16};
 /// let x = U16F16::ONE;
 /// let (y, exp) = one_over_one_plus(x); // 1 / (1 + 1) == 1 / 2
 /// assert!(y.unwrapped_shr(exp) == U16F16::lit("0.5"));
