@@ -13,8 +13,10 @@ crate_type = ["rlib"]
 [dependencies]
 fixed = "1.24"
 num-traits = { version = "0.2", default-features = false }
-rand = { version = "0.8.5", features = ["small_rng"] }
+rand = { version = "0.8.5", default-features = false, features = ["small_rng"] }
 tinyvec = { version = "1.6.0", features = ["rustc_1_40"] }
 
 [features]
 libm = ["num-traits/libm"]
+rand_defaults = ["rand/default"]
+

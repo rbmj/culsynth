@@ -5,7 +5,10 @@ members = [
     "culsynth",
     "culsynth_plugin",
     "culsynth_bindings",
+    "culsynth_2040",
 ]
+
+default-members = [ "culsynth_plugin" ]
 
 [profile.dev]
 opt-level = 1

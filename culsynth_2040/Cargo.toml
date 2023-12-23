@@ -1,0 +1,12 @@
+[package]
+name = "culsynth_2040"
+version = "0.0.0"
+edition = "2021"
+
+[dependencies]
+cortex-m-rt = "0.7.3"
+panic-halt = "0.2.0"
+rp-pico = "0.8.0"
+arrayvec = { version = "0.7.4", default-features = false }
+
+culsynth = { path = "../culsynth" }
