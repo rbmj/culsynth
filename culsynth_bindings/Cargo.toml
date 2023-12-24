@@ -14,4 +14,4 @@ crate_type = ["cdylib"]
 doc = false
 
 [dependencies]
-culsynth = { path = "../culsynth" }
+culsynth = { path = "../culsynth", version = "0.1.0" }

@@ -22,4 +22,4 @@ fixed = "1.24"
 piano_keyboard = "0.2.3"
 rand = "0.8"
 
-culsynth = { path = "../culsynth", features = ["rand_defaults"]}
+culsynth = { path = "../culsynth", version = "0.1.0", features = ["rand_defaults"]}
