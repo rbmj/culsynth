@@ -22,5 +22,7 @@ jobs:
         version: 1.0
     - name: Build
       run: cargo build --verbose
-    - name: Run tests
+    - name: Run tests for library
+      run: cargo test --verbose -p janus
+    - name: Run tests for plugin
       run: cargo test --verbose
