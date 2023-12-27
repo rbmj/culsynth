@@ -23,6 +23,6 @@ jobs:
     - name: Build
       run: cargo build --verbose
     - name: Run tests for library
-      run: cargo test --verbose -p janus
+      run: cargo test --verbose -p culsynth
     - name: Run tests for plugin
       run: cargo test --verbose
