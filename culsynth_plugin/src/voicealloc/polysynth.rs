@@ -173,6 +173,19 @@ impl VoiceAllocator for PolySynth {
             let mut processed: usize = 0;
             self.params_backup.copy_to(&mut self.params, self.index);
             while processed < self.index {
+                let voiceparams = VoiceParams {
+                    sync: self.params.global.sync_mut(processed, self.index),
+                    osc1_p: self.params.osc1.params_mut(processed, self.index),
+                    osc2_p: self.params.osc2.params_mut(processed, self.index),
+                    ring_p: self.params.ringmod.params_mut(processed, self.index),
+                    filt_p: self.params.filt.params_mut(processed, self.index),
+                    filt_env_p: self.params.env_filt.params_mut(processed, self.index),
+                    amp_env_p: self.params.env_amp.params_mut(processed, self.index),
+                    lfo1_p: self.params.lfo1.params(processed, self.index),
+                    lfo2_p: self.params.lfo2.params_mut(processed, self.index),
+                    env1_p: self.params.env1.params(processed, self.index),
+                    env2_p: self.params.env2.params_mut(processed, self.index),
+                };
                 let thisiter = voice.voice.process(
                     &self.ctx,
                     &matrix,
@@ -181,17 +194,7 @@ impl VoiceAllocator for PolySynth {
                     &voice.velbuf[processed..self.index],
                     &self.aftertouchbuf[processed..self.index],
                     &self.modwheelbuf[processed..self.index],
-                    self.params.global.sync_mut(processed, self.index),
-                    self.params.osc1.params_mut(processed, self.index),
-                    self.params.osc2.params_mut(processed, self.index),
-                    self.params.ringmod.params_mut(processed, self.index),
-                    self.params.filt.params_mut(processed, self.index),
-                    self.params.env_filt.params_mut(processed, self.index),
-                    self.params.env_amp.params_mut(processed, self.index),
-                    self.params.lfo1.params(processed, self.index),
-                    self.params.lfo2.params_mut(processed, self.index),
-                    self.params.env1.params(processed, self.index),
-                    self.params.env2.params_mut(processed, self.index),
+                    voiceparams,
                 );
                 for smp in thisiter {
                     self.outbuf[processed] += *smp / 16f32;
@@ -377,6 +380,19 @@ impl VoiceAllocator for PolySynthFxP {
             let mut processed: usize = 0;
             params.copy_to(&mut self.params, self.index);
             while processed < self.index {
+                let voiceparams = VoiceParamsFxP {
+                    sync: self.params.global.sync_mut(processed, self.index),
+                    osc1_p: self.params.osc1.params_mut(processed, self.index),
+                    osc2_p: self.params.osc2.params_mut(processed, self.index),
+                    ring_p: self.params.ringmod.params_mut(processed, self.index),
+                    filt_p: self.params.filt.params_mut(processed, self.index),
+                    filt_env_p: self.params.env_filt.params_mut(processed, self.index),
+                    amp_env_p: self.params.env_amp.params_mut(processed, self.index),
+                    lfo1_p: self.params.lfo1.params(processed, self.index),
+                    lfo2_p: self.params.lfo2.params_mut(processed, self.index),
+                    env1_p: self.params.env1.params(processed, self.index),
+                    env2_p: self.params.env2.params_mut(processed, self.index),
+                };
                 let thisiter = voice.voice.process(
                     &self.ctx,
                     &matrix,
@@ -385,17 +401,7 @@ impl VoiceAllocator for PolySynthFxP {
                     &voice.velbuf[processed..self.index],
                     &self.aftertouchbuf[processed..self.index],
                     &self.modwheelbuf[processed..self.index],
-                    self.params.global.sync_mut(processed, self.index),
-                    self.params.osc1.params_mut(processed, self.index),
-                    self.params.osc2.params_mut(processed, self.index),
-                    self.params.ringmod.params_mut(processed, self.index),
-                    self.params.filt.params_mut(processed, self.index),
-                    self.params.env_filt.params_mut(processed, self.index),
-                    self.params.env_amp.params_mut(processed, self.index),
-                    self.params.lfo1.params(processed, self.index),
-                    self.params.lfo2.params_mut(processed, self.index),
-                    self.params.env1.params(processed, self.index),
-                    self.params.env2.params_mut(processed, self.index),
+                    voiceparams,
                 );
                 for smp in thisiter {
                     self.outbuf[processed] += smp.unwrapped_shr(4).to_num::<f32>();

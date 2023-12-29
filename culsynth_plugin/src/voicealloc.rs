@@ -5,7 +5,7 @@
 use crate::parambuf::{PluginParamBuf, PluginParamBufFxP};
 use crate::pluginparams::ModMatrixPluginParams;
 use culsynth::context::{Context, ContextFxP, GenericContext};
-use culsynth::voice::{Voice, VoiceFxP};
+use culsynth::voice::{Voice, VoiceFxP, VoiceParams, VoiceParamsFxP};
 use culsynth::{IScalarFxP, NoteFxP, SampleFxP, ScalarFxP, SignedNoteFxP};
 
 /// This trait is the main abstraction for this module - the plugin may send it

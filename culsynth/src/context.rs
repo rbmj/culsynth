@@ -55,13 +55,13 @@ pub struct ContextFxP {
 
 impl ContextFxP {
     /// Create a new fixed-point context with a sample rate of 44.1kHz
-    pub fn new_441() -> Self {
+    pub const fn new_441() -> Self {
         Self {
             sample_rate: FixedSampleRate::Khz44_1,
         }
     }
     /// Create a new fixed-point context with a sample rate of 48kHz
-    pub fn new_480() -> Self {
+    pub const fn new_480() -> Self {
         Self {
             sample_rate: FixedSampleRate::Khz48_0,
         }
