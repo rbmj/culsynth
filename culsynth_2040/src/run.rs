@@ -1,5 +1,5 @@
-use culsynth::{VoiceFxP, voice::VoiceParamsFxP, voice::modulation::ModMatrixFxP};
 use culsynth::context::ContextFxP;
+use culsynth::voice::{modulation::ModMatrixFxP, VoiceFxP, VoiceParamsFxP};
 
 fn synth_params<'a>() -> VoiceParamsFxP<'a> {
     todo!()
@@ -15,7 +15,16 @@ pub fn run(voices: &mut [&mut VoiceFxP; crate::NUM_VOICES]) -> ! {
     let modwheelbuf = culsynth::devices::fixed_zerobuf::<culsynth::ScalarFxP>();
     loop {
         for voice in voices.iter_mut() {
-            voice.process(&CONTEXT, &matrix, notebuf, gatebuf, velbuf, aftertouchbuf, modwheelbuf, synth_params());
+            voice.process(
+                &CONTEXT,
+                &matrix,
+                notebuf,
+                gatebuf,
+                velbuf,
+                aftertouchbuf,
+                modwheelbuf,
+                synth_params(),
+            );
         }
     }
 }

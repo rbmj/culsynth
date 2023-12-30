@@ -56,7 +56,7 @@ impl<Smp: Float> Filt<Smp> {
     /// Helper function to prewarp the gain of the analog equivalent filter:
     fn prewarped_gain(sr: Smp, f: Smp) -> Smp {
         let f_c = f.midi_to_freq();
-        Smp::ftan(Smp::PI() * f_c / sr)
+        Smp::ftan(Smp::PI * f_c / sr)
     }
     /// Run the filter on the provided input and parameters.
     ///

@@ -233,7 +233,7 @@ impl<Smp: Float> Lfo<Smp> {
             }
             self.last_gate = this_gate;
             //generate waveforms (piecewise defined)
-            let frac_2phase_pi = (self.phase + self.phase) / Smp::PI();
+            let frac_2phase_pi = (self.phase + self.phase) / Smp::PI;
             let mut value = match opts[i].wave().unwrap_or_default() {
                 LfoWave::Saw => frac_2phase_pi / Smp::TWO,
                 LfoWave::Square => {
@@ -244,24 +244,24 @@ impl<Smp: Float> Lfo<Smp> {
                     }
                 }
                 LfoWave::Triangle => {
-                    if self.phase < Smp::FRAC_PI_2().neg() {
+                    if self.phase < Smp::FRAC_PI_2.neg() {
                         frac_2phase_pi.neg() - Smp::TWO
-                    } else if self.phase > Smp::FRAC_PI_2() {
+                    } else if self.phase > Smp::FRAC_PI_2 {
                         Smp::TWO - frac_2phase_pi
                     } else {
                         frac_2phase_pi
                     }
                 }
                 LfoWave::Sine => {
-                    if self.phase < Smp::FRAC_PI_2().neg() {
+                    if self.phase < Smp::FRAC_PI_2.neg() {
                         // phase in [-pi, pi/2)
                         // Use the identity sin(x) = -cos(x+pi/2) since our taylor series
                         // approximations are centered about zero and this will be more accurate
-                        Smp::fcos(self.phase + Smp::FRAC_PI_2()).neg()
-                    } else if self.phase < Smp::FRAC_PI_2() {
+                        Smp::fcos(self.phase + Smp::FRAC_PI_2).neg()
+                    } else if self.phase < Smp::FRAC_PI_2 {
                         // phase in [pi/2, pi)
                         // sin(x) = cos(x-pi/2)
-                        Smp::fcos(self.phase - Smp::FRAC_PI_2())
+                        Smp::fcos(self.phase - Smp::FRAC_PI_2)
                     } else {
                         Smp::fsin(self.phase)
                     }
@@ -275,11 +275,11 @@ impl<Smp: Float> Lfo<Smp> {
                 value = (value + Smp::ONE) / Smp::TWO;
             }
             self.outbuf[i] = value * depth[i];
-            let phase_per_sample = (freq[i] * Smp::TAU()) / ctx.sample_rate;
+            let phase_per_sample = (freq[i] * Smp::TAU) / ctx.sample_rate;
             self.phase = self.phase + phase_per_sample;
             // Check if we've crossed from positive phase back to negative:
-            if self.phase >= Smp::PI() {
-                self.phase = self.phase - Smp::TAU();
+            if self.phase >= Smp::PI {
+                self.phase = self.phase - Smp::TAU;
                 self.update_rands();
             }
         }

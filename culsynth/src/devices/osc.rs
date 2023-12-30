@@ -183,15 +183,15 @@ impl<Smp: Float> Osc<Smp> {
         // approximation if performance dictates
         for i in 0..numsamples {
             //generate waveforms (piecewise defined)
-            let frac_2phase_pi = self.phase * Smp::FRAC_2_PI();
+            let frac_2phase_pi = self.phase * <Smp as Float>::FRAC_2_PI;
             self.sawbuf[i] = frac_2phase_pi / Smp::TWO;
             if self.phase < Smp::ZERO {
                 self.sqbuf[i] = Smp::ONE.neg();
-                if self.phase < Smp::FRAC_PI_2().neg() {
+                if self.phase < Smp::FRAC_PI_2.neg() {
                     // phase in [-pi, pi/2)
                     // sin(x) = -cos(x+pi/2)
                     // TODO: Use fast approximation?
-                    self.sinbuf[i] = (self.phase + Smp::FRAC_PI_2()).fcos().neg();
+                    self.sinbuf[i] = (self.phase + Smp::FRAC_PI_2).fcos().neg();
                     // Subtract (1+1) because traits :eyeroll:
                     self.tribuf[i] = frac_2phase_pi.neg() - Smp::TWO;
                 } else {
@@ -202,20 +202,20 @@ impl<Smp: Float> Osc<Smp> {
                 }
             } else {
                 self.sqbuf[i] = Smp::ONE;
-                if self.phase < Smp::FRAC_PI_2() {
+                if self.phase < Smp::FRAC_PI_2 {
                     // phase in [0, pi/2)
                     self.sinbuf[i] = self.phase.fsin();
                     self.tribuf[i] = frac_2phase_pi;
                 } else {
                     // phase in [pi/2, pi)
                     // sin(x) = cos(x-pi/2)
-                    self.sinbuf[i] = (self.phase - Smp::FRAC_PI_2()).fcos();
+                    self.sinbuf[i] = (self.phase - Smp::FRAC_PI_2).fcos();
                     self.tribuf[i] = Smp::TWO - frac_2phase_pi;
                 }
             }
             //calculate the next phase
             let freq = (note[i] + tune[i]).midi_to_freq();
-            let phase_per_sample = freq * Smp::TAU() / ctx.sample_rate;
+            let phase_per_sample = freq * Smp::TAU / ctx.sample_rate;
             let shape_clip = Smp::SHAPE_CLIP;
             let shp = if shape[i] < shape_clip {
                 shape[i]
@@ -267,16 +267,16 @@ impl<Smp: Float> Osc<Smp> {
                 self.phase = self.phase * (Smp::ONE + shp) / (Smp::ONE - shp);
             }
             // Check if we've crossed from positive phase back to negative:
-            if self.phase >= Smp::PI() {
+            if self.phase >= Smp::PI {
                 // if we're a symmetric wave this is as simple as just subtract 2pi
                 if shp == Smp::ZERO {
-                    self.phase = self.phase - Smp::TAU();
+                    self.phase = self.phase - Smp::TAU;
                 } else {
                     // if assymmetric we have to multiply residual phase i.e. phase - pi
                     // by (1-k)/(1+k) where k is the shape:
-                    let delta = (self.phase - Smp::PI()) * (Smp::ONE - shp) / (Smp::ONE + shp);
+                    let delta = (self.phase - Smp::PI) * (Smp::ONE - shp) / (Smp::ONE + shp);
                     // add new change in phase to our baseline, -pi:
-                    self.phase = delta - Smp::PI();
+                    self.phase = delta - Smp::PI;
                 }
             }
         }

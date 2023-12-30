@@ -33,7 +33,7 @@ impl<Smp: Float> Default for Context<Smp> {
     }
 }
 
-impl<Smp: Float> GenericContext for Context<Smp> {
+impl<Smp: Float + crate::iter::DspFormat> GenericContext for Context<Smp> {
     fn sample_rate(&self) -> u32 {
         self.sample_rate.to_u32().unwrap_or_default()
     }

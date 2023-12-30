@@ -7,7 +7,7 @@ use rp_pico::entry;
 use core::mem::MaybeUninit;
 
 use arrayvec::ArrayVec;
-use culsynth::VoiceFxP;
+use culsynth::voice::VoiceFxP;
 
 mod run;
 

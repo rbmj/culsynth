@@ -40,7 +40,8 @@ pub mod context;
 pub mod devices;
 
 pub mod voice;
-pub use voice::VoiceFxP;
+
+pub mod iter;
 
 const STATIC_BUFFER_SIZE: usize = 256;
 type BufferT<T> = [T; STATIC_BUFFER_SIZE];
@@ -70,19 +71,30 @@ fn min_size(sizes: &[usize]) -> usize {
 
 /// A trait encompassing 16 bit fixed point numbers
 pub trait Fixed16: fixed::traits::Fixed {
-    //none required currently
+    const ONE_OR_MAX: Self = if let Some(val) = Self::TRY_ONE {
+        val
+    } else {
+        Self::MAX
+    };
+    fn multiply(self, rhs: Self) -> Self;
 }
 
 impl<N> Fixed16 for fixed::FixedI16<N>
 where
-    N: fixed::types::extra::Unsigned + fixed::types::extra::LeEqU16,
+    N: fixed::types::extra::Unsigned + fixed::types::extra::LeEqU16 + core::ops::Add<N>,
+    fixed::types::extra::Sum<N, N>: fixed::types::extra::Unsigned + fixed::types::extra::LeEqU32,
 {
-    //
+    fn multiply(self, rhs: Self) -> Self {
+        Self::from_num(self.wide_mul(rhs))
+    }
 }
 
 impl<N> Fixed16 for fixed::FixedU16<N>
 where
-    N: fixed::types::extra::Unsigned + fixed::types::extra::LeEqU16,
+    N: fixed::types::extra::Unsigned + fixed::types::extra::LeEqU16 + core::ops::Add<N>,
+    fixed::types::extra::Sum<N, N>: fixed::types::extra::Unsigned + fixed::types::extra::LeEqU32,
 {
-    //
+    fn multiply(self, rhs: Self) -> Self {
+        Self::from_num(self.wide_mul(rhs))
+    }
 }
