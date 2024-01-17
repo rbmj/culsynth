@@ -1,8 +1,23 @@
 //! This module provides objects to reason about the processing context.
 //! Currently, the only information wrapped is the current audio sample rate.
 
-use crate::devices::Float;
-use crate::ScalarFxP;
+use crate::{Float, ScalarFxP};
+
+pub trait GetContext {
+    fn get_context(&self) -> &dyn GenericContext;
+}
+
+impl<Smp: Float> GetContext for Context<Smp> {
+    fn get_context(&self) -> &dyn GenericContext {
+        self
+    }
+}
+
+impl GetContext for ContextFxP {
+    fn get_context(&self) -> &dyn GenericContext {
+        self
+    }
+}
 
 /// A trait to provide a generic interface to the various types of
 /// fixed/floating point contexts in this module.
@@ -33,7 +48,7 @@ impl<Smp: Float> Default for Context<Smp> {
     }
 }
 
-impl<Smp: Float + crate::iter::DspFormat> GenericContext for Context<Smp> {
+impl<Smp: Float> GenericContext for Context<Smp> {
     fn sample_rate(&self) -> u32 {
         self.sample_rate.to_u32().unwrap_or_default()
     }

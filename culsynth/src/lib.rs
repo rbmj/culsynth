@@ -18,6 +18,8 @@
 #![no_std]
 #![warn(missing_docs)]
 
+use fixed::{traits::Fixed, FixedI32};
+
 mod fixedmath;
 mod float_approx;
 pub mod util;
@@ -41,12 +43,11 @@ pub mod devices;
 
 pub mod voice;
 
-pub mod iter;
-
 const STATIC_BUFFER_SIZE: usize = 256;
 type BufferT<T> = [T; STATIC_BUFFER_SIZE];
 
 pub use fixedmath::midi_note_to_frequency;
+pub use fixedmath::Frequency as FrequencyFxP;
 pub use fixedmath::Note as NoteFxP;
 pub use fixedmath::Sample as SampleFxP;
 pub use fixedmath::Scalar as ScalarFxP;
@@ -64,37 +65,20 @@ pub type LfoFreqFxP = fixedmath::U7F9;
 /// A signed value in the range `[-1, 1)` - used where we need a signed version
 /// of a [ScalarFxP]
 pub type IScalarFxP = fixedmath::I1F15;
+/// A 32-bit fixed point number representing a sinusoid's phase.  
+type PhaseFxP = fixedmath::I4F28;
 
 fn min_size(sizes: &[usize]) -> usize {
     *sizes.iter().min().unwrap_or(&0)
 }
 
-/// A trait encompassing 16 bit fixed point numbers
-pub trait Fixed16: fixed::traits::Fixed {
-    const ONE_OR_MAX: Self = if let Some(val) = Self::TRY_ONE {
-        val
-    } else {
-        Self::MAX
-    };
-    fn multiply(self, rhs: Self) -> Self;
-}
+mod fixed_traits;
+pub use fixed_traits::Fixed16;
 
-impl<N> Fixed16 for fixed::FixedI16<N>
-where
-    N: fixed::types::extra::Unsigned + fixed::types::extra::LeEqU16 + core::ops::Add<N>,
-    fixed::types::extra::Sum<N, N>: fixed::types::extra::Unsigned + fixed::types::extra::LeEqU32,
-{
-    fn multiply(self, rhs: Self) -> Self {
-        Self::from_num(self.wide_mul(rhs))
-    }
-}
+mod float_traits;
+pub use float_traits::Float;
 
-impl<N> Fixed16 for fixed::FixedU16<N>
-where
-    N: fixed::types::extra::Unsigned + fixed::types::extra::LeEqU16 + core::ops::Add<N>,
-    fixed::types::extra::Sum<N, N>: fixed::types::extra::Unsigned + fixed::types::extra::LeEqU32,
-{
-    fn multiply(self, rhs: Self) -> Self {
-        Self::from_num(self.wide_mul(rhs))
-    }
-}
+mod dsp_format;
+pub use dsp_format::{DspFloat, DspFormat, DspFormatBase, DspType};
+
+type WideSampleFxP = FixedI32<<SampleFxP as Fixed>::Frac>;

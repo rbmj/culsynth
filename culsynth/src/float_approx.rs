@@ -4,7 +4,7 @@
 
 #[cfg(any(test, doc, not(feature = "libm")))]
 mod detail {
-    use crate::devices::Float;
+    use crate::Float;
     use num_traits::AsPrimitive;
 
     /// Approximate sin(x), using a 7th order taylor series approximation about

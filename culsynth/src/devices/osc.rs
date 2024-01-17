@@ -1,523 +1,441 @@
 use super::*;
-use fixedmath::apply_scalar_i;
 
-pub(crate) type PhaseFxP = fixedmath::I4F28;
+use crate::{FrequencyFxP, PhaseFxP};
 
-/// This enum gets passed to a oscillator to define its sync behavior.
-///
-/// `Off` means do not calculate any oscillator sync information
-///
-/// `Master` passes in a mutable buffer to the master oscillator (i.e. the oscillator to which the
-/// slave is forced to reset).  The buffer also determines whether sync behavior is enabled to
-/// support sample-accurate automation - if the buffer is zero at an index, then the oscillator
-/// will not calculate sync information for that sample.  For any sample where the buffer is
-/// non-zero, the oscillator will overwrite that sample with data that the slave needs to properly
-/// calculate its own phase.  A buffer of all zeros will have equivalent semantics to `Off`, and
-/// the oscillator will not mutate the buffer (i.e. leave it all zero).
-///
-/// `Slave` passes in an immutable buffer to the slave oscillator (i.e. the oscillator that has
-/// its frequency locked to another).  This buffer should be the mutated buffer from the master
-/// oscillator.  Passing in a buffer of all zeros has equivalent semantics to `Off`.
-///
-/// # Example
-///
-/// ```
-/// use culsynth::midi_const;
-/// use culsynth::devices::*;
-/// use culsynth::context::Context;
-/// const NUMSAMPLES: usize = 256;
-/// let ctx = Context::new(48000f32);
-/// let mut osc1 = Osc::<f32>::new();
-/// let mut osc2 = Osc::<f32>::new();
-/// let osc1_pitch = [midi_const::A4 as f32; NUMSAMPLES];
-/// let osc2_pitch = [midi_const::C3 as f32; NUMSAMPLES];
-/// let zerobuf = [0f32; NUMSAMPLES];
-/// let mut syncbuf = [1f32; NUMSAMPLES];
-/// osc1.process(
-///     &ctx,
-///     &osc1_pitch,
-///     OscParams {
-///         tune: &zerobuf,
-///         shape: &zerobuf,
-///         sync: OscSync::Master(&mut syncbuf),
-///     },
-/// );
-/// osc2.process(
-///     &ctx,
-///     &osc2_pitch,
-///     OscParams {
-///         tune: &zerobuf,
-///         shape: &zerobuf,
-///         sync: OscSync::Slave(&syncbuf),
-///     },
-/// );
-/// ```
-pub enum OscSync<'a, Smp> {
-    /// No sync behavior - do not calculate
-    Off,
-    /// This is the master oscillator, and calculate sync information when
-    /// in-place whenever the supplied slice is non-zero
-    Master(&'a mut [Smp]),
-    /// This is the slave oscillator, and sync it to the master using the
-    /// information in the slice provided
-    Slave(&'a [Smp]),
+use crate::{DspFloat, Float};
+use crate::{DspFormat, DspFormatBase, DspType};
+
+#[derive(Clone, Default)]
+pub struct OscParams<T: DspFormatBase> {
+    pub tune: T::NoteOffset,
+    pub shape: T::Scalar,
 }
 
-impl<'a, Smp> OscSync<'a, Smp> {
-    /// For [OscSync::Off] returns `None`, and otherwise returns `Some(len)`,
-    /// where `len` is the length of sync data slice.
-    pub fn len(&self) -> Option<usize> {
-        match self {
-            OscSync::Off => None,
-            OscSync::Master(x) => Some(x.len()),
-            OscSync::Slave(x) => Some(x.len()),
-        }
-    }
-    /// This is empty if the subslice is empty.  [OscSync::Off] is
-    /// considered to be non-empty.
-    pub fn is_empty(&self) -> bool {
-        match self.len() {
-            Some(x) => x == 0,
-            None => false,
-        }
-    }
-}
-
-/// A floating point Oscillator providing Sine, Square, Sawtooth, and Triangle outputs.
-#[derive(Clone)]
-pub struct Osc<Smp> {
-    sinbuf: BufferT<Smp>,
-    sqbuf: BufferT<Smp>,
-    tribuf: BufferT<Smp>,
-    sawbuf: BufferT<Smp>,
-    phase: Smp,
-}
-
-/// A struct wrapping the various output signals of an [Osc].  All signals
-/// are in phase with each other.
-pub struct OscOutput<'a, Smp> {
-    /// Sine Wave
-    pub sin: &'a [Smp],
-    /// Square Wave
-    pub sq: &'a [Smp],
-    /// Triangle Wave
-    pub tri: &'a [Smp],
-    /// Sawtooth Wave
-    pub saw: &'a [Smp],
-}
-
-impl<'a, Smp> OscOutput<'a, Smp> {
-    /// The length of the oscillator output slices
-    pub fn len(&self) -> usize {
-        self.sin.len()
-    }
-    /// True if `self.len() == 0`
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-}
-
-/// A wrapper struct for passing parameters into the floating-point [Osc].
-pub struct OscParams<'a, Smp> {
-    /// Tune control as an offset from the commanded note, in semitones
-    pub tune: &'a [Smp],
-    /// Controls the phase distortion of the wave, from 0 to 1
-    pub shape: &'a [Smp],
-    /// Controls oscillator sync (see [OscSync] for further details)
-    pub sync: OscSync<'a, Smp>,
-}
-
-impl<'a, Smp> OscParams<'a, Smp> {
-    /// The length of the input parameters.
-    pub fn len(&self) -> usize {
-        let x = core::cmp::min(self.shape.len(), self.tune.len());
-        self.sync.len().map_or(x, |y| core::cmp::min(x, y))
-    }
-    /// True if any subslice is empty
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-    /// Replace the sync parameter in `self`, consuming `self` and returning the new struct.
-    pub fn with_sync(self, s: OscSync<'a, Smp>) -> Self {
+impl<T: DspFloat> From<&OscParams<i16>> for OscParams<T> {
+    fn from(value: &OscParams<i16>) -> Self {
         Self {
-            tune: self.tune,
-            shape: self.shape,
-            sync: s,
+            tune: value.tune.to_num(),
+            shape: value.shape.to_num(),
         }
     }
 }
 
-impl<Smp: Float> Osc<Smp> {
-    /// Constructor
+#[derive(Clone, Default)]
+pub struct SyncedOscsParams<T: DspFormatBase> {
+    pub primary: OscParams<T>,
+    pub secondary: OscParams<T>,
+    pub sync: bool,
+}
+
+impl<T: DspFloat> From<&SyncedOscsParams<i16>> for SyncedOscsParams<T> {
+    fn from(value: &SyncedOscsParams<i16>) -> Self {
+        Self {
+            primary: (&value.primary).into(),
+            secondary: (&value.secondary).into(),
+            sync: value.sync,
+        }
+    }
+}
+
+
+/// The output of an oscillator.
+#[derive(Clone, Default)]
+pub struct OscOutput<T: DspFormatBase> {
+    /// The sine wave output
+    pub sin: T::Sample,
+    /// The square wave output
+    pub sq: T::Sample,
+    /// The triangle wave output
+    pub tri: T::Sample,
+    /// The sawtooth wave output
+    pub saw: T::Sample,
+}
+
+#[derive(Clone, Default)]
+pub struct SyncedOscsOutput<T: DspFormatBase> {
+    pub primary: OscOutput<T>,
+    pub secondary: OscOutput<T>,
+}
+#[derive(Clone, Default)]
+pub struct Osc<T: DspFormat> {
+    phase: T::Phase,
+}
+
+impl<T: DspFormat> Osc<T> {
     pub fn new() -> Self {
         Self {
-            sinbuf: [Smp::zero(); STATIC_BUFFER_SIZE],
-            sqbuf: [Smp::zero(); STATIC_BUFFER_SIZE],
-            tribuf: [Smp::zero(); STATIC_BUFFER_SIZE],
-            sawbuf: [Smp::zero(); STATIC_BUFFER_SIZE],
-            phase: Smp::zero(),
+            phase: T::Phase::zero(),
         }
     }
-    /// Run the oscillator, using the given note signal and parameters.
-    ///
-    /// `note` is formatted as a MIDI note number (floating point allowed for bends, etc.)
-    ///
-    /// See [OscSync] for the semantics of the `sync` argument.
-    ///
-    /// Note: The output slices from this function may be shorter than the
-    /// input slices.  Callers must check the number of returned samples and
-    /// copy them into their own output buffers before calling this function
-    /// again to process the remainder of the data.
-    pub fn process(
+    fn next_with_sync(
         &mut self,
-        ctx: &Context<Smp>,
-        note: &[Smp],
-        params: OscParams<Smp>,
-    ) -> OscOutput<Smp> {
-        let numsamples = min_size(&[note.len(), params.len(), STATIC_BUFFER_SIZE]);
-        let mut sync = params.sync;
-        let shape = params.shape;
-        let tune = params.tune;
-        // We don't have to split sin up piecewise but we'll do it for symmetry with
-        // the fixed point implementation and to make it easy to switch to an
-        // approximation if performance dictates
-        for i in 0..numsamples {
-            //generate waveforms (piecewise defined)
-            let frac_2phase_pi = self.phase * <Smp as Float>::FRAC_2_PI;
-            self.sawbuf[i] = frac_2phase_pi / Smp::TWO;
-            if self.phase < Smp::ZERO {
-                self.sqbuf[i] = Smp::ONE.neg();
-                if self.phase < Smp::FRAC_PI_2.neg() {
-                    // phase in [-pi, pi/2)
-                    // sin(x) = -cos(x+pi/2)
-                    // TODO: Use fast approximation?
-                    self.sinbuf[i] = (self.phase + Smp::FRAC_PI_2).fcos().neg();
-                    // Subtract (1+1) because traits :eyeroll:
-                    self.tribuf[i] = frac_2phase_pi.neg() - Smp::TWO;
-                } else {
-                    // phase in [-pi/2, 0)
-                    self.sinbuf[i] = self.phase.fsin();
-                    //triangle
-                    self.tribuf[i] = frac_2phase_pi;
-                }
-            } else {
-                self.sqbuf[i] = Smp::ONE;
-                if self.phase < Smp::FRAC_PI_2 {
-                    // phase in [0, pi/2)
-                    self.sinbuf[i] = self.phase.fsin();
-                    self.tribuf[i] = frac_2phase_pi;
-                } else {
-                    // phase in [pi/2, pi)
-                    // sin(x) = cos(x-pi/2)
-                    self.sinbuf[i] = (self.phase - Smp::FRAC_PI_2).fcos();
-                    self.tribuf[i] = Smp::TWO - frac_2phase_pi;
-                }
-            }
-            //calculate the next phase
-            let freq = (note[i] + tune[i]).midi_to_freq();
-            let phase_per_sample = freq * Smp::TAU / ctx.sample_rate;
-            let shape_clip = Smp::SHAPE_CLIP;
-            let shp = if shape[i] < shape_clip {
-                shape[i]
-            } else {
-                shape_clip
-            };
-            // Handle slave oscillator resetting phase if master crosses:
-            if let OscSync::Slave(syncbuf) = sync {
-                if syncbuf[i] != Smp::ZERO {
-                    self.phase = Smp::ZERO;
-                }
-            }
-            let phase_per_smp_adj = if self.phase < Smp::ZERO {
-                phase_per_sample * (Smp::ONE / (Smp::ONE + shp))
-            } else {
-                phase_per_sample * (Smp::ONE / (Smp::ONE - shp))
-            };
-            let old_phase = self.phase;
-            match sync {
-                OscSync::Off => {
-                    self.phase = self.phase + phase_per_smp_adj;
-                }
-                OscSync::Master(ref mut syncbuf) => {
-                    self.phase = self.phase + phase_per_smp_adj;
-                    // calculate what time in this sampling period the phase crossed zero:
-                    syncbuf[i] = if syncbuf[i] != Smp::ZERO
-                        && old_phase < Smp::ZERO
-                        && self.phase >= Smp::ZERO
-                    {
-                        Smp::ONE - (self.phase / phase_per_smp_adj)
-                    } else {
-                        Smp::ZERO
-                    };
-                }
-                OscSync::Slave(syncbuf) => {
-                    self.phase = self.phase
-                        + if syncbuf[i] != Smp::ZERO {
-                            phase_per_smp_adj * (Smp::ONE - syncbuf[i])
-                        } else {
-                            phase_per_smp_adj
-                        };
-                }
-            }
-            // make sure we calculate the correct new phase on transitions for assymmetric waves:
-            // check if we've crossed from negative to positive phase
-            if old_phase < Smp::ZERO && self.phase > Smp::ZERO && shp != Smp::ZERO {
-                // need to multiply residual phase i.e. (phase - 0) by (1+k)/(1-k)
-                // where k is the shape, so no work required if shape is 0
-                self.phase = self.phase * (Smp::ONE + shp) / (Smp::ONE - shp);
-            }
-            // Check if we've crossed from positive phase back to negative:
-            if self.phase >= Smp::PI {
-                // if we're a symmetric wave this is as simple as just subtract 2pi
-                if shp == Smp::ZERO {
-                    self.phase = self.phase - Smp::TAU;
-                } else {
-                    // if assymmetric we have to multiply residual phase i.e. phase - pi
-                    // by (1-k)/(1+k) where k is the shape:
-                    let delta = (self.phase - Smp::PI) * (Smp::ONE - shp) / (Smp::ONE + shp);
-                    // add new change in phase to our baseline, -pi:
-                    self.phase = delta - Smp::PI;
-                }
-            }
-        }
-        OscOutput {
-            sin: &self.sinbuf[0..numsamples],
-            tri: &self.tribuf[0..numsamples],
-            sq: &self.sqbuf[0..numsamples],
-            saw: &self.sawbuf[0..numsamples],
-        }
+        context: &T::Context,
+        note: T::Note,
+        params: OscParams<T>,
+        mut sync_val: T::Scalar,
+        sync_mode: detail::OscSync,
+    ) -> (OscOutput<T>, T::Scalar) {
+        let freq = T::note_to_freq(T::apply_note_offset(note, params.tune));
+        let out = T::calc_osc(
+            context,
+            freq,
+            &mut self.phase,
+            params.shape,
+            &mut sync_val,
+            sync_mode,
+        );
+        (out, sync_val)
     }
 }
 
-impl<Smp: Float> Default for Osc<Smp> {
-    fn default() -> Self {
-        Self::new()
+impl<T: DspFormat> Device<T> for Osc<T> {
+    type Input = T::Note;
+    type Params = OscParams<T>;
+    type Output = OscOutput<T>;
+    fn next(&mut self, context: &T::Context, note: T::Note, params: OscParams<T>) -> Self::Output {
+        let (out, _) = self.next_with_sync(
+            context,
+            note,
+            params,
+            T::Scalar::zero(),
+            detail::OscSync::Off,
+        );
+        out
     }
 }
 
-/// A wrapper struct for passing parameters to an [OscFxP].
-pub struct OscParamsFxP<'a> {
-    /// The tuning offset for the oscillator, in semitones
-    pub tune: &'a [SignedNoteFxP],
-    /// Controls the phase distortion
-    pub shape: &'a [ScalarFxP],
-    /// Controls oscillator sync
-    pub sync: OscSync<'a, ScalarFxP>,
+#[derive(Clone, Default)]
+pub struct SyncedOscs<T: DspFormat> {
+    primary: Osc<T>,
+    secondary: Osc<T>,
 }
 
-impl<'a> OscParamsFxP<'a> {
-    /// The length of this parameter pack, considered to be the length of the
-    /// shortest subslice
-    pub fn len(&self) -> usize {
-        let x = core::cmp::min(self.shape.len(), self.tune.len());
-        self.sync.len().map_or(x, |y| core::cmp::min(x, y))
-    }
-    /// True if any subslice is empty
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-    /// Replace the sync parameter of `self`, consuming `self` and returning the resultant struct.
-    pub fn with_sync(self, s: OscSync<'a, ScalarFxP>) -> Self {
-        Self {
-            tune: self.tune,
-            shape: self.shape,
-            sync: s,
-        }
+impl<T: DspFormat> SyncedOscs<T> {
+    pub fn new() -> Self {
+        Default::default()
     }
 }
 
-/// A fixed-point oscillator providing sine, square, triangle, and sawtooth waves.
-#[derive(Clone)]
-pub struct OscFxP {
-    sinbuf: BufferT<SampleFxP>,
-    sqbuf: BufferT<SampleFxP>,
-    tribuf: BufferT<SampleFxP>,
-    sawbuf: BufferT<SampleFxP>,
-    phase: PhaseFxP,
-}
-
-impl OscFxP {
-    /// Constructor
-    pub fn new() -> OscFxP {
-        OscFxP {
-            sinbuf: [SampleFxP::ZERO; STATIC_BUFFER_SIZE],
-            sqbuf: [SampleFxP::ZERO; STATIC_BUFFER_SIZE],
-            tribuf: [SampleFxP::ZERO; STATIC_BUFFER_SIZE],
-            sawbuf: [SampleFxP::ZERO; STATIC_BUFFER_SIZE],
-            phase: PhaseFxP::ZERO,
-        }
-    }
-    /// Generate waves based on the `note` control signal and parameters.
-    ///
-    /// See the definition of [NoteFxP] for further information.
-    ///
-    /// See [OscSync] for the semantics of the sync argument.
-    ///
-    /// Note: The output slice from this function may be shorter than the
-    /// input slices.  Callers must check the number of returned samples and
-    /// copy them into their own output buffers before calling this function
-    /// again to process the remainder of the data.
-    pub fn process(
+impl<T: DspFormat> Device<T> for SyncedOscs<T> {
+    type Input = T::Note;
+    type Params = SyncedOscsParams<T>;
+    type Output = SyncedOscsOutput<T>;
+    fn next(
         &mut self,
-        ctx: &ContextFxP,
-        note: &[NoteFxP],
-        params: OscParamsFxP,
-    ) -> OscOutput<SampleFxP> {
-        let numsamples = min_size(&[note.len(), params.len(), STATIC_BUFFER_SIZE]);
-        let shape = params.shape;
-        let tune = params.tune;
-        let mut sync = params.sync;
-        const FRAC_2_PI: ScalarFxP = ScalarFxP::lit("0x0.a2fa");
-        const TWO: SampleFxP = SampleFxP::lit("2");
-        for i in 0..numsamples {
-            //generate waveforms (piecewise defined)
-            let frac_2phase_pi = apply_scalar_i(SampleFxP::from_num(self.phase), FRAC_2_PI);
-            //Sawtooth wave does not have to be piecewise-defined
-            self.sawbuf[i] = frac_2phase_pi.unwrapped_shr(1);
-            //All other functions are piecewise-defined:
-            if self.phase < 0 {
-                self.sqbuf[i] = SampleFxP::NEG_ONE;
-                if self.phase < PhaseFxP::FRAC_PI_2.unwrapped_neg() {
-                    // phase in [-pi, pi/2)
-                    // Use the identity sin(x) = -cos(x+pi/2) since our taylor series
-                    // approximations are centered about zero and this will be more accurate
-                    self.sinbuf[i] =
-                        fixedmath::cos_fixed(SampleFxP::from_num(self.phase + PhaseFxP::FRAC_PI_2))
-                            .unwrapped_neg();
-                    self.tribuf[i] = frac_2phase_pi.unwrapped_neg() - TWO;
-                } else {
-                    // phase in [-pi/2, 0)
-                    self.sinbuf[i] = fixedmath::sin_fixed(SampleFxP::from_num(self.phase));
-                    self.tribuf[i] = frac_2phase_pi;
-                }
+        context: &T::Context,
+        note: T::Note,
+        params: SyncedOscsParams<T>,
+    ) -> Self::Output {
+        let sync_val = if params.sync {
+            T::Scalar::one()
+        } else {
+            T::Scalar::zero()
+        };
+        let (pri_out, sync_val) = self.primary.next_with_sync(
+            context,
+            note,
+            params.primary,
+            T::Scalar::zero(),
+            OscSync::Primary,
+        );
+        let (sec_out, _) = self.secondary.next_with_sync(
+            context,
+            note,
+            params.secondary,
+            sync_val,
+            OscSync::Secondary,
+        );
+        SyncedOscsOutput {
+            primary: pri_out,
+            secondary: sec_out,
+        }
+    }
+}
+
+pub(crate) mod detail {
+    use super::*;
+
+    #[derive(PartialEq, Clone, Copy)]
+    pub enum OscSync {
+        /// No sync behavior - do not calculate
+        Off,
+        /// This is the master oscillator
+        Primary,
+        /// This is the slave oscillator
+        Secondary,
+    }
+
+    pub trait OscOps: crate::DspFormatBase {
+        const FRAC_2_PI: Self::Scalar;
+        fn calc_osc(
+            context: &Self::Context,
+            freq: Self::Frequency,
+            phase: &mut Self::Phase,
+            shape: Self::Scalar,
+            sync: &mut Self::Scalar,
+            sync_mode: OscSync,
+        ) -> OscOutput<Self>;
+        fn apply_note_offset(note: Self::Note, offset: Self::NoteOffset) -> Self::Note;
+    }
+}
+
+use detail::OscSync;
+
+// This section contains the actual DSP logic for both fixed and floating point
+
+impl<T: DspFloat> detail::OscOps for T {
+    const FRAC_2_PI: T = <T as Float>::FRAC_2_PI;
+    fn apply_note_offset(note: Self::Note, offset: Self::NoteOffset) -> Self::Note {
+        note + offset
+    }
+    fn calc_osc(
+        ctx: &Self::Context,
+        freq: Self::Frequency,
+        phase: &mut Self::Phase,
+        shape: Self::Scalar,
+        sync: &mut Self::Scalar,
+        sync_mode: osc::OscSync,
+    ) -> osc::OscOutput<Self> {
+        let mut out = osc::OscOutput::<T>::default();
+        //generate waveforms (piecewise defined)
+        let frac_2phase_pi = *phase * <Self as detail::OscOps>::FRAC_2_PI;
+        out.saw = frac_2phase_pi / T::TWO;
+        if *phase < T::ZERO {
+            out.sq = T::ONE.neg();
+            if *phase < T::FRAC_PI_2.neg() {
+                // phase in [-pi, pi/2)
+                // sin(x) = -cos(x+pi/2)
+                out.sin = (*phase + T::FRAC_PI_2).fcos().neg();
+                // Subtract (1+1) because traits :eyeroll:
+                out.tri = frac_2phase_pi.neg() - T::TWO;
             } else {
-                self.sqbuf[i] = SampleFxP::ONE;
-                if self.phase < PhaseFxP::FRAC_PI_2 {
-                    // phase in [0, pi/2)
-                    self.sinbuf[i] = fixedmath::sin_fixed(SampleFxP::from_num(self.phase));
-                    self.tribuf[i] = frac_2phase_pi;
-                } else {
-                    // phase in [pi/2, pi)
-                    // sin(x) = cos(x-pi/2)
-                    self.sinbuf[i] =
-                        fixedmath::cos_fixed(SampleFxP::from_num(self.phase - PhaseFxP::FRAC_PI_2));
-                    self.tribuf[i] = TWO - frac_2phase_pi;
-                }
+                // phase in [-pi/2, 0)
+                out.sin = phase.fsin();
+                //triangle
+                out.tri = frac_2phase_pi;
             }
-            // we need to divide by 2^12 here, but we're increasing the fractional part by 10
-            // bits so we'll only actually shift by 2 places and then use a bitcast for the
-            // remaining logical 10 bits:
-            let phase_per_sample = fixedmath::U4F28::from_bits(
-                fixedmath::scale_fixedfloat(
-                    fixedmath::midi_note_to_frequency(note[i].saturating_add_signed(tune[i])),
-                    ctx.sample_rate.frac_2pi4096_sr(),
-                )
-                .unwrapped_shr(2)
-                .to_bits(),
-            );
-            // Handle slave oscillator resetting phase if master crosses:
-            if let OscSync::Slave(syncbuf) = sync {
-                if syncbuf[i] != ScalarFxP::ZERO {
-                    self.phase = PhaseFxP::ZERO;
-                }
-            }
-            // Adjust phase per sample for the shape parameter:
-            let phase_per_smp_adj = PhaseFxP::from_num(if self.phase < PhaseFxP::ZERO {
-                let (x, s) = fixedmath::one_over_one_plus_highacc(clip_shape(shape[i]));
-                fixedmath::scale_fixedfloat(phase_per_sample, x).unwrapped_shr(s)
+        } else {
+            out.sq = T::ONE;
+            if *phase < T::FRAC_PI_2 {
+                // phase in [0, pi/2)
+                out.sin = phase.fsin();
+                out.tri = frac_2phase_pi;
             } else {
-                fixedmath::scale_fixedfloat(phase_per_sample, one_over_one_minus_x(shape[i]))
-            });
-            // Advance the oscillator's phase, and handle oscillator sync logic:
-            let old_phase = self.phase;
-            match sync {
-                OscSync::Off => {
-                    self.phase += phase_per_smp_adj;
-                }
-                OscSync::Master(ref mut syncbuf) => {
-                    self.phase += phase_per_smp_adj;
-                    // calculate what time in this sampling period the phase crossed zero:
-                    syncbuf[i] = if syncbuf[i] != ScalarFxP::ZERO
-                        && old_phase < PhaseFxP::ZERO
-                        && self.phase >= PhaseFxP::ZERO
-                    {
-                        // we need to calculate 1 - (phase / phase_per_sample_adj)
-                        let adj_s = ScalarFxP::from_num(phase_per_smp_adj.unwrapped_shr(2));
-                        let x = fixedmath::U3F13::from_num(self.phase).wide_mul(inverse(adj_s));
-                        let proportion = ScalarFxP::saturating_from_num(x.unwrapped_shr(2));
-                        if proportion == ScalarFxP::MAX {
-                            ScalarFxP::DELTA
-                        } else {
-                            ScalarFxP::MAX - proportion
-                        }
-                    } else {
-                        ScalarFxP::ZERO
-                    }
-                }
-                OscSync::Slave(syncbuf) => {
-                    self.phase += if syncbuf[i] != ScalarFxP::ZERO {
-                        // Only advance phase for the portion of time after master crossed zero:
-                        let scale = ScalarFxP::MAX - syncbuf[i];
-                        PhaseFxP::from_num(fixedmath::scale_fixedfloat(
-                            fixedmath::U4F28::from_num(phase_per_smp_adj),
-                            scale,
-                        ))
+                // phase in [pi/2, pi)
+                // sin(x) = cos(x-pi/2)
+                out.sin = (*phase - T::FRAC_PI_2).fcos();
+                out.tri = T::TWO - frac_2phase_pi;
+            }
+        }
+        //calculate the next phase
+        let phase_per_sample = freq * T::TAU / ctx.sample_rate;
+        let shp = if shape < T::SHAPE_CLIP {
+            shape
+        } else {
+            T::SHAPE_CLIP
+        };
+        // Handle slave oscillator resetting phase if master crosses:
+        if sync_mode == OscSync::Secondary {
+            if *sync != T::ZERO {
+                *phase = T::ZERO;
+            }
+        }
+        let phase_per_smp_adj = if *phase < T::ZERO {
+            phase_per_sample * (T::ONE / (T::ONE + shp))
+        } else {
+            phase_per_sample * (T::ONE / (T::ONE - shp))
+        };
+        let old_phase = *phase;
+        match sync_mode {
+            OscSync::Off => {
+                *phase = *phase + phase_per_smp_adj;
+            }
+            OscSync::Primary => {
+                *phase = *phase + phase_per_smp_adj;
+                // calculate what time in this sampling period the phase crossed zero:
+                *sync = if *sync != T::ZERO && old_phase < T::ZERO && *phase >= T::ZERO {
+                    T::ONE - (*phase / phase_per_smp_adj)
+                } else {
+                    T::ZERO
+                };
+            }
+            OscSync::Secondary => {
+                *phase = *phase
+                    + if *sync != T::ZERO {
+                        phase_per_smp_adj * (T::ONE - *sync)
                     } else {
                         phase_per_smp_adj
-                    }
-                }
-            }
-            // check if we've crossed from negative to positive phase
-            if old_phase < PhaseFxP::ZERO
-                && self.phase > PhaseFxP::ZERO
-                && shape[i] != ScalarFxP::ZERO
-            {
-                // need to multiply residual phase i.e. (phase - 0) by (1+k)/(1-k)
-                // where k is the shape, so no work required if shape is 0
-                let scaled = fixedmath::scale_fixedfloat(
-                    fixedmath::U4F28::from_num(self.phase),
-                    one_over_one_minus_x(shape[i]),
-                );
-                let one_plus_shape =
-                    fixedmath::U1F15::from_num(clip_shape(shape[i])) + fixedmath::U1F15::ONE;
-                self.phase =
-                    PhaseFxP::from_num(fixedmath::scale_fixedfloat(scaled, one_plus_shape));
-            }
-            // Check if we've crossed from positive phase back to negative:
-            if self.phase >= PhaseFxP::PI {
-                // if we're a symmetric wave this is as simple as just subtract 2pi
-                if shape[i] == ScalarFxP::ZERO {
-                    self.phase -= PhaseFxP::TAU;
-                } else {
-                    // if assymmetric we have to multiply residual phase i.e. phase - pi
-                    // by (1-k)/(1+k) where k is the shape:
-                    let one_minus_shape =
-                        (ScalarFxP::MAX - clip_shape(shape[i])) + ScalarFxP::DELTA;
-                    // scaled = residual_phase * (1-k)
-                    let scaled = fixedmath::scale_fixedfloat(
-                        fixedmath::U4F28::from_num(self.phase - PhaseFxP::PI),
-                        one_minus_shape,
-                    );
-                    // new change in phase = scaled * 1/(1 + k)
-                    let (x, s) = fixedmath::one_over_one_plus_highacc(clip_shape(shape[i]));
-                    let delta = fixedmath::scale_fixedfloat(scaled, x).unwrapped_shr(s);
-                    // add new change in phase to our baseline, -pi:
-                    self.phase = PhaseFxP::from_num(delta) - PhaseFxP::PI;
-                }
+                    };
             }
         }
-        OscOutput {
-            sin: &self.sinbuf[0..numsamples],
-            tri: &self.tribuf[0..numsamples],
-            sq: &self.sqbuf[0..numsamples],
-            saw: &self.sawbuf[0..numsamples],
+        // make sure we calculate the correct new phase on transitions for assymmetric waves:
+        // check if we've crossed from negative to positive phase
+        if old_phase < T::ZERO && *phase > T::ZERO && shp != T::ZERO {
+            // need to multiply residual phase i.e. (phase - 0) by (1+k)/(1-k)
+            // where k is the shape, so no work required if shape is 0
+            *phase = *phase * (T::ONE + shp) / (T::ONE - shp);
         }
+        // Check if we've crossed from positive phase back to negative:
+        if *phase >= T::PI {
+            // if we're a symmetric wave this is as simple as just subtract 2pi
+            if shp == T::ZERO {
+                *phase = *phase - T::TAU;
+            } else {
+                // if assymmetric we have to multiply residual phase i.e. phase - pi
+                // by (1-k)/(1+k) where k is the shape:
+                let delta = (*phase - T::PI) * (T::ONE - shp) / (T::ONE + shp);
+                // add new change in phase to our baseline, -pi:
+                *phase = delta - T::PI;
+            }
+        }
+        out
     }
 }
 
-impl Default for OscFxP {
-    fn default() -> Self {
-        Self::new()
+impl detail::OscOps for i16 {
+    const FRAC_2_PI: ScalarFxP = ScalarFxP::lit("0x0.a2fa");
+    fn apply_note_offset(note: NoteFxP, offset: SignedNoteFxP) -> NoteFxP {
+        note.saturating_add_signed(offset)
+    }
+    fn calc_osc(
+        ctx: &ContextFxP,
+        freq: FrequencyFxP,
+        phase: &mut PhaseFxP,
+        shape: ScalarFxP,
+        sync: &mut ScalarFxP,
+        sync_mode: osc::OscSync,
+    ) -> osc::OscOutput<i16> {
+        use fixedmath::{
+            apply_scalar_i, cos_fixed, one_over_one_plus_highacc, scale_fixedfloat, sin_fixed,
+        };
+        const TWO: SampleFxP = SampleFxP::lit("2");
+        //generate waveforms (piecewise defined)
+        let frac_2phase_pi = apply_scalar_i(SampleFxP::from_num(*phase), Self::FRAC_2_PI);
+        let mut ret = OscOutput::<i16>::default();
+        //Sawtooth wave does not have to be piecewise-defined
+        ret.saw = frac_2phase_pi.unwrapped_shr(1);
+        //All other functions are piecewise-defined:
+        if *phase < 0 {
+            ret.sq = SampleFxP::NEG_ONE;
+            if *phase < PhaseFxP::FRAC_PI_2.unwrapped_neg() {
+                // phase in [-pi, pi/2)
+                // Use the identity sin(x) = -cos(x+pi/2) since our taylor series
+                // approximations are centered about zero and this will be more accurate
+                ret.sin =
+                    cos_fixed(SampleFxP::from_num(*phase + PhaseFxP::FRAC_PI_2)).unwrapped_neg();
+                ret.tri = frac_2phase_pi.unwrapped_neg() - TWO;
+            } else {
+                // phase in [-pi/2, 0)
+                ret.sin = sin_fixed(SampleFxP::from_num(*phase));
+                ret.tri = frac_2phase_pi;
+            }
+        } else {
+            ret.sq = SampleFxP::ONE;
+            if *phase < PhaseFxP::FRAC_PI_2 {
+                // phase in [0, pi/2)
+                ret.sin = sin_fixed(SampleFxP::from_num(*phase));
+                ret.tri = frac_2phase_pi;
+            } else {
+                // phase in [pi/2, pi)
+                // sin(x) = cos(x-pi/2)
+                ret.sin = cos_fixed(SampleFxP::from_num(*phase - PhaseFxP::FRAC_PI_2));
+                ret.tri = TWO - frac_2phase_pi;
+            }
+        }
+        // we need to divide by 2^12 here, but we're increasing the fractional part by 10
+        // bits so we'll only actually shift by 2 places and then use a bitcast for the
+        // remaining logical 10 bits:
+        let phase_per_sample = fixedmath::U4F28::from_bits(
+            scale_fixedfloat(freq, ctx.sample_rate.frac_2pi4096_sr())
+                .unwrapped_shr(2)
+                .to_bits(),
+        );
+        // Handle slave oscillator resetting phase if master crosses:
+        if sync_mode == OscSync::Secondary {
+            if *sync != ScalarFxP::ZERO {
+                *phase = PhaseFxP::ZERO;
+            }
+        }
+        // Adjust phase per sample for the shape parameter:
+        let phase_per_smp_adj = PhaseFxP::from_num(if *phase < PhaseFxP::ZERO {
+            let (x, s) = one_over_one_plus_highacc(clip_shape(shape));
+            fixedmath::scale_fixedfloat(phase_per_sample, x).unwrapped_shr(s)
+        } else {
+            fixedmath::scale_fixedfloat(phase_per_sample, one_over_one_minus_x(shape))
+        });
+        // Advance the oscillator's phase, and handle oscillator sync logic:
+        let old_phase = *phase;
+        match sync_mode {
+            OscSync::Off => {
+                *phase += phase_per_smp_adj;
+            }
+            OscSync::Primary => {
+                *phase += phase_per_smp_adj;
+                // calculate what time in this sampling period the phase crossed zero:
+                *sync = if *sync != ScalarFxP::ZERO
+                    && old_phase < PhaseFxP::ZERO
+                    && *phase >= PhaseFxP::ZERO
+                {
+                    // we need to calculate 1 - (phase / phase_per_sample_adj)
+                    let adj_s = ScalarFxP::from_num(phase_per_smp_adj.unwrapped_shr(2));
+                    let x = fixedmath::U3F13::from_num(*phase).wide_mul(inverse(adj_s));
+                    let proportion = ScalarFxP::saturating_from_num(x.unwrapped_shr(2));
+                    if proportion == ScalarFxP::MAX {
+                        ScalarFxP::DELTA
+                    } else {
+                        ScalarFxP::MAX - proportion
+                    }
+                } else {
+                    ScalarFxP::ZERO
+                }
+            }
+            OscSync::Secondary => {
+                *phase += if *sync != ScalarFxP::ZERO {
+                    // Only advance phase for the portion of time after master crossed zero:
+                    let scale = ScalarFxP::MAX - *sync;
+                    PhaseFxP::from_num(scale_fixedfloat(
+                        fixedmath::U4F28::from_num(phase_per_smp_adj),
+                        scale,
+                    ))
+                } else {
+                    phase_per_smp_adj
+                }
+            }
+        }
+        // check if we've crossed from negative to positive phase
+        if old_phase < PhaseFxP::ZERO && *phase > PhaseFxP::ZERO && shape != ScalarFxP::ZERO {
+            // need to multiply residual phase i.e. (phase - 0) by (1+k)/(1-k)
+            // where k is the shape, so no work required if shape is 0
+            let scaled = scale_fixedfloat(
+                fixedmath::U4F28::from_num(*phase),
+                one_over_one_minus_x(shape),
+            );
+            let one_plus_shape =
+                fixedmath::U1F15::from_num(clip_shape(shape)) + fixedmath::U1F15::ONE;
+            *phase = PhaseFxP::from_num(scale_fixedfloat(scaled, one_plus_shape));
+        }
+        // Check if we've crossed from positive phase back to negative:
+        if *phase >= PhaseFxP::PI {
+            // if we're a symmetric wave this is as simple as just subtract 2pi
+            if shape == ScalarFxP::ZERO {
+                *phase -= PhaseFxP::TAU;
+            } else {
+                // if assymmetric we have to multiply residual phase i.e. phase - pi
+                // by (1-k)/(1+k) where k is the shape:
+                let one_minus_shape = (ScalarFxP::MAX - clip_shape(shape)) + ScalarFxP::DELTA;
+                // scaled = residual_phase * (1-k)
+                let scaled = scale_fixedfloat(
+                    fixedmath::U4F28::from_num(*phase - PhaseFxP::PI),
+                    one_minus_shape,
+                );
+                // new change in phase = scaled * 1/(1 + k)
+                let (x, s) = one_over_one_plus_highacc(clip_shape(shape));
+                let delta = scale_fixedfloat(scaled, x).unwrapped_shr(s);
+                // add new change in phase to our baseline, -pi:
+                *phase = PhaseFxP::from_num(delta) - PhaseFxP::PI;
+            }
+        }
+        ret
     }
 }
 
@@ -530,13 +448,13 @@ fn clip_shape(x: ScalarFxP) -> ScalarFxP {
     }
 }
 
-fn inverse(x: ScalarFxP) -> fixedmath::U8F8 {
+fn inverse(x: ScalarFxP) -> crate::fixedmath::U8F8 {
     // For brevity in defining the lookup table:
-    const fn lit(x: &str) -> fixedmath::U8F8 {
-        fixedmath::U8F8::lit(x)
+    const fn lit(x: &str) -> crate::fixedmath::U8F8 {
+        crate::fixedmath::U8F8::lit(x)
     }
     #[rustfmt::skip]
-    const LOOKUP_TABLE: [fixedmath::U8F8; 256] = [
+    const LOOKUP_TABLE: [crate::fixedmath::U8F8; 256] = [
         lit("0xff.ff"), lit("0xff.ff"), lit("0x80.00"), lit("0x55.55"),
         lit("0x40.00"), lit("0x33.33"), lit("0x2a.aa"), lit("0x24.92"),
         lit("0x20.00"), lit("0x1c.71"), lit("0x19.99"), lit("0x17.45"),
@@ -605,10 +523,10 @@ fn inverse(x: ScalarFxP) -> fixedmath::U8F8 {
     LOOKUP_TABLE[(x.to_bits() >> 8) as usize]
 }
 
-fn one_over_one_minus_x(x: ScalarFxP) -> USampleFxP {
+fn one_over_one_minus_x(x: ScalarFxP) -> crate::fixedmath::USample {
     // For brevity in defining the lookup table:
-    const fn lit(x: &str) -> USampleFxP {
-        USampleFxP::lit(x)
+    const fn lit(x: &str) -> crate::fixedmath::USample {
+        crate::fixedmath::USample::lit(x)
     }
     let x_bits = clip_shape(x).to_bits();
     // Table generated with python:
@@ -623,7 +541,7 @@ fn one_over_one_minus_x(x: ScalarFxP) -> USampleFxP {
     //     if i % 4 == 3:
     //         print('')
     #[rustfmt::skip]
-    const LOOKUP_TABLE: [USampleFxP; 0xF2] = [
+    const LOOKUP_TABLE: [crate::fixedmath::USample; 0xF2] = [
         lit("0x1.000"), lit("0x1.010"), lit("0x1.020"), lit("0x1.030"),
         lit("0x1.041"), lit("0x1.051"), lit("0x1.062"), lit("0x1.073"),
         lit("0x1.084"), lit("0x1.095"), lit("0x1.0a6"), lit("0x1.0b7"),
@@ -689,42 +607,6 @@ fn one_over_one_minus_x(x: ScalarFxP) -> USampleFxP {
     let index = x_bits >> 8;
     let lookup_val = LOOKUP_TABLE[index as usize];
     let interp = (LOOKUP_TABLE[index as usize + 1] - lookup_val)
-        .wide_mul(fixedmath::U8F8::from_bits(x_bits & 0xFF));
-    lookup_val + USampleFxP::from_num(interp)
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-    #[test]
-    fn shape_mod_calculation() {
-        let mut rms_error_pos = 0f32;
-        let mut rms_error_neg = 0f32;
-        for i in 0..1024 {
-            let x_wide = fixedmath::U16F16::from_num(i).unwrapped_shr(10);
-            let x = clip_shape(ScalarFxP::from_num(x_wide));
-            let xf = x.to_num::<f32>();
-            let (x_pos_, shift) = fixedmath::one_over_one_plus_highacc(x);
-            let x_pos = x_pos_.unwrapped_shr(shift);
-            let xf_pos = 1f32 / (1f32 + xf);
-            let x_neg = one_over_one_minus_x(x);
-            let xf_neg = 1f32 / (1f32 - xf);
-            let error_pos = (x_pos.to_num::<f32>() / xf_pos) - 1f32;
-            let error_neg = (x_neg.to_num::<f32>() / xf_neg) - 1f32;
-            rms_error_pos += error_pos * error_pos;
-            rms_error_neg += error_neg * error_neg;
-        }
-        rms_error_pos = (rms_error_pos / 1024f32).sqrt();
-        rms_error_neg = (rms_error_neg / 1024f32).sqrt();
-        assert!(rms_error_pos < 0.01f32); //FIXME: Should probably have better thresholds
-        assert!(rms_error_neg < 0.01f32);
-    }
-    #[test]
-    fn shape_mod_nopanic() {
-        for i in 0..(1 << 16) {
-            let x = ScalarFxP::from_bits(i as u16);
-            let (_pos, _) = fixedmath::one_over_one_plus_highacc(x);
-            let _neg = one_over_one_minus_x(x);
-        }
-    }
+        .wide_mul(crate::fixedmath::U8F8::from_bits(x_bits & 0xFF));
+    lookup_val + crate::fixedmath::USample::from_num(interp)
 }
