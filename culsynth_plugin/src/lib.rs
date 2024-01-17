@@ -1,7 +1,9 @@
 //! This contains all the code required to generate the actual plugins using the `nih-plug`
 //! framework.  Most of GUI code is in the [editor] module.
 use culsynth::context::{Context, GenericContext};
+use culsynth::voice::VoiceParams;
 use nih_plug::prelude::*;
+use std::iter::{repeat, zip};
 use std::sync::atomic::Ordering::Relaxed;
 use std::sync::atomic::{AtomicU32, AtomicUsize};
 use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
@@ -10,9 +12,6 @@ use std::sync::{atomic::AtomicI32, Arc};
 mod editor;
 
 mod fixedparam;
-
-pub mod parambuf;
-use parambuf::PluginParamBufFxP;
 
 pub mod pluginparams;
 use pluginparams::CulSynthParams;
@@ -89,8 +88,6 @@ impl ContextReader {
 pub struct CulSynthPlugin {
     params: Arc<CulSynthParams>,
 
-    parambuf: PluginParamBufFxP,
-
     /// Used by the GUI thread to send MIDI events to the audio thread when,
     /// for example, a user presses a key on a on screen virtual keyboard.
     ///
@@ -115,6 +112,8 @@ pub struct CulSynthPlugin {
 
     /// The sound engine currently in use to process audio for the synth.
     voices: Option<Box<dyn VoiceAllocator>>,
+
+    parambuf: Box<[VoiceParams<i16>]>,
 
     context: Arc<PluginContext>,
 }
@@ -146,12 +145,12 @@ impl Default for CulSynthPlugin {
         let (synth_tx, synth_rx) = sync_channel::<Box<dyn VoiceAllocator>>(1);
         Self {
             params: Arc::new(CulSynthParams::default()),
-            parambuf: Default::default(),
             midi_tx,
             midi_rx,
             synth_tx,
             synth_rx,
             voices: None,
+            parambuf: Default::default(),
             context: Arc::new(Default::default()),
         }
     }
@@ -213,11 +212,10 @@ impl Plugin for CulSynthPlugin {
             nih_log!("Using internal floating-point math");
         }
         // JACK doesn't seem to honor max_buffer_size, so allocate more...
-        let bufsz = std::cmp::max(buffer_config.max_buffer_size, 2048);
-        self.parambuf.allocate(bufsz);
-        let mut voice_alloc: Box<dyn VoiceAllocator> =
-            Box::new(PolySynth::new(16, Context::new(buffer_config.sample_rate)));
-        voice_alloc.initialize(bufsz as usize);
+        let bufsz = std::cmp::max(buffer_config.max_buffer_size, 2048) as usize;
+        self.parambuf = repeat(VoiceParams::<i16>::default()).take(bufsz).collect();
+        let voice_alloc: Box<dyn VoiceAllocator> =
+            Box::new(PolySynth::<f32>::new(Context::new(buffer_config.sample_rate), bufsz, 16));
         let ctx = voice_alloc.get_context();
         self.update_context(
             ctx,
@@ -227,7 +225,7 @@ impl Plugin for CulSynthPlugin {
                 VoiceMode::Mono
             },
         );
-        self.context.bufsz.store(bufsz as usize, Relaxed);
+        self.context.bufsz.store(bufsz, Relaxed);
         self.voices = Some(voice_alloc);
         true
     }
@@ -263,12 +261,13 @@ impl Plugin for CulSynthPlugin {
         }
         assert!(buffer.samples() <= self.context.bufsz.load(Relaxed));
         let mut next_event = context.next_event();
-        for (sample_id, _channel_samples) in buffer.iter_samples().enumerate() {
-            self.parambuf.update_index(index, &self.params);
-
+        for ((smpid, _chsmps), params) in 
+            zip(buffer.iter_samples().enumerate(), self.parambuf.iter_mut())
+        {
+            *params = (&*self.params).into();
             // Process MIDI events:
             while let Some(event) = next_event {
-                if event.timing() > sample_id as u32 {
+                if event.timing() > smpid as u32 {
                     break;
                 }
                 match event {
@@ -300,7 +299,7 @@ impl Plugin for CulSynthPlugin {
             voices.sample_tick();
             index += 1;
         }
-        let output = voices.process(&self.params.modmatrix, &mut self.parambuf);
+        let output = voices.process(&(&self.params.modmatrix).into(), &mut self.parambuf[0..buffer.samples()]);
         index = 0;
         for channel_samples in buffer.iter_samples() {
             for smp in channel_samples {

@@ -2,19 +2,15 @@
 //! and having it "decide" how to handle the notes based on the polyphony mode,
 //! selected logic form (fixed, float32, float64), etc.
 
-use crate::parambuf::{PluginParamBuf, PluginParamBufFxP};
-use crate::pluginparams::ModMatrixPluginParams;
-use culsynth::context::{Context, ContextFxP, GenericContext};
-use culsynth::voice::{Voice, VoiceFxP, VoiceParams, VoiceParamsFxP};
+use culsynth::context::GenericContext;
+use culsynth::voice::{Voice, VoiceParams, VoiceInput, VoiceChannelInput};
+use culsynth::voice::modulation::ModMatrix;
 use culsynth::{IScalarFxP, NoteFxP, SampleFxP, ScalarFxP, SignedNoteFxP};
 
 /// This trait is the main abstraction for this module - the plugin may send it
 /// note on/off events and it will assign those events to voices, stealing if
 /// required (or always, in the case of a monosynth).
 pub trait VoiceAllocator: Send {
-    /// Initialize the voice allocator and allocate an internal buffer to
-    /// handle up to `sz` samples.
-    fn initialize(&mut self, sz: usize);
     /// Increment the (hidden) internal index into the allocator's buffer
     fn sample_tick(&mut self);
     /// For the sample at the current index (see [VoiceAllocator::sample_tick]),
@@ -53,8 +49,8 @@ pub trait VoiceAllocator: Send {
     /// to the beginning of the buffer (see [VoiceAllocator::sample_tick]).
     fn process(
         &mut self,
-        matrix_p: &ModMatrixPluginParams,
-        glob_p: &mut PluginParamBufFxP,
+        matrix: &ModMatrix<i16>,
+        params: &[VoiceParams<i16>],
     ) -> &[f32];
     /// Get the process context for this voice allocator.
     fn get_context(&self) -> &dyn GenericContext;
@@ -63,7 +59,7 @@ pub trait VoiceAllocator: Send {
 }
 
 mod monosynth;
-pub use monosynth::{MonoSynth, MonoSynthFxP};
+pub use monosynth::{MonoSynth};
 
 mod polysynth;
-pub use polysynth::{PolySynth, PolySynthFxP};
+pub use polysynth::{PolySynth};

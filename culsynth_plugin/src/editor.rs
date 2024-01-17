@@ -1,13 +1,13 @@
 use crate::pluginparams::{
-    EnvPluginParams, FiltPluginParams, CulSynthParams, LfoPluginParams, ModMatrixPluginParams,
+    CulSynthParams, EnvPluginParams, FiltPluginParams, LfoPluginParams, ModMatrixPluginParams,
     OscPluginParams, RingModPluginParams,
 };
-use crate::voicealloc::{MonoSynth, MonoSynthFxP, PolySynth, PolySynthFxP, VoiceAllocator};
+use crate::voicealloc::{MonoSynth, PolySynth, VoiceAllocator};
 use crate::{ContextReader, VoiceMode};
-use egui::widgets;
 use culsynth::context::{Context, ContextFxP};
 use culsynth::devices::LfoWave;
 use culsynth::voice::modulation::{ModDest, ModSrc};
+use egui::widgets;
 use nih_plug::prelude::*;
 use nih_plug_egui::{create_egui_editor, egui, EguiState};
 use std::sync::{mpsc::SyncSender, Arc};
@@ -186,18 +186,19 @@ impl CulSynthEditor {
             });
         });
         if new_is_fixed != fixed_point || new_voice_mode != voice_mode {
+            let sz = context.bufsz();
             if new_is_fixed {
                 fixed_context.map(|ctx| {
                     let ret: Box<dyn VoiceAllocator> = match new_voice_mode {
-                        VoiceMode::Mono => Box::new(MonoSynthFxP::new(ctx)),
-                        VoiceMode::Poly16 => Box::new(PolySynthFxP::new(16, ctx)),
+                        VoiceMode::Mono => Box::new(MonoSynth::<i16>::new(ctx, sz)),
+                        VoiceMode::Poly16 => Box::new(PolySynth::<i16>::new(ctx, sz, 16)),
                     };
                     ret
                 })
             } else {
                 Some(match new_voice_mode {
-                    VoiceMode::Mono => Box::new(MonoSynth::new(Context::new(sr as f32))),
-                    VoiceMode::Poly16 => Box::new(PolySynth::new(16, Context::new(sr as f32))),
+                    VoiceMode::Mono => Box::new(MonoSynth::<f32>::new(Context::new(sr as f32), sz)),
+                    VoiceMode::Poly16 => Box::new(PolySynth::<f32>::new(Context::new(sr as f32), sz, 16)),
                 })
             }
         } else {
@@ -259,8 +260,7 @@ impl CulSynthEditor {
         egui::Window::new("Settings")
             .open(&mut self.show_settings)
             .show(egui_ctx, |ui| {
-                if let Some(mut synth) = Self::draw_settings(ui, &self.context, &egui_ctx) {
-                    synth.initialize(self.context.bufsz());
+                if let Some(synth) = Self::draw_settings(ui, &self.context, &egui_ctx) {
                     if let Err(e) = self.synth_channel.try_send(synth) {
                         nih_log!("{}", e);
                     }

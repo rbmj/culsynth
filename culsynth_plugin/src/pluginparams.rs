@@ -1,6 +1,8 @@
-use culsynth::devices::{LfoOptions, LfoWave};
-use culsynth::voice::modulation::{ModDest, ModMatrix, ModMatrixFxP, ModSrc};
-use culsynth::{EnvParamFxP, IScalarFxP, LfoFreqFxP, NoteFxP, ScalarFxP};
+use culsynth::devices::{LfoOptions, LfoWave, SyncedMixOscsParams};
+use culsynth::devices::{MixOscParams, ModFiltParams, RingModParams, LfoParams, EnvParams};
+use culsynth::voice::VoiceParams;
+use culsynth::voice::modulation::{ModDest, ModMatrix, ModSrc};
+use culsynth::{EnvParamFxP, IScalarFxP, LfoFreqFxP, NoteFxP, ScalarFxP, SignedNoteFxP};
 use nih_plug::prelude::*;
 use nih_plug_egui::EguiState;
 
@@ -56,6 +58,21 @@ impl Default for OscPluginParams {
     }
 }
 
+impl From<&OscPluginParams> for MixOscParams<i16> {
+    fn from(value: &OscPluginParams) -> Self {
+        MixOscParams {
+            tune: SignedNoteFxP::from_bits(
+                ((value.course.smoothed.next() << 9) + value.fine.smoothed.next()) as i16,
+            ),
+            shape: ScalarFxP::from_bits(value.shape.smoothed.next() as u16),
+            sin: ScalarFxP::from_bits(value.sin.smoothed.next() as u16),
+            sq: ScalarFxP::from_bits(value.sq.smoothed.next() as u16),
+            tri: ScalarFxP::from_bits(value.tri.smoothed.next() as u16),
+            saw: ScalarFxP::from_bits(value.saw.smoothed.next() as u16),
+        }
+    }
+}
+
 /// Contains all of the parameters for an LFO within the plugin
 #[derive(Params)]
 pub struct LfoPluginParams {
@@ -104,6 +121,16 @@ impl From<&LfoPluginParams> for LfoOptions {
     }
 }
 
+impl From<&LfoPluginParams> for LfoParams<i16> {
+    fn from(value: &LfoPluginParams) -> Self {
+        LfoParams {
+            freq: LfoFreqFxP::from_bits(value.rate.smoothed.next() as u16),
+            depth: ScalarFxP::from_bits(value.depth.smoothed.next() as u16),
+            opts: value.into(),
+        }
+    }
+}
+
 /// Contains all of the parameters for an oscillator within the plugin
 #[derive(Params)]
 pub struct RingModPluginParams {
@@ -123,6 +150,16 @@ impl Default for RingModPluginParams {
             mix_a: new_fixed_param_percent("Osc 1", ScalarFxP::MAX),
             mix_b: new_fixed_param_percent("Osc 2", ScalarFxP::ZERO),
             mix_mod: new_fixed_param_percent("Ring Mod", ScalarFxP::ZERO),
+        }
+    }
+}
+
+impl From<&RingModPluginParams> for RingModParams<i16> {
+    fn from(value: &RingModPluginParams) -> Self {
+        RingModParams {
+            mix_a: ScalarFxP::from_bits(value.mix_a.smoothed.next() as u16),
+            mix_b: ScalarFxP::from_bits(value.mix_b.smoothed.next() as u16),
+            mix_mod: ScalarFxP::from_bits(value.mix_mod.smoothed.next() as u16),
         }
     }
 }
@@ -170,6 +207,22 @@ impl Default for FiltPluginParams {
     }
 }
 
+impl From<&FiltPluginParams> for ModFiltParams<i16> {
+    fn from(value: &FiltPluginParams) -> Self {
+        ModFiltParams {
+            env_mod: ScalarFxP::from_bits(value.env.smoothed.next() as u16),
+            vel_mod: ScalarFxP::from_bits(value.vel.smoothed.next() as u16),
+            kbd_tracking: ScalarFxP::from_bits(value.kbd.smoothed.next() as u16),
+            cutoff: NoteFxP::from_bits(value.cutoff.smoothed.next() as u16),
+            resonance: ScalarFxP::from_bits(value.res.smoothed.next() as u16),
+            low_mix: ScalarFxP::from_bits(value.low.smoothed.next() as u16),
+            band_mix: ScalarFxP::from_bits(value.band.smoothed.next() as u16),
+            high_mix: ScalarFxP::from_bits(value.high.smoothed.next() as u16),
+
+        }
+    }
+}
+
 /// Contains all of the parameters for an envelope within the plugin
 #[derive(Params)]
 pub struct EnvPluginParams {
@@ -196,6 +249,17 @@ impl EnvPluginParams {
             s: new_fixed_param_percent(name.to_owned() + " Sustain", ScalarFxP::MAX),
             r: new_fixed_param(name.to_owned() + " Release", EnvParamFxP::lit("0.1"))
                 .with_unit(" sec"),
+        }
+    }
+}
+
+impl From<&EnvPluginParams> for EnvParams<i16> {
+    fn from(value: &EnvPluginParams) -> Self {
+        EnvParams {
+            attack: EnvParamFxP::from_bits(value.a.smoothed.next() as u16),
+            decay: EnvParamFxP::from_bits(value.d.smoothed.next() as u16),
+            sustain: ScalarFxP::from_bits(value.s.smoothed.next() as u16),
+            release: EnvParamFxP::from_bits(value.r.smoothed.next() as u16),
         }
     }
 }
@@ -347,32 +411,19 @@ impl ModMatrixPluginParams {
             ModSrc::Lfo2 => &self.lfo2,
         }
     }
-    pub fn build_matrix(&self) -> ModMatrixFxP {
-        ModMatrixFxP {
+}
+
+impl From<&ModMatrixPluginParams> for ModMatrix<i16> {
+    fn from(value: &ModMatrixPluginParams) -> Self {
+        ModMatrix {
             rows: ModSrc::ELEM.map(|src| {
-                let row = self.row(src);
+                let row = value.row(src);
                 (
                     src,
                     [0, 1, 2, 3].map(|i| {
                         let slot = row.slot(i);
                         let dest = ModDest::try_from(slot.0.value() as u16).unwrap();
                         let mag = IScalarFxP::from_bits(slot.1.value() as i16);
-                        (dest, mag)
-                    }),
-                )
-            }),
-        }
-    }
-    pub fn build_matrix_float(&self) -> ModMatrix<f32> {
-        ModMatrix {
-            rows: ModSrc::ELEM.map(|src| {
-                let row = self.row(src);
-                (
-                    src,
-                    [0, 1, 2, 3].map(|i| {
-                        let slot = row.slot(i);
-                        let dest = ModDest::try_from(slot.0.value() as u16).unwrap();
-                        let mag = f32::from(slot.1.value() as i16) / f32::from(i16::MAX);
                         (dest, mag)
                     }),
                 )
@@ -442,6 +493,26 @@ impl Default for CulSynthParams {
             env1: EnvPluginParams::new("Mod Envelope 1"),
             env2: EnvPluginParams::new("Mod Envelope 2"),
             modmatrix: ModMatrixPluginParams::new(),
+        }
+    }
+}
+
+impl From<&CulSynthParams> for VoiceParams<i16> {
+    fn from(value: &CulSynthParams) -> Self {
+        VoiceParams {
+            oscs_p: SyncedMixOscsParams {
+                primary: MixOscParams::from(&value.osc1),
+                secondary: MixOscParams::from(&value.osc2),
+                sync: value.osc_sync.value(),
+            },
+            ring_p: RingModParams::from(&value.ringmod),
+            filt_p: ModFiltParams::from(&value.filt),
+            filt_env_p: EnvParams::from(&value.env_vcf),
+            amp_env_p: EnvParams::from(&value.env_vca),
+            lfo1_p: LfoParams::from(&value.lfo1),
+            lfo2_p: LfoParams::from(&value.lfo2),
+            env1_p: EnvParams::from(&value.env1),
+            env2_p: EnvParams::from(&value.env2),
         }
     }
 }
