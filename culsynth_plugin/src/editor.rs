@@ -186,19 +186,18 @@ impl CulSynthEditor {
             });
         });
         if new_is_fixed != fixed_point || new_voice_mode != voice_mode {
-            let sz = context.bufsz();
             if new_is_fixed {
                 fixed_context.map(|ctx| {
                     let ret: Box<dyn VoiceAllocator> = match new_voice_mode {
-                        VoiceMode::Mono => Box::new(MonoSynth::<i16>::new(ctx, sz)),
-                        VoiceMode::Poly16 => Box::new(PolySynth::<i16>::new(ctx, sz, 16)),
+                        VoiceMode::Mono => Box::new(MonoSynth::<i16>::new(ctx)),
+                        VoiceMode::Poly16 => Box::new(PolySynth::<i16>::new(ctx, 16)),
                     };
                     ret
                 })
             } else {
                 Some(match new_voice_mode {
-                    VoiceMode::Mono => Box::new(MonoSynth::<f32>::new(Context::new(sr as f32), sz)),
-                    VoiceMode::Poly16 => Box::new(PolySynth::<f32>::new(Context::new(sr as f32), sz, 16)),
+                    VoiceMode::Mono => Box::new(MonoSynth::<f32>::new(Context::new(sr as f32))),
+                    VoiceMode::Poly16 => Box::new(PolySynth::<f32>::new(Context::new(sr as f32), 16)),
                 })
             }
         } else {

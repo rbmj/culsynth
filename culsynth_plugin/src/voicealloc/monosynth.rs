@@ -1,5 +1,3 @@
-use itertools::izip;
-
 use super::*;
 use rand::random;
 
@@ -9,11 +7,8 @@ use culsynth::{voice::VoiceInput, DspFormat};
 #[derive(Default, Clone)]
 pub struct MonoSynth<T: DspFormat> {
     voice: Voice<T>,
-    outbuf: Box<[f32]>,
-    ch_input_buf: Box<[VoiceChannelInput<i16>]>,
-    input_buf: Box<[VoiceInput<i16>]>,
+    matrix: ModMatrix<T>,
     ctx: T::Context,
-    index: usize,
     note: NoteFxP,
     gate: SampleFxP,
     velocity: ScalarFxP,
@@ -24,20 +19,11 @@ pub struct MonoSynth<T: DspFormat> {
 }
 
 impl<T: DspFormat> MonoSynth<T> {
-    pub fn new(ctx: T::Context, sz: usize) -> Self {
-        let mut outbuf: Vec<f32> = Vec::default();
-        let mut inputbuf: Vec<VoiceInput<i16>> = Vec::default();
-        let mut chinputbuf: Vec<VoiceChannelInput<i16>> = Vec::default();
-        outbuf.resize(sz, 0f32);
-        inputbuf.resize(sz, Default::default());
-        chinputbuf.resize(sz, Default::default());
+    pub fn new(ctx: T::Context) -> Self {
         Self {
             voice: Voice::new_with_seeds(random(), random()),
-            outbuf: outbuf.into_boxed_slice(),
-            input_buf: inputbuf.into_boxed_slice(),
-            ch_input_buf: chinputbuf.into_boxed_slice(),
+            matrix: Default::default(),
             ctx,
-            index: 0,
             note: NoteFxP::lit("69"), //A440, nice
             gate: SampleFxP::ZERO,
             velocity: ScalarFxP::ZERO,
@@ -55,19 +41,6 @@ impl<T: DspFormat> VoiceAllocator for MonoSynth<T>
         for<'a> VoiceChannelInput<T>: From<&'a VoiceChannelInput<i16>>,
         for<'a> VoiceParams<T>: From<&'a VoiceParams<i16>>
 {
-    fn sample_tick(&mut self) {
-        self.ch_input_buf[self.index] = VoiceChannelInput {
-            aftertouch: self.aftertouch,
-            modwheel: self.modwheel,
-        };
-        self.input_buf[self.index] = VoiceInput {
-            note: self.note.add_signed(self.pitch_bend),
-            gate: self.gate,
-            velocity: self.velocity,
-
-        };
-        self.index += 1;
-    }
     fn note_on(&mut self, note: u8, velocity: u8) {
         self.note = NoteFxP::from_num(note);
         self.gate = SampleFxP::ONE;
@@ -106,25 +79,26 @@ impl<T: DspFormat> VoiceAllocator for MonoSynth<T>
             fixed::types::I16F0::from_num(high),
         );
     }
-    fn process(
+    fn next(
         &mut self,
-        matrix: &ModMatrix<i16>,
-        params: &[VoiceParams<i16>],
-    ) -> &[f32] {
-        let mut processed: usize = 0;
-        let matrix: ModMatrix<T> = matrix.into();
-        for (out, ch_input, input, param) in izip!(
-            self.outbuf.iter_mut(),
-            self.ch_input_buf[0..self.index].iter(),
-            self.input_buf.iter(),
-            params.iter()
-        ) {
-            let x = self.voice.next(&self.ctx, &matrix, &input.into(), &ch_input.into(), param.into());
-            *out = T::sample_to_float(x);
-            processed += 1;
+        params: &VoiceParams<i16>,
+        matrix: Option<&ModMatrix<i16>>,
+    ) -> f32 {
+        let ch_input = &VoiceChannelInput::<i16> {
+            aftertouch: self.aftertouch,
+            modwheel: self.modwheel,
+        };
+        let input = &VoiceInput::<i16> {
+            note: self.note.add_signed(self.pitch_bend),
+            gate: self.gate,
+            velocity: self.velocity,
+        };
+        if let Some(matrix) = matrix {
+            self.matrix = matrix.into();
         }
-        self.index = 0;
-        &self.outbuf[0..processed]
+        T::sample_to_float(
+            self.voice.next(&self.ctx, &self.matrix, &input.into(), &ch_input.into(), params.into())
+        )
     }
     fn get_context(&self) -> &dyn GenericContext {
         <T::Context as culsynth::context::GetContext>::get_context(&self.ctx)

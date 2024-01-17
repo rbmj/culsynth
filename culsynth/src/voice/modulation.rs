@@ -18,6 +18,16 @@ pub struct ModMatrix<T: DspFormatBase> {
     pub rows: [ModMatrixEntry<T>; ModSrc::numel()],
 }
 
+impl<T: DspFormatBase> Default for ModMatrix<T> {
+    fn default() -> Self {
+        Self {
+            rows: ModSrc::ELEM.map(|src| {
+                (src, [(ModDest::Null, Default::default()); MOD_SLOTS])
+            }),
+        }
+    }
+}
+
 impl<T: DspFormatBase> ModMatrix<T> {
     /// If there is an entry in this matrix from `src` to `dest`, return the
     /// modulation depth, else return None

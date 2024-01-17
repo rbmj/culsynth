@@ -4,24 +4,19 @@ use super::*;
 use culsynth::DspFormat;
 use nih_plug::nih_error;
 use rand::random;
-use itertools::izip;
 
 struct PolySynthVoice<T: DspFormat> {
     voice: Voice<T>,
-    inputbuf: Box<[VoiceInput<i16>]>,
     gate: SampleFxP,
     vel: ScalarFxP,
-    note: u8,
+    note: NoteFxP,
 }
 
 impl<T: DspFormat> PolySynthVoice<T> {
-    fn new(sz: usize) -> Self {
-        let mut inputbuf = Vec::<VoiceInput<i16>>::default();
-        inputbuf.resize(sz, Default::default());
+    fn new() -> Self {
         Self {
             voice: Voice::new_with_seeds(random(), random()),
-            inputbuf: inputbuf.into_boxed_slice(),
-            note: 69, //A440
+            note: NoteFxP::from_num(69), //A440
             gate: SampleFxP::ZERO,
             vel: ScalarFxP::ZERO,
         }
@@ -30,27 +25,21 @@ impl<T: DspFormat> PolySynthVoice<T> {
 
 pub struct PolySynth<T: DspFormat> {
     voices: Box<[PolySynthVoice<T>]>,
+    matrix: ModMatrix<T>,
     active_voices: VecDeque<usize>,
     inactive_voices: VecDeque<usize>,
-    outbuf: Box<[f32]>,
-    inputbuf: Box<[VoiceChannelInput<i16>]>,
     pitch_bend_range: (fixed::types::I16F0, fixed::types::I16F0),
     pitch_bend: SignedNoteFxP,
     aftertouch: ScalarFxP,
     modwheel: ScalarFxP,
-    index: usize,
     ctx: T::Context,
 }
 
 impl<T: DspFormat> PolySynth<T> {
-    pub fn new(context: T::Context, bufsz: usize, num_voices: usize) -> Self {
-        let voices = std::iter::repeat_with(|| PolySynthVoice::<T>::new(bufsz))
+    pub fn new(context: T::Context, num_voices: usize) -> Self {
+        let voices = std::iter::repeat_with(|| PolySynthVoice::<T>::new())
             .take(num_voices)
             .collect::<Box<[_]>>();
-        let mut outbuf: Vec<f32> = Vec::default();
-        let mut inputbuf: Vec<VoiceChannelInput<i16>> = Vec::default();
-        outbuf.resize(bufsz, 0f32);
-        inputbuf.resize(bufsz, Default::default());
         let mut active_voices = VecDeque::<usize>::new();
         let mut inactive_voices = VecDeque::<usize>::new();
         active_voices.reserve(voices.len());
@@ -60,22 +49,20 @@ impl<T: DspFormat> PolySynth<T> {
         }
         Self {
             voices,
+            matrix: Default::default(),
             active_voices,
             inactive_voices,
-            outbuf: outbuf.into_boxed_slice(),
-            inputbuf: inputbuf.into_boxed_slice(),
             pitch_bend: SignedNoteFxP::ZERO,
             pitch_bend_range: (2i16.into(), 2i16.into()),
             aftertouch: ScalarFxP::ZERO,
             modwheel: ScalarFxP::ZERO,
-            index: 0,
             ctx: context,
         }
     }
     fn note_on_i(&mut self, voice_index: usize, note: u8, vel: u8) {
         self.active_voices.push_back(voice_index);
         let voice = &mut self.voices[voice_index];
-        voice.note = note;
+        voice.note = NoteFxP::from_num(note);
         voice.vel = ScalarFxP::from_bits((vel as u16) << 9);
         voice.gate = SampleFxP::ONE;
     }
@@ -87,20 +74,6 @@ impl<T: DspFormat> VoiceAllocator for PolySynth<T>
         for<'a> VoiceChannelInput<T>: From<&'a VoiceChannelInput<i16>>,
         for<'a> VoiceParams<T>: From<&'a VoiceParams<i16>>
 {
-    fn sample_tick(&mut self) {
-        self.inputbuf[self.index] = VoiceChannelInput {
-            aftertouch: self.aftertouch,
-            modwheel: self.modwheel,
-        };
-        for voice in self.voices.iter_mut() {
-            voice.inputbuf[self.index] = VoiceInput {
-                note: NoteFxP::from_num(voice.note).add_signed(self.pitch_bend),
-                gate: voice.gate,
-                velocity: voice.vel,
-            };
-        }
-        self.index += 1;
-    }
     fn note_on(&mut self, note: u8, velocity: u8) {
         if let Some(i) = self.inactive_voices.pop_front() {
             self.note_on_i(i, note, velocity);
@@ -149,29 +122,30 @@ impl<T: DspFormat> VoiceAllocator for PolySynth<T>
             fixed::types::I16F0::from_num(high),
         );
     }
-    fn process(
+    fn next(
         &mut self,
-        matrix: &ModMatrix<i16>,
-        params: &[VoiceParams<i16>],
-    ) -> &[f32] {
-        for smp in self.outbuf.iter_mut() {
-            *smp = 0f32;
+        params: &VoiceParams<i16>,
+        matrix: Option<&ModMatrix<i16>>,
+    ) -> f32 {
+        let mut out = 0f32;
+        if let Some(matrix) = matrix {
+            self.matrix = matrix.into();
         }
-        let matrix = ModMatrix::<T>::from(matrix);
+        let ch_in = &VoiceChannelInput::<i16> {
+            aftertouch: self.aftertouch,
+            modwheel: self.modwheel,
+        };
         for v in self.voices.iter_mut() {
-            for (out, ch_input, input, param) in izip!(
-                self.outbuf.iter_mut(),
-                self.inputbuf[0..self.index].iter(),
-                v.inputbuf.iter(),
-                params.iter()
-            ) {
-                let x = v.voice.next(&self.ctx, &matrix, &input.into(), &ch_input.into(), param.into());
-                *out += T::sample_to_float(x);
-            }
+            let input = &VoiceInput::<i16> {
+                note: v.note.add_signed(self.pitch_bend),
+                gate: v.gate,
+                velocity: v.vel,
+            };
+            out += T::sample_to_float(
+                v.voice.next(&self.ctx, &self.matrix, &input.into(), &ch_in.into(), params.into())
+            );
         }
-        let old_index = self.index;
-        self.index = 0;
-        &self.outbuf[0..std::cmp::min(params.len(), old_index)]
+        out
     }
     fn get_context(&self) -> &dyn GenericContext {
         <T::Context as culsynth::context::GetContext>::get_context(&self.ctx)

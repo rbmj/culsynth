@@ -1,9 +1,9 @@
 //! This contains all the code required to generate the actual plugins using the `nih-plug`
 //! framework.  Most of GUI code is in the [editor] module.
 use culsynth::context::{Context, GenericContext};
-use culsynth::voice::VoiceParams;
+use culsynth::voice::{VoiceParams, modulation::ModMatrix};
 use nih_plug::prelude::*;
-use std::iter::{repeat, zip};
+use std::iter::repeat;
 use std::sync::atomic::Ordering::Relaxed;
 use std::sync::atomic::{AtomicU32, AtomicUsize};
 use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
@@ -215,7 +215,7 @@ impl Plugin for CulSynthPlugin {
         let bufsz = std::cmp::max(buffer_config.max_buffer_size, 2048) as usize;
         self.parambuf = repeat(VoiceParams::<i16>::default()).take(bufsz).collect();
         let voice_alloc: Box<dyn VoiceAllocator> =
-            Box::new(PolySynth::<f32>::new(Context::new(buffer_config.sample_rate), bufsz, 16));
+            Box::new(PolySynth::<f32>::new(Context::new(buffer_config.sample_rate), 16));
         let ctx = voice_alloc.get_context();
         self.update_context(
             ctx,
@@ -251,7 +251,6 @@ impl Plugin for CulSynthPlugin {
             Some(ref mut x) => x,
             None => return ProcessStatus::Error("Uninitialized"),
         };
-        let mut index = 0;
         while let Ok(note) = self.midi_rx.try_recv() {
             if note < 0 {
                 voices.note_off((note - (-128)) as u8, 0);
@@ -261,10 +260,10 @@ impl Plugin for CulSynthPlugin {
         }
         assert!(buffer.samples() <= self.context.bufsz.load(Relaxed));
         let mut next_event = context.next_event();
-        for ((smpid, _chsmps), params) in 
-            zip(buffer.iter_samples().enumerate(), self.parambuf.iter_mut())
-        {
-            *params = (&*self.params).into();
+        let mut matrix: Option<ModMatrix<i16>> = Some((&self.params.modmatrix).into());
+        for (smpid, ch_smps) in buffer.iter_samples().enumerate() {
+            let params: VoiceParams<i16> = (&*self.params).into();
+            
             // Process MIDI events:
             while let Some(event) = next_event {
                 if event.timing() > smpid as u32 {
@@ -296,16 +295,10 @@ impl Plugin for CulSynthPlugin {
                 }
                 next_event = context.next_event();
             }
-            voices.sample_tick();
-            index += 1;
-        }
-        let output = voices.process(&(&self.params.modmatrix).into(), &mut self.parambuf[0..buffer.samples()]);
-        index = 0;
-        for channel_samples in buffer.iter_samples() {
-            for smp in channel_samples {
-                *smp = output[index];
+            let out = voices.next(&params, matrix.take().as_ref());
+            for smp in ch_smps {
+                *smp = out;
             }
-            index += 1;
         }
         // To save resources, a plugin can (and probably should!) only perform expensive
         // calculations that are only displayed on the GUI while the GUI is open
