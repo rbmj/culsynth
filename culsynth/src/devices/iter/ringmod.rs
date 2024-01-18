@@ -155,6 +155,7 @@ where
 /// Create a new [RingModParamIter], which initially creates instances of
 /// [RingModParams] with the unity gain for the carrier signal and zero gain
 /// for the modulator and output signals
+#[allow(clippy::type_complexity)]
 pub fn new_ringmod_param_iter<T: DspFormatBase>(
 ) -> RingModParamIter<T, Repeat<T::Scalar>, Repeat<T::Scalar>, Repeat<T::Scalar>> {
     RingModParamIter {

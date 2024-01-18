@@ -101,6 +101,7 @@ where
 
 /// Create a new [EnvParamIter], which initially creates instances of
 /// [EnvParams::default] until calling the `with_*()` methods.
+#[allow(clippy::type_complexity)]
 pub fn new_env_param_iter<T: DspFormatBase + detail::EnvOps>(
 ) -> EnvParamIter<T, Repeat<T::EnvParam>, Repeat<T::EnvParam>, Repeat<T::Scalar>, Repeat<T::EnvParam>>
 {

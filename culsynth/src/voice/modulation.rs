@@ -187,8 +187,8 @@ impl<T: DspFormat> ModSection<T> {
         T::modulate_env_param(&modulator, &mut params.env2_params.decay, ModDest::Env2D);
         T::modulate_scalar(&modulator, &mut params.env2_params.sustain, ModDest::Env2S);
         T::modulate_env_param(&modulator, &mut params.env2_params.release, ModDest::Env2R);
-        let lfo2_out = self.lfo2.next(context, gate, params.lfo2_params.into());
-        let env2_out = self.env2.next(context, gate, params.env2_params.into());
+        let lfo2_out = self.lfo2.next(context, gate, params.lfo2_params);
+        let env2_out = self.env2.next(context, gate, params.env2_params);
         Modulator {
             lfo2: lfo2_out,
             env2: env2_out,

@@ -208,6 +208,7 @@ where
 }
 
 /// Construct a [ModFiltParamIter]
+#[allow(clippy::type_complexity)]
 pub fn new_modfilt_param_iter<T: DspFormat>() -> ModFiltParamIter<
     T,
     Repeat<T::Scalar>,
@@ -332,6 +333,7 @@ where
 
 /// Create a new [ModFiltInputIter], which initially creates instances of
 /// [ModFiltInput::default] until calling the `with_*()` methods.
+#[allow(clippy::type_complexity)]
 pub fn new_modfilt_input_iter<T: DspFormatBase>(
 ) -> ModFiltInputIter<T, Repeat<T::Sample>, Repeat<T::Scalar>, Repeat<T::Scalar>, Repeat<T::Note>> {
     ModFiltInputIter {

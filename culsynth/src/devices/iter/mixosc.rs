@@ -152,6 +152,7 @@ where
 /// Create a new [LfoParamIter], which initially creates instances of
 /// [LfoParams] with frequency 1Hz, depth 1, and default [LfoOptions] until
 /// calling the `with_*()` methods.
+#[allow(clippy::type_complexity)]
 pub fn new_mixosc_param_iter<T: DspFormatBase>() -> MixOscParamIter<
     T,
     Repeat<T::NoteOffset>,
@@ -253,6 +254,7 @@ where
 
 /// Create a new [SyncedMixOscsParamIter], which initially creates instances of
 /// [SyncedMixOscsParams] with the defaults for each
+#[allow(clippy::type_complexity)]
 pub fn new_synced_mixoscs_param_iter<T: DspFormatBase>(
 ) -> SyncedMixOscsParamIter<T, Repeat<MixOscParams<T>>, Repeat<MixOscParams<T>>, Repeat<bool>> {
     SyncedMixOscsParamIter {

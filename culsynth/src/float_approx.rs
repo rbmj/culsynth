@@ -87,14 +87,14 @@ mod detail {
         // part, and generate a lookup table (plus some offset shifts) for
         // the integral part (plus 0.5)
         const LOOKUP_TABLE: [f32; 8] = [
-            0.0301973834223185,
-            0.0820849986238988,
-            0.22313016014842982,
-            0.6065306597126334,
-            1.6487212707001282,
-            4.4816890703380645,
-            12.182493960703473,
-            33.11545195869231,
+            0.030_197_383,
+            0.082_085,
+            0.223_130_16,
+            0.606_530_66,
+            1.648_721_2,
+            4.481_689,
+            12.182_493,
+            33.115_45,
         ];
         let floor = x.floor();
         let index = (floor.as_() + 4) as usize;
@@ -104,8 +104,8 @@ mod detail {
 
     /// Convert a MIDI note number to a frequency in Hz
     pub fn midi_note_to_frequency<T: Float + From<f32> + AsPrimitive<isize>>(note: T) -> T {
-        const FRAC_LN2_12: f32 = 0.057762265046662;
-        const FREQ_E4: f32 = 329.627557;
+        const FRAC_LN2_12: f32 = 0.057_762_265;
+        const FREQ_E4: f32 = 329.627_56;
         let f0: T = FREQ_E4.into();
         f0 * exp_approx((note - T::from_u16(64)) * FRAC_LN2_12.into())
     }

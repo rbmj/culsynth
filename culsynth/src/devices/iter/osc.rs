@@ -151,6 +151,7 @@ where
 
 /// Create a new [SyncedOscsParamIter], which initially creates instances of
 /// [SyncedOscsParams] with the defaults for each
+#[allow(clippy::type_complexity)]
 pub fn new_synced_oscs_param_iter<T: DspFormatBase>(
 ) -> SyncedOscsParamIter<T, Repeat<OscParams<T>>, Repeat<OscParams<T>>, Repeat<bool>> {
     SyncedOscsParamIter {

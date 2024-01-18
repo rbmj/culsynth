@@ -116,7 +116,7 @@ impl<T: DspFloat> detail::FiltOps for T {
         low_z: &mut Self::FiltFeedback,
         band_z: &mut Self::FiltFeedback,
     ) -> filt::FiltOutput<T> {
-        let gain = Self::prewarped_gain(&context, cutoff);
+        let gain = Self::prewarped_gain(context, cutoff);
         let denom = gain * gain + Self::TWO * res * gain + Self::ONE;
         let high = (signal - (Self::TWO * res + gain) * (*band_z) - (*low_z)) / denom;
 
@@ -155,7 +155,7 @@ impl detail::FiltOps for i16 {
     ) -> filt::FiltOutput<i16> {
         use crate::fixedmath::{one_over_one_plus, I5F27, I7F25, U3F13, U3F29};
 
-        let gain = Self::prewarped_gain(&context, cutoff);
+        let gain = Self::prewarped_gain(context, cutoff);
         let gain2 = U3F29::from_num(gain.wide_mul(gain));
         // resonance * gain is a U1F31, so this will only lose the least
         // significant bit and provides space for the shift left below

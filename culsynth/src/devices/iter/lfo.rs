@@ -79,6 +79,7 @@ where
 /// Create a new [LfoParamIter], which initially creates instances of
 /// [LfoParams] with frequency 1Hz, depth 1, and default [LfoOptions] until
 /// calling the `with_*()` methods.
+#[allow(clippy::type_complexity)]
 pub fn new_lfo_param_iter<T: DspFormatBase>(
 ) -> LfoParamIter<T, Repeat<T::LfoFreq>, Repeat<T::Scalar>, Repeat<LfoOptions>> {
     LfoParamIter {

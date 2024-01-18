@@ -264,10 +264,8 @@ impl<T: DspFloat> detail::OscOps for T {
             T::SHAPE_CLIP
         };
         // Handle slave oscillator resetting phase if master crosses:
-        if sync_mode == OscSync::Secondary {
-            if *sync != T::ZERO {
-                *phase = T::ZERO;
-            }
+        if sync_mode == OscSync::Secondary && *sync != T::ZERO {
+            *phase = T::ZERO;
         }
         let phase_per_smp_adj = if *phase < T::ZERO {
             phase_per_sample * (T::ONE / (T::ONE + shp))
@@ -339,9 +337,10 @@ impl detail::OscOps for i16 {
         const TWO: SampleFxP = SampleFxP::lit("2");
         //generate waveforms (piecewise defined)
         let frac_2phase_pi = SampleFxP::from_num(*phase).scale_fixed(Self::FRAC_2_PI);
-        let mut ret = OscOutput::<i16>::default();
-        //Sawtooth wave does not have to be piecewise-defined
-        ret.saw = frac_2phase_pi.unwrapped_shr(1);
+        let mut ret = OscOutput::<i16> {
+            saw: frac_2phase_pi.unwrapped_shr(1), // not piecewise-defined
+            ..Default::default()
+        };
         //All other functions are piecewise-defined:
         if *phase < 0 {
             ret.sq = SampleFxP::NEG_ONE;
@@ -379,10 +378,8 @@ impl detail::OscOps for i16 {
                 .to_bits(),
         );
         // Handle slave oscillator resetting phase if master crosses:
-        if sync_mode == OscSync::Secondary {
-            if *sync != ScalarFxP::ZERO {
-                *phase = PhaseFxP::ZERO;
-            }
+        if sync_mode == OscSync::Secondary && *sync != ScalarFxP::ZERO {
+            *phase = PhaseFxP::ZERO;
         }
         // Adjust phase per sample for the shape parameter:
         let phase_per_smp_adj = PhaseFxP::from_num(if *phase < PhaseFxP::ZERO {
