@@ -1,5 +1,4 @@
 use super::*;
-use crate::{DspFormatBase, DspType, DspFloat};
 
 /// Input for a [RingMod].
 #[derive(Clone, Default)]
@@ -34,10 +33,10 @@ impl<T: DspFloat> From<&RingModParams<i16>> for RingModParams<T> {
 }
 
 /// A Ring Modulator and Mixer
-/// 
+///
 /// This supports ring modulation of two signals and control over the mix of
 /// both the input signals and the modulation signal in the final device output
-/// 
+///
 /// This implements [Device], taking a [RingModInput] as input and
 /// [RingModParams] as parameters and outputting a Sample.
 #[derive(Clone, Default)]

@@ -1,5 +1,3 @@
-use crate::{DspFormat, DspFormatBase, DspFloat};
-
 use super::*;
 
 /// A parameter pack for [MixOsc].
@@ -46,7 +44,7 @@ impl<T: DspFormatBase> MixOscParams<T> {
 /// This wraps [Osc], combining the oscillator with a mixer for each of the
 /// wave shapes and taking the gain of each wave as a parameter.  This provides
 /// a pre-mixed output as a single signal.
-/// 
+///
 /// This implements [Device], taking a Note as input and [MixOscParams] as
 /// parameters, and outputs a Sample representing the sum of the different
 /// waveforms scaled by their respective gains.
@@ -103,11 +101,11 @@ pub struct SyncedMixOscsOutput<T: DspFormatBase> {
 
 /// A synced pair of [MixOsc]s.  The secondary oscillator will be synced
 /// to the primary oscillator.
-/// 
+///
 /// This implements [Device], taking a Note as input and a [SyncedMixOscsParams]
 /// as parameters.  It outputs a [SyncedMixOscsOutput], which is just the pair
 /// of Sample outputs from the underlying [Osc].
-/// 
+///
 /// See also: [SyncedOscs], [Osc]
 #[derive(Clone, Default)]
 pub struct SyncedMixOscs<T: DspFormat> {

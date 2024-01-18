@@ -1,7 +1,7 @@
 //! This module contains a struct composing various devices together as a
 //! single voice unit for a basic subtractive synthesizer.
 
-use crate::{devices::*, DspFormat, DspFloat};
+use crate::{devices::*, DspFloat, DspFormat};
 
 use self::modulation::{ModMatrix, ModSection};
 
@@ -61,7 +61,6 @@ pub struct VoiceInput<T: DspFormat> {
     pub gate: T::Sample,
     /// The velocity this note was played with
     pub velocity: T::Scalar,
-
 }
 
 impl<T: DspFloat> From<&VoiceInput<i16>> for VoiceInput<T> {
@@ -69,7 +68,7 @@ impl<T: DspFloat> From<&VoiceInput<i16>> for VoiceInput<T> {
         Self {
             note: value.note.to_num(),
             gate: value.gate.to_num(),
-            velocity: value.velocity.to_num()
+            velocity: value.velocity.to_num(),
         }
     }
 }

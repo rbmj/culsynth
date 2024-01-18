@@ -96,7 +96,7 @@ pub trait DspType<T: DspFormatBase>:
     fn one() -> Self;
     /// This function will perform a saturating addition for fixed-point types,
     /// and a normal addition for floating-point types
-    /// 
+    ///
     /// Used for when saturation is desired to avoid overflows, not correctness
     fn dsp_saturating_add(self, rhs: Self) -> Self;
     /// Multiply this type with itself.  This trait does not provide any

@@ -1,7 +1,5 @@
 use super::*;
 
-use crate::{DspFloat, DspFormat, DspFormatBase, DspType};
-
 pub(crate) mod detail {
     use super::*;
     pub trait FiltOps: DspFormatBase {
@@ -26,7 +24,7 @@ pub struct FiltParams<T: DspFormatBase> {
     /// Cutoff frequency, as a MIDI note number
     pub cutoff: T::Note,
     /// Resonance, as a value between 0 and 1
-    /// 
+    ///
     /// This will cut off at 15/16 = 0.9375 to avoid unbounded self-oscillation
     /// and mathematical issues as the resonance approaches 1.  This may change
     /// in the future.
@@ -54,11 +52,11 @@ pub struct FiltOutput<T: DspFormatBase> {
 }
 
 /// A State-Variable Filter implementation
-/// 
+///
 /// This emulates a state-variable filter with low, band, and high-pass outputs.
 /// It also includes resonance control, though it is currently not self-resonant
 /// due to numerical instability approaching resonance.
-/// 
+///
 /// This implements [Device] with an Input type of Sample and a Parameter type
 /// of [FiltParams], and outputs a [FiltOutput], which consists of Samples for
 /// the low, band, and high pass signals.

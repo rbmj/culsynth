@@ -1,7 +1,6 @@
 use super::*;
 
-use crate::{DspFloat, Float};
-use crate::{DspFormat, DspFormatBase, DspType};
+use crate::Float;
 use crate::{FrequencyFxP, PhaseFxP};
 
 /// Parameters for an [Osc]
@@ -43,8 +42,6 @@ impl<T: DspFloat> From<&SyncedOscsParams<i16>> for SyncedOscsParams<T> {
         }
     }
 }
-
-
 /// The output of an oscillator.
 #[derive(Clone, Default)]
 pub struct OscOutput<T: DspFormatBase> {
@@ -68,7 +65,7 @@ pub struct SyncedOscsOutput<T: DspFormatBase> {
 }
 
 /// A variable-frequency, audio-rate oscillator
-/// 
+///
 /// This models an oscillator with Sine, Square, Triangle, and Sawtooth wave
 /// outputs.  It is tunable across the entire range of MIDI note numbers and
 /// includes code to support oscillator sync (see [SyncedOscs]).  The oscillator
@@ -76,11 +73,11 @@ pub struct SyncedOscsOutput<T: DspFormatBase> {
 /// (see [OscParams::shape]), which will modify the balance between the
 /// positive and negative phase portions of the waveform while maintaining the
 /// same overall fundamental frequency.
-/// 
+///
 /// This device returns each individual waveform as a separate output.  For
 /// convenience, devices are provided that premix these waveforms into a single
 /// output with parameterized gains (see [MixOsc] and [SyncedMixOscs]).
-/// 
+///
 /// This struct implements [Device], taking a Note as input and [OscParams] as
 /// parameters and returning a [OscOutput], which contains all of the output
 /// waveforms from the oscillator.
@@ -135,7 +132,7 @@ impl<T: DspFormat> Device<T> for Osc<T> {
 
 /// A synced pair of [Osc]s.  The secondary oscillator will be synced
 /// to the primary oscillator.
-/// 
+///
 /// This implements [Device], taking a Note as input and a [SyncedOscsParams]
 /// as parameters.  It outputs a [SyncedOscsOutput], which contains the output
 /// signals from both underlying oscillators.
@@ -167,13 +164,9 @@ impl<T: DspFormat> Device<T> for SyncedOscs<T> {
         } else {
             T::Scalar::zero()
         };
-        let (pri_out, sync_val) = self.primary.next_with_sync(
-            context,
-            note,
-            params.primary,
-            sync_val,
-            OscSync::Primary,
-        );
+        let (pri_out, sync_val) =
+            self.primary
+                .next_with_sync(context, note, params.primary, sync_val, OscSync::Primary);
         let (sec_out, _) = self.secondary.next_with_sync(
             context,
             note,
@@ -342,9 +335,7 @@ impl detail::OscOps for i16 {
         sync_mode: osc::OscSync,
     ) -> osc::OscOutput<i16> {
         use crate::fixed_traits::Fixed16;
-        use fixedmath::{
-            cos_fixed, one_over_one_plus_highacc, scale_fixedfloat, sin_fixed,
-        };
+        use fixedmath::{cos_fixed, one_over_one_plus_highacc, scale_fixedfloat, sin_fixed};
         const TWO: SampleFxP = SampleFxP::lit("2");
         //generate waveforms (piecewise defined)
         let frac_2phase_pi = SampleFxP::from_num(*phase).scale_fixed(Self::FRAC_2_PI);

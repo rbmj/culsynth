@@ -15,13 +15,13 @@ type ModMatrixRowEntries<T> = [(ModDest, <T as DspFormatBase>::IScalar); MOD_SLO
 type ModMatrixEntry<T> = (ModSrc, ModMatrixRowEntries<T>);
 
 /// A Modulation Matrix
-/// 
+///
 /// It contains a series of rows, one for each [ModSrc].  Each row is a tuple
 /// of `(ModSrc, [(ModDest, IScalar); MOD_SLOTS])` - that is, the first item
 /// is the modulation source, and the second is an array of [MOD_SLOTS] tuples,
 /// each containing the modulation destination ([ModDest]) and modulation depth
 /// as an `IScalar` (see [DspFormat]).
-/// 
+///
 /// The implementation of `Default` creates a ModMatrix with rows initialized
 /// for each [ModSrc] and each slot mapped to [ModDest::Null] with a depth of 0.
 #[derive(Clone)]
@@ -33,9 +33,7 @@ pub struct ModMatrix<T: DspFormatBase> {
 impl<T: DspFormatBase> Default for ModMatrix<T> {
     fn default() -> Self {
         Self {
-            rows: ModSrc::ELEM.map(|src| {
-                (src, [(ModDest::Null, Default::default()); MOD_SLOTS])
-            }),
+            rows: ModSrc::ELEM.map(|src| (src, [(ModDest::Null, Default::default()); MOD_SLOTS])),
         }
     }
 }
@@ -54,11 +52,9 @@ impl<T: DspFormatBase> ModMatrix<T> {
 impl<T: DspFloat> From<&ModMatrix<i16>> for ModMatrix<T> {
     fn from(value: &ModMatrix<i16>) -> Self {
         Self {
-            rows: value.rows.map(|(src, dests)| {
-                (src, dests.map(|(dest, depth)| {
-                    (dest, depth.to_num())
-                }))
-            }),
+            rows: value
+                .rows
+                .map(|(src, dests)| (src, dests.map(|(dest, depth)| (dest, depth.to_num())))),
         }
     }
 }
@@ -135,7 +131,12 @@ impl<'a, T: DspFormatBase + ModulatorOps> Modulator<'a, T> {
 /// The actual modulation section, containing the modulation LFOs and Envelopes and
 /// logic to build the [ModulatorFxP].
 #[derive(Clone, Default)]
-pub struct ModSection<T: DspFormatBase + ModulatorOps + crate::devices::lfo::detail::LfoOps + crate::devices::env::detail::EnvOps> {
+pub struct ModSection<
+    T: DspFormatBase
+        + ModulatorOps
+        + crate::devices::lfo::detail::LfoOps
+        + crate::devices::env::detail::EnvOps,
+> {
     lfo1: Lfo<T>,
     lfo2: Lfo<T>,
     env1: Env<T>,
@@ -198,8 +199,7 @@ impl<T: DspFormat> ModSection<T> {
 
 pub(crate) mod detail {
     use super::*;
-    pub trait ModulatorOps: DspFormatBase + crate::devices::env::detail::EnvOps
-    {
+    pub trait ModulatorOps: DspFormatBase + crate::devices::env::detail::EnvOps {
         fn modulate_env(
             modulator: &Modulator<Self>,
             params: &mut EnvParams<Self>,
@@ -236,18 +236,12 @@ pub(crate) mod detail {
         let modulation = ModSrc::ELEM.map(|src| modulator.matrix.get_modulation(src, dest));
         // All the modulation sources that are not LFOs are ScalarFxPs
         let non_lfos = [
-            (
-                modulator.velocity,
-                modulation[ModSrc::Velocity as usize],
-            ),
+            (modulator.velocity, modulation[ModSrc::Velocity as usize]),
             (
                 modulator.aftertouch,
                 modulation[ModSrc::Aftertouch as usize],
             ),
-            (
-                modulator.modwheel,
-                modulation[ModSrc::ModWheel as usize],
-            ),
+            (modulator.modwheel, modulation[ModSrc::ModWheel as usize]),
             (modulator.env1, modulation[ModSrc::Env1 as usize]),
             (modulator.env2, modulation[ModSrc::Env2 as usize]),
         ];
@@ -311,18 +305,12 @@ pub(crate) mod detail {
     ) -> bool {
         let modulation = ModSrc::ELEM.map(|src| modulator.matrix.get_modulation(src, dest));
         let mod_params = [
-            (
-                modulator.velocity,
-                modulation[ModSrc::Velocity as usize],
-            ),
+            (modulator.velocity, modulation[ModSrc::Velocity as usize]),
             (
                 modulator.aftertouch,
                 modulation[ModSrc::Aftertouch as usize],
             ),
-            (
-                modulator.modwheel,
-                modulation[ModSrc::ModWheel as usize],
-            ),
+            (modulator.modwheel, modulation[ModSrc::ModWheel as usize]),
             (modulator.env1, modulation[ModSrc::Env1 as usize]),
             (modulator.env2, modulation[ModSrc::Env2 as usize]),
             (modulator.lfo1, modulation[ModSrc::Lfo1 as usize]),

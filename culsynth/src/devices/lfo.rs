@@ -1,5 +1,4 @@
 use super::*;
-use crate::{DspFloat, DspFormatBase, DspType};
 use crate::{IScalarFxP, PhaseFxP};
 use core::mem::transmute;
 use core::option::Option;
