@@ -84,24 +84,6 @@ where
     FixedI32::<Frac>::from_num(a)
 }
 
-/// Apply a scaling factor to a fixed point number (unsigned)
-pub fn apply_scalar_u<Frac>(a: FixedU16<Frac>, b: Scalar) -> FixedU16<Frac>
-where
-    Frac: Unsigned + LeEqU16 + Add<U16>,
-    <Frac as Add<U16>>::Output: LeEqU32,
-{
-    FixedU16::<Frac>::from_num(a.wide_mul(b))
-}
-
-/// Apply a scaling factor to a fixed point number (signed)
-pub fn apply_scalar_i<Frac>(a: FixedI16<Frac>, b: Scalar) -> FixedI16<Frac>
-where
-    Frac: Unsigned + LeEqU16 + Add<U16>,
-    <Frac as Add<U16>>::Output: LeEqU32,
-{
-    FixedI16::<Frac>::from_num(a.wide_mul_unsigned(b))
-}
-
 fn one_over_one_plus_helper<Frac>(n: FixedU32<Frac>) -> (U1F31, u32)
 where
     Frac: Unsigned + IsLessOrEqual<U31, Output = True> + LeEqU32,
@@ -319,7 +301,7 @@ pub fn midi_note_to_frequency(note: Note) -> Frequency {
     //this change in representation brings us to 1.0 = 16 semitones
     //need to multiply by (4/3) in order to scale it to 1.0=12 semitones
     //we also need to multiply by ln(2) so we'll do that in one step
-    let power = apply_scalar_i(note_xform, FRAC_4LN2_3);
+    let power = I3F13::from_num(note_xform.wide_mul_unsigned(FRAC_4LN2_3));
     //Our note numbers are centered about E4, so that's our f0:
     FREQ_E4 * U14F18::from_num(exp_fixed(power))
 }

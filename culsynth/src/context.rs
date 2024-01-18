@@ -3,7 +3,9 @@
 
 use crate::{Float, ScalarFxP};
 
+/// Simple helper trait for types that can return a [GenericContext]
 pub trait GetContext {
+    /// Get the [GenericContext]
     fn get_context(&self) -> &dyn GenericContext;
 }
 

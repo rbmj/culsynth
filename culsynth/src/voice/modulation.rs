@@ -8,13 +8,25 @@ use crate::{IScalarFxP, SampleFxP, ScalarFxP, SignedNoteFxP};
 mod types;
 pub use types::*;
 
-const MOD_SLOTS: usize = 4;
+/// The number of modulation slots per [ModSrc] in a [ModMatrix]
+pub const MOD_SLOTS: usize = 4;
 
 type ModMatrixRowEntries<T> = [(ModDest, <T as DspFormatBase>::IScalar); MOD_SLOTS];
 type ModMatrixEntry<T> = (ModSrc, ModMatrixRowEntries<T>);
 
+/// A Modulation Matrix
+/// 
+/// It contains a series of rows, one for each [ModSrc].  Each row is a tuple
+/// of `(ModSrc, [(ModDest, IScalar); MOD_SLOTS])` - that is, the first item
+/// is the modulation source, and the second is an array of [MOD_SLOTS] tuples,
+/// each containing the modulation destination ([ModDest]) and modulation depth
+/// as an `IScalar` (see [DspFormat]).
+/// 
+/// The implementation of `Default` creates a ModMatrix with rows initialized
+/// for each [ModSrc] and each slot mapped to [ModDest::Null] with a depth of 0.
 #[derive(Clone)]
 pub struct ModMatrix<T: DspFormatBase> {
+    /// The rows making up the modmatrix
     pub rows: [ModMatrixEntry<T>; ModSrc::numel()],
 }
 
@@ -57,13 +69,6 @@ impl From<&ModMatrix<i16>> for ModMatrix<i16> {
     }
 }
 
-#[derive(Clone, Default)]
-pub struct ModMatrixInput<T: DspFormatBase> {
-    pub velocity: T::Scalar,
-    pub aftertouch: T::Scalar,
-    pub modwheel: T::Scalar,
-}
-
 /// A parameter pack representing the different parameters to the [ModSectionFxP]
 pub struct ModSectionParams<T: DspFormatBase + crate::devices::env::detail::EnvOps> {
     /// MIDI Velocity
@@ -82,13 +87,49 @@ pub struct ModSectionParams<T: DspFormatBase + crate::devices::env::detail::EnvO
     pub env2_params: EnvParams<T>,
 }
 
+/// A struct containing all of the necessary information to modulate parameters
 pub struct Modulator<'a, T: DspFormatBase> {
-    input: ModMatrixInput<T>,
+    velocity: T::Scalar,
+    aftertouch: T::Scalar,
+    modwheel: T::Scalar,
     lfo1: T::Sample,
     lfo2: T::Sample,
     env1: T::Scalar,
     env2: T::Scalar,
     matrix: &'a ModMatrix<T>,
+}
+
+impl<'a, T: DspFormatBase + ModulatorOps> Modulator<'a, T> {
+    /// Apply modulation to [EnvParams] for the provided [EnvModDest]
+    /// (e.g. [ENV_FILT_MOD_DEST])
+    pub fn modulate_env(&self, params: &mut EnvParams<T>, dest: &EnvModDest) {
+        T::modulate_env(self, params, dest)
+    }
+    /// Apply modulation to [MixOscParams] for the provided [OscModDest]
+    /// (e.g. [OSC1_MOD_DEST])
+    pub fn modulate_mix_osc(&self, params: &mut MixOscParams<T>, dest: &OscModDest) {
+        T::modulate_osc(self, params, dest)
+    }
+    /// Apply modulation to the [RingModParams]
+    pub fn modulate_ring(&self, params: &mut RingModParams<T>) {
+        T::modulate_ring(self, params)
+    }
+    /// Apply modulation to the [ModFiltParams]
+    pub fn modulate_mod_filt(&self, params: &mut ModFiltParams<T>) {
+        T::modulate_filt(self, params)
+    }
+    /// Apply modulation to a singular `EnvParam` for a given [ModDest]
+    pub fn modulate_env_param(&self, param: &mut T::EnvParam, dest: ModDest) {
+        T::modulate_env_param(self, param, dest)
+    }
+    /// Apply modulation to a singular `Scalar` for a given [ModDest]
+    pub fn modulate_scalar(&self, param: &mut T::Scalar, dest: ModDest) {
+        T::modulate_scalar(self, param, dest)
+    }
+    /// Apply modulation to a singular `LfoFreq` for a given [ModDest]
+    pub fn modulate_lfo_freq(&self, param: &mut T::LfoFreq, dest: ModDest) {
+        T::modulate_lfo_freq(self, param, dest)
+    }
 }
 
 /// The actual modulation section, containing the modulation LFOs and Envelopes and
@@ -126,11 +167,9 @@ impl<T: DspFormat> ModSection<T> {
         let env1_out = self.env1.next(context, gate, params.env1_params);
         // LFO2/ENV2 are default here, so empty slices.
         let modulator = Modulator {
-            input: ModMatrixInput {
-                velocity: params.velocity,
-                aftertouch: params.aftertouch,
-                modwheel: params.modwheel,
-            },
+            velocity: params.velocity,
+            aftertouch: params.aftertouch,
+            modwheel: params.modwheel,
             lfo1: lfo1_out,
             lfo2: T::Sample::zero(),
             env1: env1_out,
@@ -198,15 +237,15 @@ pub(crate) mod detail {
         // All the modulation sources that are not LFOs are ScalarFxPs
         let non_lfos = [
             (
-                modulator.input.velocity,
+                modulator.velocity,
                 modulation[ModSrc::Velocity as usize],
             ),
             (
-                modulator.input.aftertouch,
+                modulator.aftertouch,
                 modulation[ModSrc::Aftertouch as usize],
             ),
             (
-                modulator.input.modwheel,
+                modulator.modwheel,
                 modulation[ModSrc::ModWheel as usize],
             ),
             (modulator.env1, modulation[ModSrc::Env1 as usize]),
@@ -273,15 +312,15 @@ pub(crate) mod detail {
         let modulation = ModSrc::ELEM.map(|src| modulator.matrix.get_modulation(src, dest));
         let mod_params = [
             (
-                modulator.input.velocity,
+                modulator.velocity,
                 modulation[ModSrc::Velocity as usize],
             ),
             (
-                modulator.input.aftertouch,
+                modulator.aftertouch,
                 modulation[ModSrc::Aftertouch as usize],
             ),
             (
-                modulator.input.modwheel,
+                modulator.modwheel,
                 modulation[ModSrc::ModWheel as usize],
             ),
             (modulator.env1, modulation[ModSrc::Env1 as usize]),

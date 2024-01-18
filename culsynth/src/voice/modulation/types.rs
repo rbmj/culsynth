@@ -271,12 +271,19 @@ impl TryFrom<&str> for ModDest {
 /// particular oscillator.  See [OSC1_MOD_DEST]/[OSC2_MOD_DEST] and
 /// [Modulator]/[ModulatorFxP]
 pub struct OscModDest {
+    /// Course tune
     pub course: ModDest,
+    /// Fine tune
     pub fine: ModDest,
+    /// Wave shape
     pub shape: ModDest,
+    /// Sine output
     pub sin: ModDest,
+    /// Square output
     pub sq: ModDest,
+    /// Triangle output
     pub tri: ModDest,
+    /// Sawtooth output
     pub saw: ModDest,
 }
 
@@ -306,9 +313,13 @@ pub const OSC2_MOD_DEST: OscModDest = OscModDest {
 /// particular oscillator.  See [ENV_AMP_MOD_DEST]/[ENV_FILT_MOD_DEST] and
 /// [Modulator]/[ModulatorFxP]
 pub struct EnvModDest {
+    /// Envelope Attack
     pub attack: ModDest,
+    /// Envelope Decay
     pub decay: ModDest,
+    /// Envelope Sustain
     pub sustain: ModDest,
+    /// Envelope Release
     pub release: ModDest,
 }
 

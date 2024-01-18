@@ -34,6 +34,7 @@ impl<T: DspFloat> From<&MixOscParams<i16>> for MixOscParams<T> {
 }
 
 impl<T: DspFormatBase> MixOscParams<T> {
+    /// Extract the basic oscillator parameters from this parameter pack.
     pub fn to_osc_params(&self) -> OscParams<T> {
         OscParams {
             tune: self.tune,
@@ -43,8 +44,12 @@ impl<T: DspFormatBase> MixOscParams<T> {
 }
 
 /// This wraps [Osc], combining the oscillator with a mixer for each of the
-/// wave shapes and taking the gain of each wave as a parameter and providing
-/// a pre-mixed output
+/// wave shapes and taking the gain of each wave as a parameter.  This provides
+/// a pre-mixed output as a single signal.
+/// 
+/// This implements [Device], taking a Note as input and [MixOscParams] as
+/// parameters, and outputs a Sample representing the sum of the different
+/// waveforms scaled by their respective gains.
 #[derive(Clone, Default)]
 pub struct MixOsc<T: DspFormat> {
     mixer: Mixer<T, 4>,
@@ -65,10 +70,15 @@ impl<T: DspFormat> Device<T> for MixOsc<T> {
     }
 }
 
+/// This struct contains parameters for a synced oscillator pair
 #[derive(Clone, Default)]
 pub struct SyncedMixOscsParams<T: DspFormatBase> {
+    /// Parameters for the primary oscillator
     pub primary: MixOscParams<T>,
+    /// Parameters for the secondary (synced) oscillator
     pub secondary: MixOscParams<T>,
+    /// True if oscillator sync has been enabled - when false, both oscillators
+    /// will run independently
     pub sync: bool,
 }
 
@@ -82,17 +92,28 @@ impl<T: DspFloat> From<&SyncedMixOscsParams<i16>> for SyncedMixOscsParams<T> {
     }
 }
 
+/// The output of a [SyncedMixOscs] device.
 #[derive(Clone, Default)]
 pub struct SyncedMixOscsOutput<T: DspFormatBase> {
+    /// The output of the primary oscillator
     pub primary: T::Sample,
+    /// The output of the secondary oscillator
     pub secondary: T::Sample,
 }
 
+/// A synced pair of [MixOsc]s.  The secondary oscillator will be synced
+/// to the primary oscillator.
+/// 
+/// This implements [Device], taking a Note as input and a [SyncedMixOscsParams]
+/// as parameters.  It outputs a [SyncedMixOscsOutput], which is just the pair
+/// of Sample outputs from the underlying [Osc].
+/// 
+/// See also: [SyncedOscs], [Osc]
 #[derive(Clone, Default)]
 pub struct SyncedMixOscs<T: DspFormat> {
+    oscs: SyncedOscs<T>,
     mixer_pri: Mixer<T, 4>,
     mixer_sec: Mixer<T, 4>,
-    oscs: SyncedOscs<T>,
 }
 
 impl<T: DspFormat> Device<T> for SyncedMixOscs<T> {
@@ -124,7 +145,7 @@ impl<T: DspFormat> Device<T> for SyncedMixOscs<T> {
                 params.primary.saw,
             ],
         );
-        let sec_out = self.mixer_pri.next(
+        let sec_out = self.mixer_sec.next(
             context,
             [s.sin, s.sq, s.tri, s.saw],
             [

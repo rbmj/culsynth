@@ -1,6 +1,7 @@
 use super::*;
 use crate::{DspFormat, DspFormatBase, DspType, DspFloat};
 
+/// Input for a [ModFilt]
 pub struct ModFiltInput<T: DspFormatBase> {
     /// The signal being filtered
     pub signal: T::Sample,
@@ -51,6 +52,8 @@ impl<T: DspFloat> From<&ModFiltParams<i16>> for ModFiltParams<T> {
 }
 
 impl<T: DspFormatBase> ModFiltParams<T> {
+    /// Extract the [FiltParams] from this parameter pack, taking into account
+    /// any modulation from the [ModFiltInput].
     pub fn to_filt_params(&self, input: &ModFiltInput<T>) -> FiltParams<T> {
         let mut cutoff = self.cutoff;
         let kbd = input.kbd.scale(self.kbd_tracking);

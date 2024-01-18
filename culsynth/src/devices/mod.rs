@@ -15,16 +15,47 @@ pub(crate) mod ringmod;
 use crate::context::{Context, ContextFxP};
 use crate::{fixedmath, DspFormat, EnvParamFxP, NoteFxP, SampleFxP, ScalarFxP, SignedNoteFxP};
 
+/// A DSP Device
+/// 
+/// This is one of the central abstractions in this library.  A device is a
+/// logical component, or set of components, that takes a set of input signals
+/// and applies some logic to these signals, according to a set of parameters,
+/// that then produces a set of output signals.
+/// 
+/// For example, a filter would take an audio input, a cutoff frequency
+/// parameter, and provide an audio output.  If this filter also featured
+/// keyboard tracking, the keyboard note signal would be an additional input,
+/// while the amount of keyboard tracking to use (or even whether to enable it)
+/// would be a parameter.
+/// 
+/// In the general case (e.g. many modular setups) the line between these two
+/// can be blurred, or even does not exist.  The semantic distinction is used
+/// here as a convenience.  For example, one could define one function to get
+/// the value of parameters that have been set in a user interface, and another
+/// to get the value of the input from other stages of the synthesizer logic,
+/// and not need any glue code or to worry about sensible defaults/uninitialized
+/// members based on one of the functions having limited information on the
+/// synth's state.
 pub trait Device<T: DspFormat> {
+    /// The input type for this device.  Used to represent signals within the
+    /// synthesizer, e.g. a control voltage, audio signal, etc.
     type Input;
+    /// The parameter type for this device.  Used to represent a value that
+    /// changes how the device acts on its inputs.  A good analogy is any
+    /// knob on a synth would logically fall into this category.
     type Params;
+    /// The output type for this device.
     type Output;
+    /// Within the provided `context`, take one sample of `input` and execute
+    /// the design's DSP logic using `params`, then return a sample of output.
     fn next(
         &mut self,
         context: &T::Context,
         input: Self::Input,
         params: Self::Params,
     ) -> Self::Output;
+    /// This is similar to [Device::next], but works on iterators and returns
+    /// an iterator to the results
     fn process<'a, InputIt: Iterator<Item = Self::Input>, ParamIt: Iterator<Item = Self::Params>>(
         &'a mut self,
         context: &'a T::Context,
@@ -43,7 +74,7 @@ pub trait Device<T: DspFormat> {
     }
 }
 
-// FIXME: D ?Sized bound??
+/// An iterator over a [Device] returned by [Device::process]
 pub struct DeviceIter<
     'a,
     T: DspFormat,

@@ -1,13 +1,15 @@
 use super::*;
 
-use crate::{FrequencyFxP, PhaseFxP};
-
 use crate::{DspFloat, Float};
 use crate::{DspFormat, DspFormatBase, DspType};
+use crate::{FrequencyFxP, PhaseFxP};
 
+/// Parameters for an [Osc]
 #[derive(Clone, Default)]
 pub struct OscParams<T: DspFormatBase> {
+    /// Tuning, as an offset in MIDI note number
     pub tune: T::NoteOffset,
+    /// The amount of phase distortion to apply to the waveform, from 0 to 1
     pub shape: T::Scalar,
 }
 
@@ -20,10 +22,15 @@ impl<T: DspFloat> From<&OscParams<i16>> for OscParams<T> {
     }
 }
 
+/// Parameters for [SyncedOscs]
 #[derive(Clone, Default)]
 pub struct SyncedOscsParams<T: DspFormatBase> {
+    /// Parameters for the primary oscillator
     pub primary: OscParams<T>,
+    /// Parameters for the secondary oscillator
     pub secondary: OscParams<T>,
+    /// True if oscillator sync has been enabled - when false, both oscillators
+    /// will run independently
     pub sync: bool,
 }
 
@@ -51,17 +58,39 @@ pub struct OscOutput<T: DspFormatBase> {
     pub saw: T::Sample,
 }
 
+/// Output from [SyncedOscs]
 #[derive(Clone, Default)]
 pub struct SyncedOscsOutput<T: DspFormatBase> {
+    /// Output from the primary oscillator
     pub primary: OscOutput<T>,
+    /// Output from the secondary oscillator
     pub secondary: OscOutput<T>,
 }
+
+/// A variable-frequency, audio-rate oscillator
+/// 
+/// This models an oscillator with Sine, Square, Triangle, and Sawtooth wave
+/// outputs.  It is tunable across the entire range of MIDI note numbers and
+/// includes code to support oscillator sync (see [SyncedOscs]).  The oscillator
+/// also supports phase distortion via the `shape` parameter
+/// (see [OscParams::shape]), which will modify the balance between the
+/// positive and negative phase portions of the waveform while maintaining the
+/// same overall fundamental frequency.
+/// 
+/// This device returns each individual waveform as a separate output.  For
+/// convenience, devices are provided that premix these waveforms into a single
+/// output with parameterized gains (see [MixOsc] and [SyncedMixOscs]).
+/// 
+/// This struct implements [Device], taking a Note as input and [OscParams] as
+/// parameters and returning a [OscOutput], which contains all of the output
+/// waveforms from the oscillator.
 #[derive(Clone, Default)]
 pub struct Osc<T: DspFormat> {
     phase: T::Phase,
 }
 
 impl<T: DspFormat> Osc<T> {
+    /// Constructor
     pub fn new() -> Self {
         Self {
             phase: T::Phase::zero(),
@@ -104,6 +133,12 @@ impl<T: DspFormat> Device<T> for Osc<T> {
     }
 }
 
+/// A synced pair of [Osc]s.  The secondary oscillator will be synced
+/// to the primary oscillator.
+/// 
+/// This implements [Device], taking a Note as input and a [SyncedOscsParams]
+/// as parameters.  It outputs a [SyncedOscsOutput], which contains the output
+/// signals from both underlying oscillators.
 #[derive(Clone, Default)]
 pub struct SyncedOscs<T: DspFormat> {
     primary: Osc<T>,
@@ -111,6 +146,7 @@ pub struct SyncedOscs<T: DspFormat> {
 }
 
 impl<T: DspFormat> SyncedOscs<T> {
+    /// Constructor
     pub fn new() -> Self {
         Default::default()
     }
@@ -135,7 +171,7 @@ impl<T: DspFormat> Device<T> for SyncedOscs<T> {
             context,
             note,
             params.primary,
-            T::Scalar::zero(),
+            sync_val,
             OscSync::Primary,
         );
         let (sec_out, _) = self.secondary.next_with_sync(
@@ -305,12 +341,13 @@ impl detail::OscOps for i16 {
         sync: &mut ScalarFxP,
         sync_mode: osc::OscSync,
     ) -> osc::OscOutput<i16> {
+        use crate::fixed_traits::Fixed16;
         use fixedmath::{
-            apply_scalar_i, cos_fixed, one_over_one_plus_highacc, scale_fixedfloat, sin_fixed,
+            cos_fixed, one_over_one_plus_highacc, scale_fixedfloat, sin_fixed,
         };
         const TWO: SampleFxP = SampleFxP::lit("2");
         //generate waveforms (piecewise defined)
-        let frac_2phase_pi = apply_scalar_i(SampleFxP::from_num(*phase), Self::FRAC_2_PI);
+        let frac_2phase_pi = SampleFxP::from_num(*phase).scale_fixed(Self::FRAC_2_PI);
         let mut ret = OscOutput::<i16>::default();
         //Sawtooth wave does not have to be piecewise-defined
         ret.saw = frac_2phase_pi.unwrapped_shr(1);

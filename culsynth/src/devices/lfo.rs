@@ -160,7 +160,7 @@ impl<T: DspFloat> From<&LfoParams<i16>> for LfoParams<T> {
     }
 }
 
-/// A floating-point LFO
+/// An LFO
 #[derive(Clone)]
 pub struct Lfo<T: DspFormatBase + detail::LfoOps> {
     rng: SmallRng,
@@ -233,9 +233,10 @@ impl<T: DspFormatBase + detail::LfoOps> Default for Lfo<T> {
 
 impl detail::LfoOps for i16 {
     fn calc_lfo(phase: PhaseFxP, wave: lfo::LfoWave, rands: &[SampleFxP; 2]) -> SampleFxP {
-        use crate::fixedmath::{apply_scalar_i, cos_fixed, sin_fixed};
+        use crate::fixed_traits::Fixed16;
+        use crate::fixedmath::{cos_fixed, sin_fixed};
         const TWO: SampleFxP = SampleFxP::lit("2");
-        let frac_2phase_pi = apply_scalar_i(SampleFxP::from_num(phase), ScalarFxP::FRAC_2_PI);
+        let frac_2phase_pi = SampleFxP::from_num(phase).scale_fixed(ScalarFxP::FRAC_2_PI);
         match wave {
             LfoWave::Saw => frac_2phase_pi.unwrapped_shr(1),
             LfoWave::Square => {

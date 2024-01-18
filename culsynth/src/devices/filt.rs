@@ -20,9 +20,16 @@ pub(crate) mod detail {
     }
 }
 
+/// Parameters for a [Filt]
 #[derive(Clone, Default)]
 pub struct FiltParams<T: DspFormatBase> {
+    /// Cutoff frequency, as a MIDI note number
     pub cutoff: T::Note,
+    /// Resonance, as a value between 0 and 1
+    /// 
+    /// This will cut off at 15/16 = 0.9375 to avoid unbounded self-oscillation
+    /// and mathematical issues as the resonance approaches 1.  This may change
+    /// in the future.
     pub resonance: T::Scalar,
 }
 
@@ -35,13 +42,26 @@ impl<T: DspFloat> From<&FiltParams<i16>> for FiltParams<T> {
     }
 }
 
+/// Output of a [Filt]
 #[derive(Clone, Default)]
 pub struct FiltOutput<T: DspFormatBase> {
+    /// The low-pass signal
     pub low: T::Sample,
+    /// The band-pass signal
     pub band: T::Sample,
+    /// The high-pass signal
     pub high: T::Sample,
 }
 
+/// A State-Variable Filter implementation
+/// 
+/// This emulates a state-variable filter with low, band, and high-pass outputs.
+/// It also includes resonance control, though it is currently not self-resonant
+/// due to numerical instability approaching resonance.
+/// 
+/// This implements [Device] with an Input type of Sample and a Parameter type
+/// of [FiltParams], and outputs a [FiltOutput], which consists of Samples for
+/// the low, band, and high pass signals.
 #[derive(Default, Clone)]
 pub struct Filt<T: DspFormat> {
     low_z: T::FiltFeedback,
@@ -49,6 +69,7 @@ pub struct Filt<T: DspFormat> {
 }
 
 impl<T: DspFormat> Filt<T> {
+    /// Constructor
     pub fn new() -> Self {
         Default::default()
     }

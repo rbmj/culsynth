@@ -43,9 +43,6 @@ pub mod devices;
 
 pub mod voice;
 
-const STATIC_BUFFER_SIZE: usize = 256;
-type BufferT<T> = [T; STATIC_BUFFER_SIZE];
-
 pub use fixedmath::midi_note_to_frequency;
 pub use fixedmath::Frequency as FrequencyFxP;
 pub use fixedmath::Note as NoteFxP;
@@ -67,10 +64,6 @@ pub type LfoFreqFxP = fixedmath::U7F9;
 pub type IScalarFxP = fixedmath::I1F15;
 /// A 32-bit fixed point number representing a sinusoid's phase.  
 type PhaseFxP = fixedmath::I4F28;
-
-fn min_size(sizes: &[usize]) -> usize {
-    *sizes.iter().min().unwrap_or(&0)
-}
 
 mod fixed_traits;
 pub use fixed_traits::Fixed16;

@@ -3,14 +3,19 @@ use core::ops::Add;
 use fixed::traits::Fixed;
 use fixed::types::extra::{LeEqU16, LeEqU32, Sum, Unsigned, U16};
 
-/// A trait encompassing 16 bit fixed point numbers
-pub trait Fixed16: fixed::traits::Fixed {
+/// A trait encompassing 16 bit fixed point numbers along with a couple of
+/// convenience methods for the type.
+pub trait Fixed16: Fixed {
+    /// The value one, or if one is not representable, the maximum representable
+    /// by the type
     const ONE_OR_MAX: Self = if let Some(val) = Self::TRY_ONE {
         val
     } else {
         Self::MAX
     };
+    /// Multiply two fixed point numbers
     fn multiply_fixed(self, rhs: Self) -> Self;
+    /// Scale a fixed point number
     fn scale_fixed(self, rhs: ScalarFxP) -> Self;
 }
 

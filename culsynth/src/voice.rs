@@ -3,7 +3,7 @@
 
 use crate::{devices::*, DspFormat, DspFloat};
 
-use self::modulation::{detail::ModulatorOps, ModMatrix, ModSection};
+use self::modulation::{ModMatrix, ModSection};
 
 pub mod modulation;
 
@@ -52,10 +52,14 @@ impl From<&VoiceParams<i16>> for VoiceParams<i16> {
     }
 }
 
+/// Inputs for a [Voice] that are note-specific
 #[derive(Clone, Default)]
 pub struct VoiceInput<T: DspFormat> {
+    /// The note itself, as a MIDI note number
     pub note: T::Note,
+    /// The gate signal, as a Sample
     pub gate: T::Sample,
+    /// The velocity this note was played with
     pub velocity: T::Scalar,
 
 }
@@ -76,9 +80,12 @@ impl From<&VoiceInput<i16>> for VoiceInput<i16> {
     }
 }
 
+/// Channel-wide (i.e. affecting all notes) inputs for a given [Voice]
 #[derive(Clone, Default)]
 pub struct VoiceChannelInput<T: DspFormat> {
+    /// Aftertouch (e.g. for a MIDI Channel Pressure Message)
     pub aftertouch: T::Scalar,
+    /// Modulation Wheel (MIDI CC #1)
     pub modwheel: T::Scalar,
 }
 
@@ -158,12 +165,12 @@ impl<T: DspFormat> Voice<T> {
         };
         let m = self.modsection.next(ctx, input.gate, modparams, matrix);
         // Modulate all the parameters
-        T::modulate_osc(&m, &mut params.oscs_p.primary, &modulation::OSC1_MOD_DEST);
-        T::modulate_osc(&m, &mut params.oscs_p.secondary, &modulation::OSC2_MOD_DEST);
-        T::modulate_ring(&m, &mut params.ring_p);
-        T::modulate_env(&m, &mut params.filt_env_p, &modulation::ENV_FILT_MOD_DEST);
-        T::modulate_env(&m, &mut params.amp_env_p, &modulation::ENV_AMP_MOD_DEST);
-        T::modulate_filt(&m, &mut params.filt_p);
+        m.modulate_mix_osc(&mut params.oscs_p.primary, &modulation::OSC1_MOD_DEST);
+        m.modulate_mix_osc(&mut params.oscs_p.secondary, &modulation::OSC2_MOD_DEST);
+        m.modulate_ring(&mut params.ring_p);
+        m.modulate_env(&mut params.filt_env_p, &modulation::ENV_FILT_MOD_DEST);
+        m.modulate_env(&mut params.amp_env_p, &modulation::ENV_AMP_MOD_DEST);
+        m.modulate_mod_filt(&mut params.filt_p);
 
         let oscs_out = self.oscs.next(ctx, input.note, params.oscs_p);
 

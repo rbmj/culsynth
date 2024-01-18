@@ -61,9 +61,13 @@ use detail::{EnvMode, EnvSignalFxP, EnvType};
 /// TODO:  Determine formula for converting to a precise rise/fall time
 #[derive(Clone)]
 pub struct EnvParams<T: DspFormatBase + detail::EnvOps> {
+    /// Attack time, in seconds (approx)
     pub attack: T::EnvParam,
+    /// Decay time, in seconds (approx)
     pub decay: T::EnvParam,
+    /// Sustain level, between 0 and 1
     pub sustain: T::Scalar,
+    /// Release time, in seconds (approx)
     pub release: T::EnvParam,
 }
 
@@ -89,6 +93,7 @@ impl<T: DspFloat> From<&EnvParams<i16>> for EnvParams<T> {
     }
 }
 
+/// An ADSR Envelope Generator
 #[derive(Clone, Default)]
 pub struct Env<T: DspFormatBase + detail::EnvOps> {
     setpoint: T::EnvSignal,

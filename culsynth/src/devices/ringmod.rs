@@ -1,16 +1,25 @@
 use super::*;
 use crate::{DspFormatBase, DspType, DspFloat};
 
+/// Input for a [RingMod].
 #[derive(Clone, Default)]
 pub struct RingModInput<T: DspFormatBase> {
+    /// The first (carrier) input signal
     pub signal_a: T::Sample,
+    /// The second (modulator) input signal
     pub signal_b: T::Sample,
 }
 
+/// Params for a [RingMod]
 #[derive(Clone, Default)]
 pub struct RingModParams<T: DspFormatBase> {
+    /// Gain of the original first (carrier) signal, to be mixed
+    /// back into the device's output.
     pub mix_a: T::Scalar,
+    /// Gain of the original second (modulator) signal, to be mixed
+    /// back into the device's output.
     pub mix_b: T::Scalar,
+    /// Gain of the modulated result to be mixed into the device's output
     pub mix_mod: T::Scalar,
 }
 
@@ -24,6 +33,13 @@ impl<T: DspFloat> From<&RingModParams<i16>> for RingModParams<T> {
     }
 }
 
+/// A Ring Modulator and Mixer
+/// 
+/// This supports ring modulation of two signals and control over the mix of
+/// both the input signals and the modulation signal in the final device output
+/// 
+/// This implements [Device], taking a [RingModInput] as input and
+/// [RingModParams] as parameters and outputting a Sample.
 #[derive(Clone, Default)]
 pub struct RingMod<T: DspFormat> {
     mixer: Mixer<T, 3>,

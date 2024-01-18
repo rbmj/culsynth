@@ -42,14 +42,20 @@ pub trait DspFormatBase: Sized + Copy + Default + Send {
     type WideSample: Copy + Default + Add<Self::WideSample, Output = Self::WideSample>;
     /// Type-specific context information
     type Context: Send + crate::context::GetContext;
+    /// Provide a value of the default note, definied as A440 (MIDI NN #69)
     fn default_note() -> Self::Note;
+    /// Convert a midi Note into a Frequency
     fn note_to_freq(note: Self::Note) -> Self::Frequency;
+    /// Convert a signed scalar to a Sample
     fn sample_from_fixed(value: crate::IScalarFxP) -> Self::Sample;
+    /// Convert a sample to a 32 bit float
     fn sample_to_float(value: Self::Sample) -> f32;
     /// Widen a sample to a WideSample
     fn widen_sample(smp: Self::Sample) -> Self::WideSample;
     /// Narrow a WideSample to a Sample
     fn narrow_sample(wide_smp: Self::WideSample) -> Self::Sample;
+    /// Convert a Scalar to a Note (where 0 maps to the lowest representable
+    /// note, and 1 maps to the highest)
     fn note_from_scalar(scalar: Self::Scalar) -> Self::Note;
 }
 
@@ -75,16 +81,31 @@ pub trait DspFloat:
 {
 }
 
+/// A trait to simplify common operations on DSP Types.  This is used to
+/// maximize the amount of code that can be agnostic to fixed and floating point
 pub trait DspType<T: DspFormatBase>:
     Copy + Default + Send + Add<Self, Output = Self> + Sub<Self, Output = Self> + PartialOrd
 {
+    /// A constant representing the value PI (3.14159...)
     const PI: Self;
+    /// A constant representing the value 2*[PI]
     const TAU: Self;
+    /// Returns zero
     fn zero() -> Self;
+    /// Returns one
     fn one() -> Self;
+    /// This function will perform a saturating addition for fixed-point types,
+    /// and a normal addition for floating-point types
+    /// 
+    /// Used for when saturation is desired to avoid overflows, not correctness
     fn dsp_saturating_add(self, rhs: Self) -> Self;
+    /// Multiply this type with itself.  This trait does not provide any
+    /// specified behavior for fixed-point overflow.
     fn multiply(self, rhs: Self) -> Self;
+    /// Divide a value by two
     fn divide_by_two(self) -> Self;
+    /// Multiply this type by a Scalar.  This will never overflow
+    /// (by definition, the result will always be smaller)
     fn scale(self, rhs: T::Scalar) -> Self;
 }
 
@@ -213,7 +234,7 @@ impl<T: Fixed16 + Send> DspType<i16> for T {
         Self::ONE_OR_MAX
     }
     fn dsp_saturating_add(self, rhs: Self) -> Self {
-        self.saturating_add(self)
+        self.saturating_add(rhs)
     }
     fn multiply(self, rhs: Self) -> Self {
         self.multiply_fixed(rhs)
