@@ -35,8 +35,6 @@ pub struct KbdPanel {
     last_note: Option<i8>,
 }
 
-
-
 impl KbdPanel {
     /// Helper function to handle keyboard input
     #[rustfmt::skip]

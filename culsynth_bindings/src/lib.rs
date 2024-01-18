@@ -339,9 +339,7 @@ pub unsafe extern "C" fn culsynth_filt_f32_process(
     let params = new_filt_param_iter()
         .with_cutoff(c.iter().copied())
         .with_resonance(r.iter().copied());
-    let ctx = Context::<f32> {
-        sample_rate: sr,
-    };
+    let ctx = Context::<f32> { sample_rate: sr };
     let out = (*p).process(&ctx, i.iter().copied(), params);
     let mut processed = 0i32;
     for (l, (b, (h, o))) in zip(low, zip(band, zip(high, out))) {
@@ -396,18 +394,9 @@ pub unsafe extern "C" fn culsynth_osc_i16_process(
         Some(x) => x,
         None => return -1,
     };
-    let note_s = core::slice::from_raw_parts(
-        note.cast::<NoteFxP>(),
-        samples as usize,
-    );
-    let shape_s = core::slice::from_raw_parts(
-        shape.cast::<ScalarFxP>(),
-        samples as usize,
-    );
-    let tune_s = core::slice::from_raw_parts(
-        tune.cast::<SignedNoteFxP>(),
-        samples as usize,
-    );
+    let note_s = core::slice::from_raw_parts(note.cast::<NoteFxP>(), samples as usize);
+    let shape_s = core::slice::from_raw_parts(shape.cast::<ScalarFxP>(), samples as usize);
+    let tune_s = core::slice::from_raw_parts(tune.cast::<SignedNoteFxP>(), samples as usize);
     let params = new_osc_param_iter()
         .with_tune(tune_s.iter().copied())
         .with_shape(shape_s.iter().copied());
@@ -469,9 +458,7 @@ pub unsafe extern "C" fn culsynth_osc_f32_process(
     let params = new_osc_param_iter()
         .with_tune(tune_s.iter().copied())
         .with_shape(shape_s.iter().copied());
-    let ctx = Context::<f32> {
-        sample_rate: sr,
-    };
+    let ctx = Context::<f32> { sample_rate: sr };
     let out = (*p).process(&ctx, note_s.iter().copied(), params);
     let mut processed = 0i32;
     for (n, (t, (q, (s, o)))) in zip(sin, zip(tri, zip(sq, zip(saw, out)))) {
