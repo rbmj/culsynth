@@ -261,7 +261,7 @@ impl CulSynthEditor {
         egui::Window::new("Settings")
             .open(&mut self.show_settings)
             .show(egui_ctx, |ui| {
-                if let Some(synth) = Self::draw_settings(ui, &self.context, &egui_ctx) {
+                if let Some(synth) = Self::draw_settings(ui, &self.context, egui_ctx) {
                     if let Err(e) = self.synth_channel.try_send(synth) {
                         nih_log!("{}", e);
                     }

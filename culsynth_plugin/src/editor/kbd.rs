@@ -30,15 +30,12 @@ fn key_to_notenum(k: egui::Key) -> Option<i8> {
 /// A keyboard panel that provides a UI to provide note events to the synth
 /// without having a MIDI controller.  It will currently draw itself as an
 /// [egui::TopBottomPanel]
+#[derive(Default)]
 pub struct KbdPanel {
     last_note: Option<i8>,
 }
 
-impl Default for KbdPanel {
-    fn default() -> Self {
-        Self { last_note: None }
-    }
-}
+
 
 impl KbdPanel {
     /// Helper function to handle keyboard input
