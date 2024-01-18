@@ -1,7 +1,7 @@
 //! This contains all the code required to generate the actual plugins using the `nih-plug`
 //! framework.  Most of GUI code is in the [editor] module.
 use culsynth::context::{Context, GenericContext};
-use culsynth::voice::{VoiceParams, modulation::ModMatrix};
+use culsynth::voice::{modulation::ModMatrix, VoiceParams};
 use nih_plug::prelude::*;
 use std::iter::repeat;
 use std::sync::atomic::Ordering::Relaxed;
@@ -214,8 +214,10 @@ impl Plugin for CulSynthPlugin {
         // JACK doesn't seem to honor max_buffer_size, so allocate more...
         let bufsz = std::cmp::max(buffer_config.max_buffer_size, 2048) as usize;
         self.parambuf = repeat(VoiceParams::<i16>::default()).take(bufsz).collect();
-        let voice_alloc: Box<dyn VoiceAllocator> =
-            Box::new(PolySynth::<f32>::new(Context::new(buffer_config.sample_rate), 16));
+        let voice_alloc: Box<dyn VoiceAllocator> = Box::new(PolySynth::<f32>::new(
+            Context::new(buffer_config.sample_rate),
+            16,
+        ));
         let ctx = voice_alloc.get_context();
         self.update_context(
             ctx,
@@ -263,7 +265,7 @@ impl Plugin for CulSynthPlugin {
         let mut matrix: Option<ModMatrix<i16>> = Some((&self.params.modmatrix).into());
         for (smpid, ch_smps) in buffer.iter_samples().enumerate() {
             let params: VoiceParams<i16> = (&*self.params).into();
-            
+
             // Process MIDI events:
             while let Some(event) = next_event {
                 if event.timing() > smpid as u32 {
@@ -277,9 +279,9 @@ impl Plugin for CulSynthPlugin {
                         voices.note_off(note, (velocity * 127f32) as u8);
                     }
                     NoteEvent::MidiCC { cc, value, .. } => {
-                        let value = (value * 127f32) as u8;
+                        let value_msb = (value * 127f32) as u8;
                         match cc {
-                            control_change::MODULATION_MSB => voices.modwheel(value),
+                            control_change::MODULATION_MSB => voices.modwheel(value_msb),
                             _ => {
                                 nih_log!("Unhandled MIDI CC {value}");
                             }
