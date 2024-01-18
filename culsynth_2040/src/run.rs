@@ -1,30 +1,18 @@
-use culsynth::context::ContextFxP;
-use culsynth::voice::{modulation::ModMatrixFxP, VoiceFxP, VoiceParamsFxP};
+use super::*;
+use culsynth::context::ContextFxP as Context;
 
-fn synth_params<'a>() -> VoiceParamsFxP<'a> {
-    todo!()
-}
+const BUFSZ: usize = 32;
 
-pub fn run(voices: &mut [&mut VoiceFxP; crate::NUM_VOICES]) -> ! {
-    const CONTEXT: ContextFxP = ContextFxP::new_480();
-    let matrix = ModMatrixFxP::default();
-    let notebuf = culsynth::devices::fixed_zerobuf::<culsynth::NoteFxP>();
-    let gatebuf = culsynth::devices::fixed_zerobuf::<culsynth::SampleFxP>();
-    let velbuf = culsynth::devices::fixed_zerobuf::<culsynth::ScalarFxP>();
-    let aftertouchbuf = culsynth::devices::fixed_zerobuf::<culsynth::ScalarFxP>();
-    let modwheelbuf = culsynth::devices::fixed_zerobuf::<culsynth::ScalarFxP>();
+pub fn run(voices: &mut [&mut Voice; NUM_VOICES]) -> ! {
+    const CONTEXT: Context = Context::new_480();
+    let matrix = ModMatrix::default();
+    let input = VoiceInput::default();
+    let ch_input = VoiceChannelInput::default();
+
+    let params = VoiceParams::default();
     loop {
         for voice in voices.iter_mut() {
-            voice.process(
-                &CONTEXT,
-                &matrix,
-                notebuf,
-                gatebuf,
-                velbuf,
-                aftertouchbuf,
-                modwheelbuf,
-                synth_params(),
-            );
+            let smp = voice.next(&CONTEXT, &matrix, &input, &ch_input, params.clone());
         }
     }
 }
