@@ -3,8 +3,8 @@
 //! selected logic form (fixed, float32, float64), etc.
 
 use culsynth::context::GenericContext;
-use culsynth::voice::{Voice, VoiceParams, VoiceInput, VoiceChannelInput};
 use culsynth::voice::modulation::ModMatrix;
+use culsynth::voice::{Voice, VoiceChannelInput, VoiceInput, VoiceParams};
 use culsynth::{IScalarFxP, NoteFxP, SampleFxP, ScalarFxP, SignedNoteFxP};
 
 /// This trait is the main abstraction for this module - the plugin may send it
@@ -37,11 +37,7 @@ pub trait VoiceAllocator: Send {
     /// a whole step.
     fn set_pitch_bend_range(&mut self, low: i8, high: i8);
     /// Get the next sample
-    fn next(
-        &mut self,
-        params: &VoiceParams<i16>,
-        matrix: Option<&ModMatrix<i16>>,
-    ) -> f32;
+    fn next(&mut self, params: &VoiceParams<i16>, matrix: Option<&ModMatrix<i16>>) -> f32;
     /// Get the process context for this voice allocator.
     fn get_context(&self) -> &dyn GenericContext;
     /// Is this Voice Allocator polyphonic?

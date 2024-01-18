@@ -197,7 +197,9 @@ impl CulSynthEditor {
             } else {
                 Some(match new_voice_mode {
                     VoiceMode::Mono => Box::new(MonoSynth::<f32>::new(Context::new(sr as f32))),
-                    VoiceMode::Poly16 => Box::new(PolySynth::<f32>::new(Context::new(sr as f32), 16)),
+                    VoiceMode::Poly16 => {
+                        Box::new(PolySynth::<f32>::new(Context::new(sr as f32), 16))
+                    }
                 })
             }
         } else {

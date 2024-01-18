@@ -36,10 +36,11 @@ impl<T: DspFormat> MonoSynth<T> {
 }
 
 impl<T: DspFormat> VoiceAllocator for MonoSynth<T>
-    where for<'a> ModMatrix<T>: From<&'a ModMatrix<i16>>,
-        for<'a> VoiceInput<T>: From<&'a VoiceInput<i16>>,
-        for<'a> VoiceChannelInput<T>: From<&'a VoiceChannelInput<i16>>,
-        for<'a> VoiceParams<T>: From<&'a VoiceParams<i16>>
+where
+    for<'a> ModMatrix<T>: From<&'a ModMatrix<i16>>,
+    for<'a> VoiceInput<T>: From<&'a VoiceInput<i16>>,
+    for<'a> VoiceChannelInput<T>: From<&'a VoiceChannelInput<i16>>,
+    for<'a> VoiceParams<T>: From<&'a VoiceParams<i16>>,
 {
     fn note_on(&mut self, note: u8, velocity: u8) {
         self.note = NoteFxP::from_num(note);
@@ -79,11 +80,7 @@ impl<T: DspFormat> VoiceAllocator for MonoSynth<T>
             fixed::types::I16F0::from_num(high),
         );
     }
-    fn next(
-        &mut self,
-        params: &VoiceParams<i16>,
-        matrix: Option<&ModMatrix<i16>>,
-    ) -> f32 {
+    fn next(&mut self, params: &VoiceParams<i16>, matrix: Option<&ModMatrix<i16>>) -> f32 {
         let ch_input = &VoiceChannelInput::<i16> {
             aftertouch: self.aftertouch,
             modwheel: self.modwheel,
@@ -96,9 +93,13 @@ impl<T: DspFormat> VoiceAllocator for MonoSynth<T>
         if let Some(matrix) = matrix {
             self.matrix = matrix.into();
         }
-        T::sample_to_float(
-            self.voice.next(&self.ctx, &self.matrix, &input.into(), &ch_input.into(), params.into())
-        )
+        T::sample_to_float(self.voice.next(
+            &self.ctx,
+            &self.matrix,
+            &input.into(),
+            &ch_input.into(),
+            params.into(),
+        ))
     }
     fn get_context(&self) -> &dyn GenericContext {
         <T::Context as culsynth::context::GetContext>::get_context(&self.ctx)

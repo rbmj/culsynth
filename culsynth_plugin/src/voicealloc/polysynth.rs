@@ -69,10 +69,11 @@ impl<T: DspFormat> PolySynth<T> {
 }
 
 impl<T: DspFormat> VoiceAllocator for PolySynth<T>
-    where for<'a> ModMatrix<T>: From<&'a ModMatrix<i16>>,
-        for<'a> VoiceInput<T>: From<&'a VoiceInput<i16>>,
-        for<'a> VoiceChannelInput<T>: From<&'a VoiceChannelInput<i16>>,
-        for<'a> VoiceParams<T>: From<&'a VoiceParams<i16>>
+where
+    for<'a> ModMatrix<T>: From<&'a ModMatrix<i16>>,
+    for<'a> VoiceInput<T>: From<&'a VoiceInput<i16>>,
+    for<'a> VoiceChannelInput<T>: From<&'a VoiceChannelInput<i16>>,
+    for<'a> VoiceParams<T>: From<&'a VoiceParams<i16>>,
 {
     fn note_on(&mut self, note: u8, velocity: u8) {
         if let Some(i) = self.inactive_voices.pop_front() {
@@ -122,11 +123,7 @@ impl<T: DspFormat> VoiceAllocator for PolySynth<T>
             fixed::types::I16F0::from_num(high),
         );
     }
-    fn next(
-        &mut self,
-        params: &VoiceParams<i16>,
-        matrix: Option<&ModMatrix<i16>>,
-    ) -> f32 {
+    fn next(&mut self, params: &VoiceParams<i16>, matrix: Option<&ModMatrix<i16>>) -> f32 {
         let mut out = 0f32;
         if let Some(matrix) = matrix {
             self.matrix = matrix.into();
@@ -141,9 +138,13 @@ impl<T: DspFormat> VoiceAllocator for PolySynth<T>
                 gate: v.gate,
                 velocity: v.vel,
             };
-            out += T::sample_to_float(
-                v.voice.next(&self.ctx, &self.matrix, &input.into(), &ch_in.into(), params.into())
-            );
+            out += T::sample_to_float(v.voice.next(
+                &self.ctx,
+                &self.matrix,
+                &input.into(),
+                &ch_in.into(),
+                params.into(),
+            ));
         }
         out
     }

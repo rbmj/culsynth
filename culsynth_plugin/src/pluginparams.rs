@@ -1,7 +1,7 @@
+use culsynth::devices::{EnvParams, LfoParams, MixOscParams, ModFiltParams, RingModParams};
 use culsynth::devices::{LfoOptions, LfoWave, SyncedMixOscsParams};
-use culsynth::devices::{MixOscParams, ModFiltParams, RingModParams, LfoParams, EnvParams};
-use culsynth::voice::VoiceParams;
 use culsynth::voice::modulation::{ModDest, ModMatrix, ModSrc};
+use culsynth::voice::VoiceParams;
 use culsynth::{EnvParamFxP, IScalarFxP, LfoFreqFxP, NoteFxP, ScalarFxP, SignedNoteFxP};
 use nih_plug::prelude::*;
 use nih_plug_egui::EguiState;
@@ -218,7 +218,6 @@ impl From<&FiltPluginParams> for ModFiltParams<i16> {
             low_mix: ScalarFxP::from_bits(value.low.smoothed.next() as u16),
             band_mix: ScalarFxP::from_bits(value.band.smoothed.next() as u16),
             high_mix: ScalarFxP::from_bits(value.high.smoothed.next() as u16),
-
         }
     }
 }
