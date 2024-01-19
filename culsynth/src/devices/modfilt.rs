@@ -58,10 +58,7 @@ impl<T: DspFormatBase> ModFiltParams<T> {
         let kbd = input.kbd.scale(self.kbd_tracking);
         let vel = T::note_from_scalar(input.vel.scale(self.vel_mod));
         let env = T::note_from_scalar(input.env.scale(self.env_mod));
-        cutoff = cutoff
-            .dsp_saturating_add(kbd)
-            .dsp_saturating_add(vel)
-            .dsp_saturating_add(env);
+        cutoff = cutoff.dsp_saturating_add(kbd).dsp_saturating_add(vel).dsp_saturating_add(env);
         FiltParams {
             cutoff,
             resonance: self.resonance,
@@ -90,9 +87,7 @@ impl<T: DspFormat> Device<T> for ModFilt<T> {
         input: ModFiltInput<T>,
         params: ModFiltParams<T>,
     ) -> T::Sample {
-        let filt_out = self
-            .filter
-            .next(context, input.signal, params.to_filt_params(&input));
+        let filt_out = self.filter.next(context, input.signal, params.to_filt_params(&input));
         self.mixer.next(
             context,
             [filt_out.low, filt_out.band, filt_out.high],

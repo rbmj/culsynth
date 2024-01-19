@@ -290,10 +290,7 @@ impl ModMatrixRowParams {
         IntParam::new(name, ModDest::Null as i32, rng)
             .non_automatable()
             .with_value_to_string(Arc::new(|x| {
-                ModDest::try_from(x as u16)
-                    .unwrap_or_default()
-                    .to_str()
-                    .to_owned()
+                ModDest::try_from(x as u16).unwrap_or_default().to_str().to_owned()
             }))
             .with_string_to_value(Arc::new(|string| {
                 ModDest::try_from(string).map(|x| x as i32).ok()

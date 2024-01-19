@@ -140,8 +140,7 @@ impl detail::FiltOps for i16 {
         use crate::fixedmath::{midi_note_to_frequency, tan_fixed, U14F2};
         let f_c = U14F2::from_num(midi_note_to_frequency(cutoff));
         let omega_d = ScalarFxP::from_num(
-            f_c.wide_mul(context.sample_rate.frac_2pi4096_sr())
-                .unwrapped_shr(13),
+            f_c.wide_mul(context.sample_rate.frac_2pi4096_sr()).unwrapped_shr(13),
         );
         tan_fixed(omega_d)
     }

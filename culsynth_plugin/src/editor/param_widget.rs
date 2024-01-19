@@ -26,9 +26,7 @@ pub fn param_slider<'a>(setter: &'a ParamSetter, param: &'a IntParam) -> egui::w
     .show_value(false)
     .suffix(param.unit())
     .custom_parser(move |s| {
-        param
-            .string_to_normalized_value(s)
-            .map(|x| range.unnormalize(x) as f64)
+        param.string_to_normalized_value(s).map(|x| range.unnormalize(x) as f64)
     })
     .custom_formatter(move |f, _| {
         param.normalized_value_to_string(range2.normalize(f as i32), false)
@@ -145,18 +143,12 @@ impl ParamWidget for LfoPluginParams {
                     }
                 });
                 ui.vertical(|ui| {
-                    if ui
-                        .selectable_label(self.retrigger.value(), "Retrigger")
-                        .clicked()
-                    {
+                    if ui.selectable_label(self.retrigger.value(), "Retrigger").clicked() {
                         setter.begin_set_parameter(&self.retrigger);
                         setter.set_parameter(&self.retrigger, !self.retrigger.value());
                         setter.end_set_parameter(&self.retrigger);
                     }
-                    if ui
-                        .selectable_label(self.bipolar.value(), "Bipolar")
-                        .clicked()
-                    {
+                    if ui.selectable_label(self.bipolar.value(), "Bipolar").clicked() {
                         setter.begin_set_parameter(&self.bipolar);
                         setter.set_parameter(&self.bipolar, !self.bipolar.value());
                         setter.end_set_parameter(&self.bipolar);

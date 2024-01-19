@@ -107,9 +107,7 @@ impl CulSynthEditor {
                     "Oscillator 2",
                 );
                 ui.separator();
-                self.params
-                    .ringmod
-                    .draw_on(ui, setter, "Mixer/Ring Modulator");
+                self.params.ringmod.draw_on(ui, setter, "Mixer/Ring Modulator");
             });
             ui.horizontal(|ui| {
                 self.params.filt.draw_on(ui, setter, "Filter");
@@ -121,9 +119,7 @@ impl CulSynthEditor {
             ui.horizontal(|ui| {
                 self.params.env_vcf.draw_on(ui, setter, "Filter Envelope");
                 ui.separator();
-                self.params
-                    .env_vca
-                    .draw_on(ui, setter, "Amplifier Envelope");
+                self.params.env_vca.draw_on(ui, setter, "Amplifier Envelope");
                 ui.separator();
                 self.params.env1.draw_on(ui, setter, "Mod Envelope 1");
                 ui.separator();
@@ -253,11 +249,12 @@ impl CulSynthEditor {
         egui::CentralPanel::default().show(egui_ctx, |ui| {
             self.draw_main_controls(setter, ui);
         });
-        egui::Window::new("Modulation Matrix")
-            .open(&mut self.show_mod_matrix)
-            .show(egui_ctx, |ui| {
+        egui::Window::new("Modulation Matrix").open(&mut self.show_mod_matrix).show(
+            egui_ctx,
+            |ui| {
                 Self::draw_modmatrix(&self.params.modmatrix, ui, setter);
-            });
+            },
+        );
         egui::Window::new("Settings")
             .open(&mut self.show_settings)
             .show(egui_ctx, |ui| {
@@ -267,10 +264,9 @@ impl CulSynthEditor {
                     }
                 }
             });
-        egui::Window::new("About")
-            .open(&mut self.show_about)
-            .collapsible(false)
-            .show(egui_ctx, |ui| {
+        egui::Window::new("About").open(&mut self.show_about).collapsible(false).show(
+            egui_ctx,
+            |ui| {
                 ui.vertical_centered(|ui| {
                     ui.label(format!("CulSynth v{}", env!("CARGO_PKG_VERSION")));
                     ui.label("Copyright 2023 Robert Blair Mason");
@@ -280,7 +276,8 @@ impl CulSynthEditor {
                         "https://github.com/rbmj/culsynth",
                     );
                 });
-            });
+            },
+        );
     }
     pub fn initialize(&mut self, egui_ctx: &egui::Context) {
         let mut fonts = egui::FontDefinitions::default();

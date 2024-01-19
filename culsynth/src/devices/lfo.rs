@@ -271,9 +271,7 @@ impl detail::LfoOps for i16 {
     }
     fn phase_per_smp(context: &ContextFxP, frequency: Self::LfoFreq) -> Self::Phase {
         PhaseFxP::from_num(
-            frequency
-                .wide_mul(context.sample_rate.frac_2pi4096_sr())
-                .unwrapped_shr(12),
+            frequency.wide_mul(context.sample_rate.frac_2pi4096_sr()).unwrapped_shr(12),
         )
     }
 }
