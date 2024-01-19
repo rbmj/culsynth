@@ -57,6 +57,8 @@ pub trait DspFormatBase: Sized + Copy + Default + Send {
     /// Convert a Scalar to a Note (where 0 maps to the lowest representable
     /// note, and 1 maps to the highest)
     fn note_from_scalar(scalar: Self::Scalar) -> Self::Note;
+    /// Apply a note offset
+    fn apply_note_offset(note: Self::Note, offset: Self::NoteOffset) -> Self::Note;
 }
 
 ///Helper trait to make constraint bounds less painful for floating point types
@@ -151,6 +153,9 @@ where
         let note_max: Self = NoteFxP::MAX.into();
         note_max * scalar
     }
+    fn apply_note_offset(note: Self::Note, offset: Self::NoteOffset) -> Self::Note {
+        note + offset
+    }
 }
 
 impl DspFloat for f32 {}
@@ -222,6 +227,9 @@ impl DspFormatBase for i16 {
     fn note_from_scalar(scalar: ScalarFxP) -> NoteFxP {
         NoteFxP::from_bits(scalar.to_bits())
     }
+    fn apply_note_offset(note: NoteFxP, offset: SignedNoteFxP) -> NoteFxP {
+        note.saturating_add_signed(offset)
+    }
 }
 
 impl<T: Fixed16 + Send> DspType<i16> for T {
@@ -245,6 +253,7 @@ impl<T: Fixed16 + Send> DspType<i16> for T {
     fn scale(self, rhs: ScalarFxP) -> Self {
         self.scale_fixed(rhs)
     }
+    
 }
 
 impl DspType<i16> for FrequencyFxP {

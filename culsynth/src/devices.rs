@@ -16,7 +16,7 @@ pub(crate) mod ringmod;
 mod iter;
 
 use crate::context::{Context, ContextFxP};
-use crate::{fixedmath, EnvParamFxP, NoteFxP, SampleFxP, ScalarFxP, SignedNoteFxP};
+use crate::{fixedmath, EnvParamFxP, NoteFxP, SampleFxP, ScalarFxP};
 
 /// A DSP Device
 ///

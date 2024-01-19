@@ -10,7 +10,7 @@ const RANDOM_SEED: u64 = 0xce607a9d25ec3d88u64; //random 64 bit integer
 pub(crate) mod detail {
     use super::*;
 
-    pub trait LfoOps: crate::DspFormatBase + crate::devices::osc::detail::OscOps {
+    pub trait LfoOps: crate::DspFormatBase {
         fn phase_per_smp(context: &Self::Context, frequency: Self::LfoFreq) -> Self::Phase;
         fn calc_lfo(
             phase: Self::Phase,
@@ -194,11 +194,6 @@ impl<T: DspFormat> Device<T> for Lfo<T> {
     type Params = LfoParams<T>;
     type Output = T::Sample;
     /// Generate the LFO signal
-    ///
-    /// Note: The output slice from this function may be shorter than the
-    /// input slices.  Callers must check the number of returned samples and
-    /// copy them into their own output buffers before calling this function
-    /// again to process the remainder of the data.
     fn next(&mut self, context: &T::Context, gate: T::Sample, params: LfoParams<T>) -> T::Sample {
         let this_gate = gate > T::GATE_THRESHOLD;
         if params.opts.retrigger() && this_gate && !self.last_gate {
