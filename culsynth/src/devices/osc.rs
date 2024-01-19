@@ -103,14 +103,8 @@ impl<T: DspFormat> Osc<T> {
     ) -> (OscOutput<T>, T::Scalar) {
         let freq = T::note_to_freq(T::apply_note_offset(note, params.tune));
         let out = T::calc_waveforms(self.phase);
-        (self.phase, sync_val) = T::advance_phase(
-            context,
-            freq,
-            self.phase,
-            params.shape,
-            sync_val,
-            sync_mode,
-        );
+        (self.phase, sync_val) =
+            T::advance_phase(context, freq, self.phase, params.shape, sync_val, sync_mode);
         (out, sync_val)
     }
 }

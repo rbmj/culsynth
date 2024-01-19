@@ -101,10 +101,7 @@ impl<
 {
     type Item = D::Output;
     fn next(&mut self) -> Option<D::Output> {
-        Some(
-            self.dev
-                .next(self.ctx, self.input.next()?, self.params.next()?),
-        )
+        Some(self.dev.next(self.ctx, self.input.next()?, self.params.next()?))
     }
 }
 

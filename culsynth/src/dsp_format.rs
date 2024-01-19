@@ -253,7 +253,6 @@ impl<T: Fixed16 + Send> DspType<i16> for T {
     fn scale(self, rhs: ScalarFxP) -> Self {
         self.scale_fixed(rhs)
     }
-    
 }
 
 impl DspType<i16> for FrequencyFxP {
