@@ -362,6 +362,8 @@ impl detail::OscOps for i16 {
         mut sync: ScalarFxP,
         sync_mode: osc::OscSync,
     ) -> (PhaseFxP, ScalarFxP) {
+        // perform shape clipping:
+        let shape = ShapeFxP::new(shape);
         use fixedmath::{one_over_one_plus_highacc, scale_fixedfloat};
         // we need to divide by 2^12 here, but we're increasing the fractional part by 10
         // bits so we'll only actually shift by 2 places and then use a bitcast for the
@@ -377,7 +379,7 @@ impl detail::OscOps for i16 {
         }
         // Adjust phase per sample for the shape parameter:
         let phase_per_smp_adj = PhaseFxP::from_num(if phase < PhaseFxP::ZERO {
-            let (x, s) = one_over_one_plus_highacc(clip_shape(shape));
+            let (x, s) = one_over_one_plus_highacc(*shape);
             fixedmath::scale_fixedfloat(phase_per_sample, x).unwrapped_shr(s)
         } else {
             fixedmath::scale_fixedfloat(phase_per_sample, one_over_one_minus_x(shape))
@@ -422,7 +424,7 @@ impl detail::OscOps for i16 {
             }
         }
         // check if we've crossed from negative to positive phase
-        if old_phase < PhaseFxP::ZERO && phase > PhaseFxP::ZERO && shape != ScalarFxP::ZERO {
+        if old_phase < PhaseFxP::ZERO && phase > PhaseFxP::ZERO && *shape != ScalarFxP::ZERO {
             // need to multiply residual phase i.e. (phase - 0) by (1+k)/(1-k)
             // where k is the shape, so no work required if shape is 0
             let scaled = scale_fixedfloat(
@@ -430,25 +432,25 @@ impl detail::OscOps for i16 {
                 one_over_one_minus_x(shape),
             );
             let one_plus_shape =
-                fixedmath::U1F15::from_num(clip_shape(shape)) + fixedmath::U1F15::ONE;
+                fixedmath::U1F15::from_num(*shape) + fixedmath::U1F15::ONE;
             phase = PhaseFxP::from_num(scale_fixedfloat(scaled, one_plus_shape));
         }
         // Check if we've crossed from positive phase back to negative:
         if phase >= PhaseFxP::PI {
             // if we're a symmetric wave this is as simple as just subtract 2pi
-            if shape == ScalarFxP::ZERO {
+            if *shape == ScalarFxP::ZERO {
                 phase -= PhaseFxP::TAU;
             } else {
                 // if assymmetric we have to multiply residual phase i.e. phase - pi
                 // by (1-k)/(1+k) where k is the shape:
-                let one_minus_shape = (ScalarFxP::MAX - clip_shape(shape)) + ScalarFxP::DELTA;
+                let one_minus_shape = (ScalarFxP::MAX - *shape) + ScalarFxP::DELTA;
                 // scaled = residual_phase * (1-k)
                 let scaled = scale_fixedfloat(
                     fixedmath::U4F28::from_num(phase - PhaseFxP::PI),
                     one_minus_shape,
                 );
                 // new change in phase = scaled * 1/(1 + k)
-                let (x, s) = one_over_one_plus_highacc(clip_shape(shape));
+                let (x, s) = one_over_one_plus_highacc(*shape);
                 let delta = scale_fixedfloat(scaled, x).unwrapped_shr(s);
                 // add new change in phase to our baseline, -pi:
                 phase = PhaseFxP::from_num(delta) - PhaseFxP::PI;
@@ -458,9 +460,30 @@ impl detail::OscOps for i16 {
     }
 }
 
-fn clip_shape(x: ScalarFxP) -> ScalarFxP {
+// Newtype around ScalarFxP with the invariant that clip_shape() was called
+#[derive(Default, Clone, Copy)]
+struct ShapeFxP(ScalarFxP);
+
+impl ShapeFxP {
+    pub const fn new(value: ScalarFxP) -> Self {
+        Self(clip_shape(value))
+    }
+    pub const fn value(self) -> ScalarFxP {
+        self.0
+    }
+}
+
+impl core::ops::Deref for ShapeFxP {
+    type Target = ScalarFxP;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+const fn clip_shape(x: ScalarFxP) -> ScalarFxP {
     const CLIP_MAX: ScalarFxP = ScalarFxP::lit("0x0.F");
-    if x > CLIP_MAX {
+    // equivalent to x > CLIP_MAX, but callable in const context
+    if CLIP_MAX.checked_sub(x).is_none() {
         CLIP_MAX
     } else {
         x
@@ -542,12 +565,12 @@ fn inverse(x: ScalarFxP) -> crate::fixedmath::U8F8 {
     LOOKUP_TABLE[(x.to_bits() >> 8) as usize]
 }
 
-fn one_over_one_minus_x(x: ScalarFxP) -> crate::fixedmath::USample {
+fn one_over_one_minus_x(x: ShapeFxP) -> crate::fixedmath::USample {
     // For brevity in defining the lookup table:
     const fn lit(x: &str) -> crate::fixedmath::USample {
         crate::fixedmath::USample::lit(x)
     }
-    let x_bits = clip_shape(x).to_bits();
+    let x_bits = x.value().to_bits();
     // Table generated with python:
     //
     // table = [1/(1-(x/256.0)) for x in range(0,256)][:0xF1]
