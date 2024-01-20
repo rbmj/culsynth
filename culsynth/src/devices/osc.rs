@@ -98,14 +98,13 @@ impl<T: DspFormat> Osc<T> {
         context: &T::Context,
         note: T::Note,
         params: OscParams<T>,
-        mut sync_val: T::Scalar,
-        sync_mode: detail::OscSync,
-    ) -> (OscOutput<T>, T::Scalar) {
+        mut sync: OscSync<T>,
+    ) -> (OscOutput<T>, OscSync<T>) {
         let freq = T::note_to_freq(T::apply_note_offset(note, params.tune));
         let out = T::calc_waveforms(self.phase);
-        (self.phase, sync_val) =
-            T::advance_phase(context, freq, self.phase, params.shape, sync_val, sync_mode);
-        (out, sync_val)
+        (self.phase, sync) =
+            T::advance_phase(context, freq, self.phase, params.shape, sync);
+        (out, sync)
     }
 }
 
@@ -118,8 +117,7 @@ impl<T: DspFormat> Device<T> for Osc<T> {
             context,
             note,
             params,
-            T::Scalar::zero(),
-            detail::OscSync::Off,
+            OscSync::Off,
         );
         out
     }
@@ -154,20 +152,19 @@ impl<T: DspFormat> Device<T> for SyncedOscs<T> {
         note: T::Note,
         params: SyncedOscsParams<T>,
     ) -> Self::Output {
-        let sync_val = if params.sync {
-            T::Scalar::one()
+        let sync = if params.sync {
+            OscSync::<T>::Primary
         } else {
-            T::Scalar::zero()
+            OscSync::<T>::Off
         };
-        let (pri_out, sync_val) =
+        let (pri_out, sync) =
             self.primary
-                .next_with_sync(context, note, params.primary, sync_val, OscSync::Primary);
+                .next_with_sync(context, note, params.primary, sync);
         let (sec_out, _) = self.secondary.next_with_sync(
             context,
             note,
             params.secondary,
-            sync_val,
-            OscSync::Secondary,
+            sync
         );
         SyncedOscsOutput {
             primary: pri_out,
@@ -180,13 +177,14 @@ pub(crate) mod detail {
     use super::*;
 
     #[derive(PartialEq, Clone, Copy)]
-    pub enum OscSync {
+    pub enum OscSync<T: DspFormatBase> {
         /// No sync behavior - do not calculate
         Off,
-        /// This is the master oscillator
+        /// This is the primary oscillator, and sync is enabled
         Primary,
-        /// This is the slave oscillator
-        Secondary,
+        /// This is the secondary oscillator, sync is enabled, and the master
+        /// completed a full phase at some portion through this sample
+        Secondary(T::Scalar),
     }
 
     pub trait OscOps: crate::DspFormatBase {
@@ -196,9 +194,8 @@ pub(crate) mod detail {
             freq: Self::Frequency,
             phase: Self::Phase,
             shape: Self::Scalar,
-            sync: Self::Scalar,
-            sync_mode: OscSync,
-        ) -> (Self::Phase, Self::Scalar);
+            sync: OscSync<Self>,
+        ) -> (Self::Phase, OscSync<Self>);
         fn calc_waveforms(phase: Self::Phase) -> OscOutput<Self>;
     }
 }
@@ -248,17 +245,17 @@ impl<T: DspFloat> detail::OscOps for T {
         freq: Self::Frequency,
         mut phase: Self::Phase,
         shape: Self::Scalar,
-        mut sync: Self::Scalar,
-        sync_mode: osc::OscSync,
-    ) -> (Self::Phase, Self::Scalar) {
+        sync: OscSync<T>,
+    ) -> (Self::Phase, OscSync<T>) {
         let phase_per_sample = freq * T::TAU / ctx.sample_rate;
+        let mut sync_out = osc::OscSync::<T>::Off;
         let shp = if shape < T::SHAPE_CLIP {
             shape
         } else {
             T::SHAPE_CLIP
         };
         // Handle slave oscillator resetting phase if master crosses:
-        if sync_mode == OscSync::Secondary && sync != T::ZERO {
+        if let OscSync::Secondary(_) = sync {
             phase = T::ZERO;
         }
         let phase_per_smp_adj = if phase < T::ZERO {
@@ -267,26 +264,19 @@ impl<T: DspFloat> detail::OscOps for T {
             phase_per_sample * (T::ONE / (T::ONE - shp))
         };
         let old_phase = phase;
-        match sync_mode {
+        match sync {
             OscSync::Off => {
                 phase = phase + phase_per_smp_adj;
             }
             OscSync::Primary => {
                 phase = phase + phase_per_smp_adj;
                 // calculate what time in this sampling period the phase crossed zero:
-                sync = if sync != T::ZERO && old_phase < T::ZERO && phase >= T::ZERO {
-                    T::ONE - (phase / phase_per_smp_adj)
-                } else {
-                    T::ZERO
-                };
+                if old_phase < T::ZERO && phase >= T::ZERO {
+                    sync_out = OscSync::Secondary(phase / phase_per_smp_adj);
+                }
             }
-            OscSync::Secondary => {
-                phase = phase
-                    + if sync != T::ZERO {
-                        phase_per_smp_adj * (T::ONE - sync)
-                    } else {
-                        phase_per_smp_adj
-                    };
+            OscSync::Secondary(primary_xpt) => {
+                phase = phase + (phase_per_smp_adj * primary_xpt);
             }
         }
         // make sure we calculate the correct new phase on transitions for assymmetric waves:
@@ -309,7 +299,7 @@ impl<T: DspFloat> detail::OscOps for T {
                 phase = delta - T::PI;
             }
         }
-        (phase, sync)
+        (phase, sync_out)
     }
 }
 
@@ -359,68 +349,51 @@ impl detail::OscOps for i16 {
         freq: FrequencyFxP,
         mut phase: PhaseFxP,
         shape: ScalarFxP,
-        mut sync: ScalarFxP,
-        sync_mode: osc::OscSync,
-    ) -> (PhaseFxP, ScalarFxP) {
+        sync: OscSync<i16>,
+    ) -> (PhaseFxP, OscSync<i16>) {
         // perform shape clipping:
         let shape = ShapeFxP::new(shape);
-        use fixedmath::{one_over_one_plus_highacc, scale_fixedfloat};
+        let mut sync_out = OscSync::<i16>::Off;
+        use fixedmath::{one_over_one_plus_highacc, scale_fixedfloat, U4F28, U1F15, U3F13};
         // we need to divide by 2^12 here, but we're increasing the fractional part by 10
         // bits so we'll only actually shift by 2 places and then use a bitcast for the
         // remaining logical 10 bits:
-        let phase_per_sample = fixedmath::U4F28::from_bits(
+        let phase_per_sample = U4F28::from_bits(
             scale_fixedfloat(freq, ctx.sample_rate.frac_2pi4096_sr())
                 .unwrapped_shr(2)
                 .to_bits(),
         );
         // Handle slave oscillator resetting phase if master crosses:
-        if sync_mode == OscSync::Secondary && sync != ScalarFxP::ZERO {
+        if let OscSync::Secondary(_) = sync {
             phase = PhaseFxP::ZERO;
         }
         // Adjust phase per sample for the shape parameter:
         let phase_per_smp_adj = PhaseFxP::from_num(if phase < PhaseFxP::ZERO {
             let (x, s) = one_over_one_plus_highacc(*shape);
-            fixedmath::scale_fixedfloat(phase_per_sample, x).unwrapped_shr(s)
+            scale_fixedfloat(phase_per_sample, x).unwrapped_shr(s)
         } else {
-            fixedmath::scale_fixedfloat(phase_per_sample, one_over_one_minus_x(shape))
+            scale_fixedfloat(phase_per_sample, one_over_one_minus_x(shape))
         });
         // Advance the oscillator's phase, and handle oscillator sync logic:
         let old_phase = phase;
-        match sync_mode {
+        match sync {
             OscSync::Off => {
                 phase += phase_per_smp_adj;
             }
             OscSync::Primary => {
                 phase += phase_per_smp_adj;
                 // calculate what time in this sampling period the phase crossed zero:
-                sync = if sync != ScalarFxP::ZERO
-                    && old_phase < PhaseFxP::ZERO
-                    && phase >= PhaseFxP::ZERO
-                {
+                if old_phase < PhaseFxP::ZERO && phase >= PhaseFxP::ZERO {
                     // we need to calculate 1 - (phase / phase_per_sample_adj)
                     let adj_s = ScalarFxP::from_num(phase_per_smp_adj.unwrapped_shr(2));
-                    let x = fixedmath::U3F13::from_num(phase).wide_mul(inverse(adj_s));
+                    let x = U3F13::from_num(phase).wide_mul(inverse(adj_s));
                     let proportion = ScalarFxP::saturating_from_num(x.unwrapped_shr(2));
-                    if proportion == ScalarFxP::MAX {
-                        ScalarFxP::DELTA
-                    } else {
-                        ScalarFxP::MAX - proportion
-                    }
-                } else {
-                    ScalarFxP::ZERO
+                    sync_out = OscSync::Secondary(proportion);
                 }
             }
-            OscSync::Secondary => {
-                phase += if sync != ScalarFxP::ZERO {
-                    // Only advance phase for the portion of time after master crossed zero:
-                    let scale = ScalarFxP::MAX - sync;
-                    PhaseFxP::from_num(scale_fixedfloat(
-                        fixedmath::U4F28::from_num(phase_per_smp_adj),
-                        scale,
-                    ))
-                } else {
-                    phase_per_smp_adj
-                }
+            OscSync::Secondary(primary_xpt) => {
+                let per_smp = phase_per_smp_adj.unsigned_abs();
+                phase = phase.add_unsigned(scale_fixedfloat(per_smp, primary_xpt));
             }
         }
         // check if we've crossed from negative to positive phase
@@ -428,11 +401,10 @@ impl detail::OscOps for i16 {
             // need to multiply residual phase i.e. (phase - 0) by (1+k)/(1-k)
             // where k is the shape, so no work required if shape is 0
             let scaled = scale_fixedfloat(
-                fixedmath::U4F28::from_num(phase),
+                phase.unsigned_abs(),
                 one_over_one_minus_x(shape),
             );
-            let one_plus_shape =
-                fixedmath::U1F15::from_num(*shape) + fixedmath::U1F15::ONE;
+            let one_plus_shape = U1F15::from_num(*shape) + U1F15::ONE;
             phase = PhaseFxP::from_num(scale_fixedfloat(scaled, one_plus_shape));
         }
         // Check if we've crossed from positive phase back to negative:
@@ -446,17 +418,17 @@ impl detail::OscOps for i16 {
                 let one_minus_shape = (ScalarFxP::MAX - *shape) + ScalarFxP::DELTA;
                 // scaled = residual_phase * (1-k)
                 let scaled = scale_fixedfloat(
-                    fixedmath::U4F28::from_num(phase - PhaseFxP::PI),
+                    phase.unsigned_dist(PhaseFxP::PI),
                     one_minus_shape,
                 );
                 // new change in phase = scaled * 1/(1 + k)
                 let (x, s) = one_over_one_plus_highacc(*shape);
                 let delta = scale_fixedfloat(scaled, x).unwrapped_shr(s);
                 // add new change in phase to our baseline, -pi:
-                phase = PhaseFxP::from_num(delta) - PhaseFxP::PI;
+                phase = (-PhaseFxP::PI).add_unsigned(delta);
             }
         }
-        (phase, sync)
+        (phase, sync_out)
     }
 }
 
