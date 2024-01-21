@@ -57,7 +57,7 @@ use detail::{EnvMode, EnvSignalFxP, EnvType};
 ///
 /// TODO:  Determine formula for converting to a precise rise/fall time
 #[derive(Clone)]
-pub struct EnvParams<T: DspFormatBase + detail::EnvOps> {
+pub struct EnvParams<T: DspFormatBase> {
     /// Attack time, in seconds (approx)
     pub attack: T::EnvParam,
     /// Decay time, in seconds (approx)

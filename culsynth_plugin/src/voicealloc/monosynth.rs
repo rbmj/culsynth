@@ -90,12 +90,16 @@ where
             gate: self.gate,
             velocity: self.velocity,
         };
-        if let Some(matrix) = matrix {
+        // Handle matrix conversion, if required
+        let matrix_param = if let Some(matrix) = matrix {
             self.matrix = matrix.into();
-        }
+            Some(&self.matrix)
+        } else {
+            None
+        };
         T::sample_to_float(self.voice.next(
             &self.ctx,
-            &self.matrix,
+            matrix_param,
             &input.into(),
             &ch_input.into(),
             params.into(),

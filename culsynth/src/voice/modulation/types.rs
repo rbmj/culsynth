@@ -1,8 +1,9 @@
 /// An enum representing a choice in modulation source
 #[repr(u16)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub enum ModSrc {
     /// MIDI Note On velocity
+    #[default]
     Velocity,
     /// MIDI Channel aftertouch
     Aftertouch,
@@ -217,6 +218,10 @@ impl ModDest {
     /// The last modulation destination, in order
     pub const fn max() -> Self {
         Self::Env2R
+    }
+    /// The number of modulation destinations
+    pub const fn numel() -> usize {
+        Self::max() as usize + 1
     }
     /// The last modulation destination before the secondary destinations
     ///

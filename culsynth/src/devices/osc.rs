@@ -102,8 +102,7 @@ impl<T: DspFormat> Osc<T> {
     ) -> (OscOutput<T>, OscSync<T>) {
         let freq = T::note_to_freq(T::apply_note_offset(note, params.tune));
         let out = T::calc_waveforms(self.phase);
-        (self.phase, sync) =
-            T::advance_phase(context, freq, self.phase, params.shape, sync);
+        (self.phase, sync) = T::advance_phase(context, freq, self.phase, params.shape, sync);
         (out, sync)
     }
 }
@@ -113,12 +112,7 @@ impl<T: DspFormat> Device<T> for Osc<T> {
     type Params = OscParams<T>;
     type Output = OscOutput<T>;
     fn next(&mut self, context: &T::Context, note: T::Note, params: OscParams<T>) -> Self::Output {
-        let (out, _) = self.next_with_sync(
-            context,
-            note,
-            params,
-            OscSync::Off,
-        );
+        let (out, _) = self.next_with_sync(context, note, params, OscSync::Off);
         out
     }
 }
@@ -157,15 +151,8 @@ impl<T: DspFormat> Device<T> for SyncedOscs<T> {
         } else {
             OscSync::<T>::Off
         };
-        let (pri_out, sync) =
-            self.primary
-                .next_with_sync(context, note, params.primary, sync);
-        let (sec_out, _) = self.secondary.next_with_sync(
-            context,
-            note,
-            params.secondary,
-            sync
-        );
+        let (pri_out, sync) = self.primary.next_with_sync(context, note, params.primary, sync);
+        let (sec_out, _) = self.secondary.next_with_sync(context, note, params.secondary, sync);
         SyncedOscsOutput {
             primary: pri_out,
             secondary: sec_out,
@@ -354,7 +341,7 @@ impl detail::OscOps for i16 {
         // perform shape clipping:
         let shape = ShapeFxP::new(shape);
         let mut sync_out = OscSync::<i16>::Off;
-        use fixedmath::{one_over_one_plus_highacc, scale_fixedfloat, U4F28, U1F15, U3F13};
+        use fixedmath::{one_over_one_plus_highacc, scale_fixedfloat, U1F15, U3F13, U4F28};
         // we need to divide by 2^12 here, but we're increasing the fractional part by 10
         // bits so we'll only actually shift by 2 places and then use a bitcast for the
         // remaining logical 10 bits:
@@ -400,10 +387,7 @@ impl detail::OscOps for i16 {
         if old_phase < PhaseFxP::ZERO && phase > PhaseFxP::ZERO && *shape != ScalarFxP::ZERO {
             // need to multiply residual phase i.e. (phase - 0) by (1+k)/(1-k)
             // where k is the shape, so no work required if shape is 0
-            let scaled = scale_fixedfloat(
-                phase.unsigned_abs(),
-                one_over_one_minus_x(shape),
-            );
+            let scaled = scale_fixedfloat(phase.unsigned_abs(), one_over_one_minus_x(shape));
             let one_plus_shape = U1F15::from_num(*shape) + U1F15::ONE;
             phase = PhaseFxP::from_num(scale_fixedfloat(scaled, one_plus_shape));
         }
@@ -417,10 +401,7 @@ impl detail::OscOps for i16 {
                 // by (1-k)/(1+k) where k is the shape:
                 let one_minus_shape = (ScalarFxP::MAX - *shape) + ScalarFxP::DELTA;
                 // scaled = residual_phase * (1-k)
-                let scaled = scale_fixedfloat(
-                    phase.unsigned_dist(PhaseFxP::PI),
-                    one_minus_shape,
-                );
+                let scaled = scale_fixedfloat(phase.unsigned_dist(PhaseFxP::PI), one_minus_shape);
                 // new change in phase = scaled * 1/(1 + k)
                 let (x, s) = one_over_one_plus_highacc(*shape);
                 let delta = scale_fixedfloat(scaled, x).unwrapped_shr(s);

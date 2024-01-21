@@ -129,25 +129,16 @@ impl<T: DspFormat> Voice<T> {
             ..Default::default()
         }
     }
-    /// Process the note/gate inputs, passing the parameters to the relevant
-    /// components of the voice unit, and return a reference to an internal
-    /// buffer containing the output sample data.
-    ///
-    /// The syncbuf should be set non-zero for any sample where oscillator sync
-    /// is enabled, or zero if sync is disabled.  This function will clobber the
-    /// `sync` buffer unless it is zero for all samples.
-    ///
-    /// `osc1_p.sync` and `osc2_p.sync` may be set to `OscSync::Off`, and this
-    /// will internally set osc1 to be the master and osc2 to be the slave.
-    ///
-    /// Note: The output slice from this function may be shorter than the
-    /// input slices.  Callers must check the number of returned samples and
-    /// copy them into their own output buffers before calling this function
-    /// again to process the remainder of the data.
+    /// Get the next sample from this voice.
+    /// 
+    /// If matrix is not `None`, this will update the internal modulation
+    /// matrix - otherwise, this will reuse the last modulation matrix.  It
+    /// is more efficient to set this to None than to pass the same
+    /// mod matrix twice in a row.
     pub fn next(
         &mut self,
         ctx: &T::Context,
-        matrix: &ModMatrix<T>,
+        matrix: Option<&ModMatrix<T>>,
         input: &VoiceInput<T>,
         ch_input: &VoiceChannelInput<T>,
         mut params: VoiceParams<T>,

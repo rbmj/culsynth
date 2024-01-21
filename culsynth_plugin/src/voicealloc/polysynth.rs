@@ -125,9 +125,13 @@ where
     }
     fn next(&mut self, params: &VoiceParams<i16>, matrix: Option<&ModMatrix<i16>>) -> f32 {
         let mut out = 0f32;
-        if let Some(matrix) = matrix {
+        // Handle matrix conversion into a different format, if required
+        let matrix_param = if let Some(matrix) = matrix {
             self.matrix = matrix.into();
-        }
+            Some(&self.matrix)
+        } else {
+            None
+        };
         let ch_in = &VoiceChannelInput::<i16> {
             aftertouch: self.aftertouch,
             modwheel: self.modwheel,
@@ -140,7 +144,7 @@ where
             };
             out += T::sample_to_float(v.voice.next(
                 &self.ctx,
-                &self.matrix,
+                matrix_param,
                 &input.into(),
                 &ch_in.into(),
                 params.into(),
