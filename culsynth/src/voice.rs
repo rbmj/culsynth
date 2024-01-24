@@ -57,17 +57,17 @@ impl From<&VoiceParams<i16>> for VoiceParams<i16> {
 pub struct VoiceInput<T: DspFormat> {
     /// The note itself, as a MIDI note number
     pub note: T::Note,
-    /// The gate signal, as a Sample
-    pub gate: T::Sample,
     /// The velocity this note was played with
     pub velocity: T::Scalar,
+    /// The gate signal
+    pub gate: bool,
 }
 
 impl<T: DspFloat> From<&VoiceInput<i16>> for VoiceInput<T> {
     fn from(value: &VoiceInput<i16>) -> Self {
         Self {
             note: value.note.to_num(),
-            gate: value.gate.to_num(),
+            gate: value.gate,
             velocity: value.velocity.to_num(),
         }
     }
@@ -130,7 +130,7 @@ impl<T: DspFormat> Voice<T> {
         }
     }
     /// Get the next sample from this voice.
-    /// 
+    ///
     /// If matrix is not `None`, this will update the internal modulation
     /// matrix - otherwise, this will reuse the last modulation matrix.  It
     /// is more efficient to set this to None than to pass the same

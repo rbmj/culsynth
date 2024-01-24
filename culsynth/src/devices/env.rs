@@ -35,7 +35,6 @@ pub(crate) mod detail {
         const SIGNAL_MIN: Self::EnvSignal;
         const SIGNAL_MAX: Self::EnvSignal;
         const ATTACK_THRESHOLD: Self::EnvSignal;
-        const GATE_THRESHOLD: Self::Sample;
         const ADR_DEFAULT: Self::EnvParam;
         fn calc_env(
             context: &Self::Context,
@@ -99,12 +98,12 @@ pub struct Env<T: DspFormatBase + detail::EnvOps> {
 }
 
 impl<T: DspFormat> Device<T> for Env<T> {
-    type Input = T::Sample;
+    type Input = bool;
     type Params = EnvParams<T>;
     type Output = T::Scalar;
-    fn next(&mut self, context: &T::Context, gate: T::Sample, params: EnvParams<T>) -> T::Scalar {
+    fn next(&mut self, context: &T::Context, gate: bool, params: EnvParams<T>) -> T::Scalar {
         let setpoint_old = self.setpoint;
-        if gate <= T::GATE_THRESHOLD {
+        if !gate {
             self.mode = EnvMode::Release;
             self.setpoint = T::SIGNAL_MIN;
         } else if self.mode == EnvMode::Release {
@@ -132,7 +131,6 @@ impl<T: DspFloat> detail::EnvOps for T {
     const SIGNAL_MIN: T = T::ZERO;
     const SIGNAL_MAX: T = T::ONE;
     const ATTACK_THRESHOLD: T = T::POINT_NINE_EIGHT;
-    const GATE_THRESHOLD: T = T::ONE_HALF;
     const ADR_DEFAULT: T = T::POINT_ONE;
     fn calc_env(context: &Context<T>, setpoint: T, setpoint_old: T, last: T, rise_time: T) -> T {
         // This is equivalen to saying rise time = 4 time constants...
@@ -144,7 +142,6 @@ impl<T: DspFloat> detail::EnvOps for T {
 }
 
 impl detail::EnvOps for i16 {
-    const GATE_THRESHOLD: SampleFxP = SampleFxP::lit("0.5");
     const ATTACK_THRESHOLD: EnvSignalFxP = EnvSignalFxP::lit("0.98");
     const SIGNAL_MAX: EnvSignalFxP = EnvSignalFxP::lit("0x0.FFFC");
     const SIGNAL_MIN: EnvSignalFxP = EnvSignalFxP::lit("0x0.0004");

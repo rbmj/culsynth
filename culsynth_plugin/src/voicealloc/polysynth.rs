@@ -7,9 +7,9 @@ use rand::random;
 
 struct PolySynthVoice<T: DspFormat> {
     voice: Voice<T>,
-    gate: SampleFxP,
     vel: ScalarFxP,
     note: NoteFxP,
+    gate: bool,
 }
 
 impl<T: DspFormat> PolySynthVoice<T> {
@@ -17,7 +17,7 @@ impl<T: DspFormat> PolySynthVoice<T> {
         Self {
             voice: Voice::new_with_seeds(random(), random()),
             note: NoteFxP::from_num(69), //A440
-            gate: SampleFxP::ZERO,
+            gate: false,
             vel: ScalarFxP::ZERO,
         }
     }
@@ -64,7 +64,7 @@ impl<T: DspFormat> PolySynth<T> {
         let voice = &mut self.voices[voice_index];
         voice.note = NoteFxP::from_num(note);
         voice.vel = ScalarFxP::from_bits((vel as u16) << 9);
-        voice.gate = SampleFxP::ONE;
+        voice.gate = true;
     }
 }
 
@@ -92,7 +92,7 @@ where
             .find(|(_, idx)| self.voices[**idx].note == note)
         {
             self.inactive_voices.push_back(*vox_idx);
-            self.voices[*vox_idx].gate = SampleFxP::ZERO;
+            self.voices[*vox_idx].gate = false;
             self.active_voices.remove(act_idx);
         }
     }

@@ -5,7 +5,7 @@
 use culsynth::context::GenericContext;
 use culsynth::voice::modulation::ModMatrix;
 use culsynth::voice::{Voice, VoiceChannelInput, VoiceInput, VoiceParams};
-use culsynth::{IScalarFxP, NoteFxP, SampleFxP, ScalarFxP, SignedNoteFxP};
+use culsynth::{IScalarFxP, NoteFxP, ScalarFxP, SignedNoteFxP};
 
 /// This trait is the main abstraction for this module - the plugin may send it
 /// note on/off events and it will assign those events to voices, stealing if

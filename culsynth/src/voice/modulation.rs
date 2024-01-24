@@ -194,7 +194,7 @@ impl<T: DspFormat> ModSection<T> {
     pub fn next<'a>(
         &'a mut self,
         context: &T::Context,
-        gate: T::Sample,
+        gate: bool,
         mut params: ModSectionParams<T>,
         entries: Option<&ModMatrix<T>>,
     ) -> Modulator<'a, T> {

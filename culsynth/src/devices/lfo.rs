@@ -190,16 +190,15 @@ impl<T: DspFormatBase + detail::LfoOps> Lfo<T> {
 }
 
 impl<T: DspFormat> Device<T> for Lfo<T> {
-    type Input = T::Sample;
+    type Input = bool;
     type Params = LfoParams<T>;
     type Output = T::Sample;
     /// Generate the LFO signal
-    fn next(&mut self, context: &T::Context, gate: T::Sample, params: LfoParams<T>) -> T::Sample {
-        let this_gate = gate > T::GATE_THRESHOLD;
-        if params.opts.retrigger() && this_gate && !self.last_gate {
+    fn next(&mut self, context: &T::Context, gate: bool, params: LfoParams<T>) -> T::Sample {
+        if params.opts.retrigger() && gate && !self.last_gate {
             self.phase = T::Phase::zero();
         }
-        self.last_gate = this_gate;
+        self.last_gate = gate;
         let mut value = T::calc_lfo(
             self.phase,
             params.opts.wave().unwrap_or_default(),

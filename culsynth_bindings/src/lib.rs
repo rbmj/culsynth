@@ -144,7 +144,7 @@ pub unsafe extern "C" fn culsynth_env_i16_process(
     p: *mut Env<i16>,
     sr: u32,
     samples: u32,
-    gate: *const i16,
+    gate: *const bool,
     attack: *const u16,
     decay: *const u16,
     sustain: *const u16,
@@ -165,7 +165,7 @@ pub unsafe extern "C" fn culsynth_env_i16_process(
         Some(x) => x,
         None => return -1,
     };
-    let g = core::slice::from_raw_parts(gate.cast::<SampleFxP>(), samples as usize);
+    let g = core::slice::from_raw_parts(gate, samples as usize);
     let a = core::slice::from_raw_parts(attack.cast::<EnvParamFxP>(), samples as usize);
     let d = core::slice::from_raw_parts(decay.cast::<EnvParamFxP>(), samples as usize);
     let s = core::slice::from_raw_parts(sustain.cast::<ScalarFxP>(), samples as usize);
@@ -201,7 +201,7 @@ pub unsafe extern "C" fn culsynth_env_f32_process(
     p: *mut Env<f32>,
     sr: f32,
     samples: u32,
-    gate: *const f32,
+    gate: *const bool,
     attack: *const f32,
     decay: *const f32,
     sustain: *const f32,

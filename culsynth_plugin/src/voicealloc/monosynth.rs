@@ -9,13 +9,13 @@ pub struct MonoSynth<T: DspFormat> {
     voice: Voice<T>,
     matrix: ModMatrix<T>,
     ctx: T::Context,
+    pitch_range: (fixed::types::I16F0, fixed::types::I16F0),
+    pitch_bend: SignedNoteFxP,
     note: NoteFxP,
-    gate: SampleFxP,
     velocity: ScalarFxP,
     aftertouch: ScalarFxP,
     modwheel: ScalarFxP,
-    pitch_bend: SignedNoteFxP,
-    pitch_range: (fixed::types::I16F0, fixed::types::I16F0),
+    gate: bool,
 }
 
 impl<T: DspFormat> MonoSynth<T> {
@@ -25,7 +25,7 @@ impl<T: DspFormat> MonoSynth<T> {
             matrix: Default::default(),
             ctx,
             note: NoteFxP::lit("69"), //A440, nice
-            gate: SampleFxP::ZERO,
+            gate: false,
             velocity: ScalarFxP::ZERO,
             aftertouch: ScalarFxP::ZERO,
             modwheel: ScalarFxP::ZERO,
@@ -44,12 +44,12 @@ where
 {
     fn note_on(&mut self, note: u8, velocity: u8) {
         self.note = NoteFxP::from_num(note);
-        self.gate = SampleFxP::ONE;
+        self.gate = true;
         self.velocity = ScalarFxP::from_bits((velocity as u16) << 9);
     }
     fn note_off(&mut self, note: u8, _velocity: u8) {
         if self.note == note {
-            self.gate = SampleFxP::ZERO;
+            self.gate = false;
             //self.velocity = ScalarFxP::from_bits((velocity as u16) << 9);
         }
     }
