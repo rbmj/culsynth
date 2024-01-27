@@ -1,7 +1,10 @@
 [package]
 name = "culsynth_2040"
 version = "0.0.0"
-edition = "2021"
+repository.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
 cortex-m-rt = "0.7.3"

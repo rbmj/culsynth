@@ -10,5 +10,12 @@ members = [
 
 default-members = [ "culsynth_plugin" ]
 
+[workspace.package]
+edition = "2021"
+repository = "https://github.com/rbmj/culsynth"
+version = "0.2.0"
+authors = ["R Blair Mason"]
+license = "MIT"
+
 [profile.dev]
 opt-level = 1

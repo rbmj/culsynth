@@ -1,9 +1,11 @@
 [package]
 name = "culsynth_bindings"
-version = "0.2.0"
-edition = "2021"
-license = "MIT"
 description = "Culsynth DSP Bindings"
+version.workspace = true
+repository.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [lib]
 name = "culsynth"
