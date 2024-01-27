@@ -1,7 +1,7 @@
 //! This contains all the code required to generate the actual plugins using the `nih-plug`
 //! framework.  Most of GUI code is in the [editor] module.
 use culsynth::context::{Context, GenericContext};
-use culsynth::voice::{modulation::ModMatrix, VoiceParams};
+use culsynth::voice::VoiceParams;
 use nih_plug::prelude::*;
 use std::iter::repeat;
 use std::sync::atomic::Ordering::Relaxed;
@@ -261,47 +261,12 @@ impl Plugin for CulSynthPlugin {
             }
         }
         assert!(buffer.samples() <= self.context.bufsz.load(Relaxed));
-        let mut next_event = context.next_event();
-        let mut matrix: Option<ModMatrix<i16>> = Some((&self.params.modmatrix).into());
-        for (smpid, ch_smps) in buffer.iter_samples().enumerate() {
-            let params: VoiceParams<i16> = (&*self.params).into();
-
-            // Process MIDI events:
-            while let Some(event) = next_event {
-                if event.timing() > smpid as u32 {
-                    break;
-                }
-                match event {
-                    NoteEvent::NoteOn { note, velocity, .. } => {
-                        voices.note_on(note, (velocity * 127f32) as u8);
-                    }
-                    NoteEvent::NoteOff { note, velocity, .. } => {
-                        voices.note_off(note, (velocity * 127f32) as u8);
-                    }
-                    NoteEvent::MidiCC { cc, value, .. } => {
-                        let value_msb = (value * 127f32) as u8;
-                        match cc {
-                            control_change::MODULATION_MSB => voices.modwheel(value_msb),
-                            _ => {
-                                nih_log!("Unhandled MIDI CC {value}");
-                            }
-                        }
-                    }
-                    NoteEvent::MidiChannelPressure { pressure, .. } => {
-                        voices.aftertouch((pressure * 127f32) as u8);
-                    }
-                    NoteEvent::MidiPitchBend { value, .. } => {
-                        voices.pitch_bend((((value - 0.5) * (i16::MAX as f32)) as i16) << 1);
-                    }
-                    _ => (),
-                }
-                next_event = context.next_event();
-            }
-            let out = voices.next(&params, matrix.take().as_ref());
-            for smp in ch_smps {
-                *smp = out;
-            }
-        }
+        voices.process(
+            buffer.iter_samples(),
+            context,
+            self.params.as_ref(),
+            Some((&self.params.modmatrix).into()),
+        );
         // To save resources, a plugin can (and probably should!) only perform expensive
         // calculations that are only displayed on the GUI while the GUI is open
         if self.params.editor_state.is_open() {
