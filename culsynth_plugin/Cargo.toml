@@ -1,9 +1,12 @@
 [package]
 name = "culsynth_plugin"
-version = "0.2.0"
-edition = "2021"
-license = "MIT"
 description = "Culsynth Software Synthesizer"
+version.workspace = true
+repository.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
 
 [lib]
 name = "culsynth_plugin"

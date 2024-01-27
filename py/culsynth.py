@@ -39,6 +39,29 @@ _culsynth_osc_i16_process.argtypes = [
 ]
 _culsynth_osc_i16_process.restype = c_int32
 
+_culsynth_osc_f32_new = _lib.culsynth_osc_f32_new
+_culsynth_osc_f32_new.argtypes = []
+_culsynth_osc_f32_new.restype = c_void_p
+
+_culsynth_osc_f32_free = _lib.culsynth_osc_f32_free
+_culsynth_osc_f32_free.argtypes = [c_void_p]
+_culsynth_osc_f32_free.restype = None
+
+_culsynth_osc_f32_process = _lib.culsynth_osc_f32_process
+_culsynth_osc_f32_process.argtypes = [
+    c_void_p,
+    c_uint32,
+    c_uint32,
+    POINTER(c_float),
+    POINTER(c_float),
+    POINTER(c_float),
+    POINTER(c_float),
+    POINTER(c_float),
+    POINTER(c_float),
+    POINTER(c_float)
+]
+_culsynth_osc_f32_process.restype = c_int32
+
 class OscFxP:
     def __init__(self):
         self.ptr = _culsynth_osc_i16_new()
@@ -54,6 +77,24 @@ class OscFxP:
         tune_arr = (c_int16*num_samples)(*tune)
         shape_arr = (c_uint16*num_samples)(*shape)
         proc = _culsynth_osc_i16_process(self.ptr, _culsynth_get_sr_480(),
+            num_samples, note_arr, tune_arr, shape_arr, sn, tri, sq, saw)
+        return (sn, sq, tri, saw)
+
+class Osc:
+    def __init__(self):
+        self.ptr = _culsynth_osc_f32_new()
+    def __del__(self):
+        _culsynth_osc_f32_free(self.ptr)
+    def process(self, note, tune, shape):
+        num_samples = min(len(note), len(tune), len(shape))
+        tri = (c_float * num_samples)()
+        sq = (c_float * num_samples)()
+        sn = (c_float * num_samples)()
+        saw = (c_float * num_samples)()
+        note_arr = (c_float*num_samples)(*note)
+        tune_arr = (c_float*num_samples)(*tune)
+        shape_arr = (c_float*num_samples)(*shape)
+        proc = _culsynth_osc_f32_process(self.ptr, _culsynth_get_sr_480(),
             num_samples, note_arr, tune_arr, shape_arr, sn, tri, sq, saw)
         return (sn, sq, tri, saw)
 
@@ -79,6 +120,28 @@ _culsynth_env_i16_process.argtypes = [
 ]
 _culsynth_env_i16_process.restype = c_int32
 
+_culsynth_env_f32_new = _lib.culsynth_env_f32_new
+_culsynth_env_f32_new.argtypes = []
+_culsynth_env_f32_new.restype = c_void_p
+
+_culsynth_env_f32_free = _lib.culsynth_env_f32_free
+_culsynth_env_f32_free.argtypes = [c_void_p]
+_culsynth_env_f32_free.restype = None
+
+_culsynth_env_f32_process = _lib.culsynth_env_f32_process
+_culsynth_env_f32_process.argtypes = [
+    c_void_p,
+    c_uint32,
+    c_uint32,
+    POINTER(c_uint8),
+    POINTER(c_float),
+    POINTER(c_float),
+    POINTER(c_float),
+    POINTER(c_float),
+    POINTER(c_float)
+]
+_culsynth_env_f32_process.restype = c_int32
+
 class EnvFxP:
     def __init__(self):
         self.ptr = _culsynth_env_i16_new()
@@ -93,6 +156,23 @@ class EnvFxP:
         sustain_arr = (c_uint16*num_samples)(*sustain)
         release_arr = (c_uint16*num_samples)(*release)
         proc = _culsynth_env_i16_process(self.ptr, _culsynth_get_sr_480(),
+            num_samples, gate_arr, attack_arr, decay_arr, sustain_arr, release_arr, out)
+        return out
+    
+class Env:
+    def __init__(self):
+        self.ptr = _culsynth_env_f32_new()
+    def __del__(self):
+        _culsynth_env_f32_free(self.ptr)
+    def process(self, gate, attack, decay, sustain, release):
+        num_samples = min(len(gate), len(attack), len(decay), len(sustain), len(release))
+        out = (c_float * num_samples)()
+        gate_arr = (c_uint8*num_samples)(*gate)
+        attack_arr = (c_float*num_samples)(*attack)
+        decay_arr = (c_float*num_samples)(*decay)
+        sustain_arr = (c_float*num_samples)(*sustain)
+        release_arr = (c_float*num_samples)(*release)
+        proc = _culsynth_env_f32_process(self.ptr, _culsynth_get_sr_480(),
             num_samples, gate_arr, attack_arr, decay_arr, sustain_arr, release_arr, out)
         return out
     
@@ -118,6 +198,28 @@ _culsynth_filt_i16_process.argtypes = [
 ]
 _culsynth_filt_i16_process.restype = c_int32
 
+_culsynth_filt_f32_new = _lib.culsynth_filt_f32_new
+_culsynth_filt_f32_new.argtypes = []
+_culsynth_filt_f32_new.restype = c_void_p
+
+_culsynth_filt_f32_free = _lib.culsynth_filt_f32_free
+_culsynth_filt_f32_free.argtypes = [c_void_p]
+_culsynth_filt_f32_free.restype = None
+
+_culsynth_filt_f32_process = _lib.culsynth_filt_i16_process
+_culsynth_filt_f32_process.argtypes = [
+    c_void_p,
+    c_uint32,
+    c_uint32,
+    POINTER(c_float),
+    POINTER(c_float),
+    POINTER(c_float),
+    POINTER(c_float),
+    POINTER(c_float),
+    POINTER(c_float),
+]
+_culsynth_filt_f32_process.restype = c_int32
+
 class FiltFxP:
     def __init__(self):
         self.ptr = _culsynth_filt_i16_new()
@@ -132,5 +234,22 @@ class FiltFxP:
         cutoff_arr = (c_uint16*num_samples)(*cutoff)
         resonance_arr = (c_uint16*num_samples)(*resonance)
         proc = _culsynth_filt_i16_process(self.ptr, _culsynth_get_sr_480(),
+            num_samples, input_arr, cutoff_arr, resonance_arr, low, band, high)
+        return (low, band, high)
+
+class Filt:
+    def __init__(self):
+        self.ptr = _culsynth_filt_f32_new()
+    def __del__(self):
+        _culsynth_filt_f32_free(self.ptr)
+    def process(self, input, cutoff, resonance):
+        num_samples = min(len(x) for x in [input, cutoff, resonance])
+        low = (c_float*num_samples)()
+        band = (c_float*num_samples)()
+        high = (c_float*num_samples)()
+        input_arr = (c_float*num_samples)(*input)
+        cutoff_arr = (c_float*num_samples)(*cutoff)
+        resonance_arr = (c_float*num_samples)(*resonance)
+        proc = _culsynth_filt_f32_process(self.ptr, _culsynth_get_sr_480(),
             num_samples, input_arr, cutoff_arr, resonance_arr, low, band, high)
         return (low, band, high)
