@@ -8,11 +8,11 @@ if _is_windows:
 else:
     _lib = CDLL('../target/debug/libculsynth.so')
 
-_culsynth_get_sr_480 = _lib._culsynth_get_sr_480
+_culsynth_get_sr_480 = _lib.culsynth_get_sr_480
 _culsynth_get_sr_480.argtypes = []
 _culsynth_get_sr_480.restype = c_uint32
 
-_culsynth_get_sr_441 = _lib._culsynth_get_sr_441
+_culsynth_get_sr_441 = _lib.culsynth_get_sr_441
 _culsynth_get_sr_441.argtypes = []
 _culsynth_get_sr_441.restype = c_uint32
 
@@ -86,7 +86,7 @@ class EnvFxP:
         _culsynth_env_i16_free(self.ptr)
     def process(self, gate, attack, decay, sustain, release):
         num_samples = min(len(gate), len(attack), len(decay), len(sustain), len(release))
-        out = (c_int16 * num_samples)()
+        out = (c_uint16 * num_samples)()
         gate_arr = (c_uint8*num_samples)(*gate)
         attack_arr = (c_uint16*num_samples)(*attack)
         decay_arr = (c_uint16*num_samples)(*decay)

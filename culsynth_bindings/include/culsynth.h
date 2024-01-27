@@ -41,7 +41,7 @@ int32_t culsynth_env_i16_process(
     const uint16_t* decay,
     const uint16_t* sustain,
     const uint16_t* release,
-    int16_t* signal
+    uint16_t* signal
 );
 void* culsynth_env_f32_new();
 void culsynth_env_f32_free(void*);
@@ -184,7 +184,7 @@ namespace culsynth {
             const uint16_t* decay,
             const uint16_t* sustain,
             const uint16_t* release,
-            int16_t* signal)
+            uint16_t* signal)
         {
             return culsynth_env_i16_process(ffi, sample_rate, samples, gate,
                 attack, decay, sustain, release, signal);
