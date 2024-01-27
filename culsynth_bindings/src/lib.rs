@@ -139,7 +139,7 @@ pub unsafe extern "C" fn culsynth_env_i16_process(
     p: *mut Env<i16>,
     sr: u32,
     samples: u32,
-    gate: *const bool,
+    gate: *const u8,
     attack: *const u16,
     decay: *const u16,
     sustain: *const u16,
@@ -170,7 +170,7 @@ pub unsafe extern "C" fn culsynth_env_i16_process(
         .with_decay(d.iter().copied())
         .with_sustain(s.iter().copied())
         .with_release(r.iter().copied());
-    let out = (*p).process(&context, g.iter().copied(), paramiter);
+    let out = (*p).process(&context, g.iter().map(|x| *x != 0), paramiter);
     let mut processed = 0i32;
     for (o, smp) in zip(PtrIterator::new(signal), out) {
         *o = smp.to_bits();
@@ -196,7 +196,7 @@ pub unsafe extern "C" fn culsynth_env_f32_process(
     p: *mut Env<f32>,
     sr: f32,
     samples: u32,
-    gate: *const bool,
+    gate: *const u8,
     attack: *const f32,
     decay: *const f32,
     sustain: *const f32,
@@ -224,7 +224,7 @@ pub unsafe extern "C" fn culsynth_env_f32_process(
         .with_sustain(s.iter().copied())
         .with_release(r.iter().copied());
     let ctx = Context::<f32> { sample_rate: sr };
-    let out = (*p).process(&ctx, g.iter().copied(), paramiter);
+    let out = (*p).process(&ctx, g.iter().map(|x| *x != 0), paramiter);
     let mut processed = 0i32;
     for (o, smp) in zip(PtrIterator::new(signal), out) {
         *o = smp;
