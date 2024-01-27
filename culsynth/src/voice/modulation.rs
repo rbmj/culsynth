@@ -1,5 +1,5 @@
 //! This module contains data to allow modulation of a `Voice`
-use tinyvec::ArrayVec;
+use arrayvec::ArrayVec;
 
 use crate::{devices::*, EnvParamFxP, LfoFreqFxP};
 use crate::{DspFloat, DspFormat, DspFormatBase, DspType};
@@ -86,7 +86,7 @@ pub struct ModSectionParams<T: DspFormatBase> {
 
 #[derive(Clone)]
 struct ModMatrixExpanded<T: DspFormatBase> {
-    rows: [ArrayVec<[(ModSrc, T::IScalar); ModSrc::numel()]>; ModDest::numel()],
+    rows: [ArrayVec<(ModSrc, T::IScalar), { ModSrc::numel() }>; ModDest::numel()],
 }
 
 impl<T: DspFormatBase> From<&ModMatrix<T>> for ModMatrixExpanded<T> {
@@ -110,7 +110,7 @@ impl<T: DspFormatBase> From<&ModMatrix<T>> for ModMatrixExpanded<T> {
 impl<T: DspFormatBase> Default for ModMatrixExpanded<T> {
     fn default() -> Self {
         Self {
-            rows: [ArrayVec::default(); ModDest::numel()],
+            rows: core::array::from_fn(|_| ArrayVec::new()),
         }
     }
 }
