@@ -9,4 +9,4 @@ panic-halt = "0.2.0"
 rp-pico = "0.8.0"
 arrayvec = { version = "0.7.4", default-features = false }
 
-culsynth = { path = "../culsynth", version = "0.1.0" }
+culsynth = { path = "../culsynth", version = "0.2.0" }
