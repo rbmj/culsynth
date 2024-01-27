@@ -6,6 +6,7 @@ members = [
     "culsynth_plugin",
     "culsynth_bindings",
     "culsynth_2040",
+    "xtask",
 ]
 
 default-members = [ "culsynth_plugin" ]
