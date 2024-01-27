@@ -1,8 +1,3 @@
-#![no_std]
-
-extern crate alloc;
-use alloc::boxed::Box;
-
 use culsynth::context::{Context, ContextFxP};
 use culsynth::devices::*;
 use culsynth::{EnvParamFxP, NoteFxP, SampleFxP, ScalarFxP, SignedNoteFxP};
@@ -129,7 +124,7 @@ pub unsafe extern "C" fn culsynth_amp_f32_process(
 
 #[no_mangle]
 pub extern "C" fn culsynth_env_i16_new() -> *mut Env<i16> {
-    Box::into_raw(Box::new(Env::<i16>::default()))
+    Box::into_raw(Box::new(Default::default()))
 }
 
 #[no_mangle]
