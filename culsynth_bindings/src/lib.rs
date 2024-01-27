@@ -36,6 +36,16 @@ pub static CULSYNTH_SR_480: u32 = SR_480_VAL;
 #[no_mangle]
 pub static CULSYNTH_SR_441: u32 = SR_441_VAL;
 
+#[no_mangle]
+pub unsafe extern "C" fn culsynth_get_sr_480() -> u32 {
+    SR_480_VAL
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn culsynth_get_sr_441() -> u32 {
+    SR_441_VAL
+}
+
 fn contextfxp_from_u32(sr: u32) -> Option<ContextFxP> {
     match sr {
         SR_480_VAL => Some(ContextFxP::new_480()),
