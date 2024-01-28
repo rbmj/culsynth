@@ -8,7 +8,10 @@ use nih_plug_egui::EguiState;
 
 use std::sync::Arc;
 
-use crate::fixedparam::{new_fixed_param, new_fixed_param_freq, new_fixed_param_percent};
+use crate::fixedparam::{
+    new_fixed_param, new_fixed_param_env, new_fixed_param_freq, new_fixed_param_lfo,
+    new_fixed_param_percent,
+};
 
 /// Contains all of the parameters for an oscillator within the plugin
 #[derive(Params)]
@@ -49,7 +52,7 @@ impl Default for OscPluginParams {
                     max: 1024,
                 },
             ),
-            shape: new_fixed_param("Shape", ScalarFxP::ZERO),
+            shape: new_fixed_param_percent("Shape", ScalarFxP::ZERO),
             sin: new_fixed_param_percent("Sin", ScalarFxP::ZERO),
             saw: new_fixed_param_percent("Saw", ScalarFxP::MAX),
             sq: new_fixed_param_percent("Square", ScalarFxP::ZERO),
@@ -103,7 +106,7 @@ impl LfoPluginParams {
                     max: LfoWave::SampleGlide as i32,
                 },
             ),
-            rate: new_fixed_param(name.to_owned() + " Rate", LfoFreqFxP::ONE),
+            rate: new_fixed_param_lfo(name.to_owned() + " Rate", LfoFreqFxP::ONE),
             depth: new_fixed_param_percent(name.to_owned() + " Depth", ScalarFxP::MAX),
             retrigger: BoolParam::new(name.to_owned() + " Retrigger", true),
             bipolar: BoolParam::new(name.to_owned() + " Bipolar", true),
@@ -241,13 +244,10 @@ pub struct EnvPluginParams {
 impl EnvPluginParams {
     fn new(name: &str) -> Self {
         Self {
-            a: new_fixed_param(name.to_owned() + " Attack", EnvParamFxP::lit("0.1"))
-                .with_unit(" sec"),
-            d: new_fixed_param(name.to_owned() + " Decay", EnvParamFxP::lit("0.1"))
-                .with_unit(" sec"),
+            a: new_fixed_param_env(name.to_owned() + " Attack", EnvParamFxP::lit("0.1")),
+            d: new_fixed_param_env(name.to_owned() + " Decay", EnvParamFxP::lit("0.1")),
             s: new_fixed_param_percent(name.to_owned() + " Sustain", ScalarFxP::MAX),
-            r: new_fixed_param(name.to_owned() + " Release", EnvParamFxP::lit("0.1"))
-                .with_unit(" sec"),
+            r: new_fixed_param_env(name.to_owned() + " Release", EnvParamFxP::lit("0.1")),
         }
     }
 }

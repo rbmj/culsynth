@@ -3,6 +3,8 @@
 
 use super::*;
 
+const SLIDER_WIDTH: f32 = 40f32;
+
 /// Returns a [egui::widgets::Slider] that can manipulate an [IntParam], getting
 /// the range and to/from string information from the parameter itself.
 pub fn param_slider<'a>(setter: &'a ParamSetter, param: &'a IntParam) -> egui::widgets::Slider<'a> {
@@ -31,6 +33,65 @@ pub fn param_slider<'a>(setter: &'a ParamSetter, param: &'a IntParam) -> egui::w
     .custom_formatter(move |f, _| {
         param.normalized_value_to_string(range2.normalize(f as i32), false)
     })
+}
+
+struct ParamSlider<'a> {
+    param: &'a IntParam,
+    slider: egui::widgets::Slider<'a>,
+    label: egui::widgets::Label,
+}
+
+impl<'a> ParamSlider<'a> {
+    pub fn new(setter: &'a ParamSetter, param: &'a IntParam, label: &'a str) -> Self {
+        let (min, max) = match param.range() {
+            IntRange::Linear { min: x, max: y } => (x, y),
+            IntRange::Reversed(IntRange::Linear { min: x, max: y }) => (*x, *y),
+            _ => std::unreachable!(),
+        };
+        let slider = widgets::Slider::from_get_set(min as f64..=max as f64, |new| match new {
+            Some(value) => {
+                setter.begin_set_parameter(param);
+                setter.set_parameter(param, value as i32);
+                setter.end_set_parameter(param);
+                value
+            }
+            None => param.value() as f64,
+        })
+        .integer()
+        .show_value(false)
+        .suffix(param.unit())
+        .custom_parser(|s| {
+            param.string_to_normalized_value(s).map(|x| param.range().unnormalize(x) as f64)
+        })
+        .custom_formatter(|f, _| {
+            param.normalized_value_to_string(param.range().normalize(f as i32), false)
+        });
+        Self {
+            param,
+            slider,
+            label: egui::widgets::Label::new(label),
+        }
+    }
+}
+
+impl<'a> egui::Widget for ParamSlider<'a> {
+    fn ui(self, ui: &mut egui::Ui) -> egui::Response {
+        let param = self.param;
+        let resp = ui.vertical(move |ui| {
+            ui.set_min_width(SLIDER_WIDTH);
+            let resp = ui.add(self.slider.vertical());
+            ui.add(self.label);
+            resp
+        });
+        if resp.inner.dragged() {
+            egui::containers::popup::show_tooltip_text(
+                ui.ctx(),
+                "drag_tooltip".into(),
+                param.to_string(),
+            );
+        }
+        resp.response
+    }
 }
 
 /// A trait that provides a user interface for setting parameters on a given
@@ -66,22 +127,15 @@ fn draw_osc(
         } else {
             ui.label(label);
         }
-        egui::Grid::new(label).show(ui, |ui| {
-            ui.add(param_slider(setter, &osc.course).vertical());
-            ui.add(param_slider(setter, &osc.fine).vertical());
-            ui.add(param_slider(setter, &osc.shape).vertical());
-            ui.add(param_slider(setter, &osc.sin).vertical());
-            ui.add(param_slider(setter, &osc.tri).vertical());
-            ui.add(param_slider(setter, &osc.sq).vertical());
-            ui.add(param_slider(setter, &osc.saw).vertical());
-            ui.end_row();
-            ui.label("CRS");
-            ui.label("FIN");
-            ui.label("SHP");
-            ui.label(culsynth::util::SIN_CHARSTR);
-            ui.label(culsynth::util::TRI_CHARSTR);
-            ui.label(culsynth::util::SQ_CHARSTR);
-            ui.label(culsynth::util::SAW_CHARSTR);
+        ui.horizontal(|ui| {
+            use culsynth::util::*;
+            ui.add(ParamSlider::new(setter, &osc.course, "CRS"));
+            ui.add(ParamSlider::new(setter, &osc.fine, "FIN"));
+            ui.add(ParamSlider::new(setter, &osc.shape, "SHP"));
+            ui.add(ParamSlider::new(setter, &osc.sin, SIN_CHARSTR));
+            ui.add(ParamSlider::new(setter, &osc.tri, TRI_CHARSTR));
+            ui.add(ParamSlider::new(setter, &osc.sq, SQ_CHARSTR));
+            ui.add(ParamSlider::new(setter, &osc.saw, SAW_CHARSTR));
         });
     });
     sync_clicked
@@ -122,12 +176,9 @@ impl ParamWidget for LfoPluginParams {
         ui.vertical(|ui| {
             ui.label(label);
             ui.horizontal(|ui| {
-                egui::Grid::new(label).show(ui, |ui| {
-                    ui.add(param_slider(setter, &self.rate).vertical());
-                    ui.add(param_slider(setter, &self.depth).vertical());
-                    ui.end_row();
-                    ui.label("Rate");
-                    ui.label("Depth");
+                ui.horizontal(|ui| {
+                    ui.add(ParamSlider::new(setter, &self.rate, "Rate"));
+                    ui.add(ParamSlider::new(setter, &self.depth, "Depth"));
                 });
                 ui.vertical(|ui| {
                     let cur_wave = self.wave.value();
@@ -163,14 +214,10 @@ impl ParamWidget for RingModPluginParams {
     fn draw_on(&self, ui: &mut egui::Ui, setter: &ParamSetter, label: &str) {
         ui.vertical(|ui| {
             ui.label(label);
-            egui::Grid::new(label).show(ui, |ui| {
-                ui.add(param_slider(setter, &self.mix_a).vertical());
-                ui.add(param_slider(setter, &self.mix_b).vertical());
-                ui.add(param_slider(setter, &self.mix_mod).vertical());
-                ui.end_row();
-                ui.label("Osc 1");
-                ui.label("Osc 2");
-                ui.label("Ring");
+            ui.horizontal(|ui| {
+                ui.add(ParamSlider::new(setter, &self.mix_a, "Osc 1"));
+                ui.add(ParamSlider::new(setter, &self.mix_b, "Osc 2"));
+                ui.add(ParamSlider::new(setter, &self.mix_mod, "Ring"));
             });
         });
     }
@@ -180,24 +227,15 @@ impl ParamWidget for FiltPluginParams {
     fn draw_on(&self, ui: &mut egui::Ui, setter: &ParamSetter, label: &str) {
         ui.vertical(|ui| {
             ui.label(label);
-            egui::Grid::new(label).show(ui, |ui| {
-                ui.add(param_slider(setter, &self.cutoff).vertical());
-                ui.add(param_slider(setter, &self.res).vertical());
-                ui.add(param_slider(setter, &self.kbd).vertical());
-                ui.add(param_slider(setter, &self.vel).vertical());
-                ui.add(param_slider(setter, &self.env).vertical());
-                ui.add(param_slider(setter, &self.low).vertical());
-                ui.add(param_slider(setter, &self.band).vertical());
-                ui.add(param_slider(setter, &self.high).vertical());
-                ui.end_row();
-                ui.label("Cut");
-                ui.label("Res");
-                ui.label("Kbd");
-                ui.label("Vel");
-                ui.label("Env");
-                ui.label("Low");
-                ui.label("Band");
-                ui.label("High");
+            ui.horizontal(|ui| {
+                ui.add(ParamSlider::new(setter, &self.cutoff, "Cut"));
+                ui.add(ParamSlider::new(setter, &self.res, "Res"));
+                ui.add(ParamSlider::new(setter, &self.kbd, "Kbd"));
+                ui.add(ParamSlider::new(setter, &self.vel, "Vel"));
+                ui.add(ParamSlider::new(setter, &self.env, "Env"));
+                ui.add(ParamSlider::new(setter, &self.low, "Low"));
+                ui.add(ParamSlider::new(setter, &self.band, "Band"));
+                ui.add(ParamSlider::new(setter, &self.high, "High"));
             });
         });
     }
@@ -207,16 +245,11 @@ impl ParamWidget for EnvPluginParams {
     fn draw_on(&self, ui: &mut egui::Ui, setter: &ParamSetter, label: &str) {
         ui.vertical(|ui| {
             ui.label(label);
-            egui::Grid::new(label).show(ui, |ui| {
-                ui.add(param_slider(setter, &self.a).vertical());
-                ui.add(param_slider(setter, &self.d).vertical());
-                ui.add(param_slider(setter, &self.s).vertical());
-                ui.add(param_slider(setter, &self.r).vertical());
-                ui.end_row();
-                ui.label("A");
-                ui.label("D");
-                ui.label("S");
-                ui.label("R");
+            ui.horizontal(|ui| {
+                ui.add(ParamSlider::new(setter, &self.a, "A"));
+                ui.add(ParamSlider::new(setter, &self.d, "D"));
+                ui.add(ParamSlider::new(setter, &self.s, "S"));
+                ui.add(ParamSlider::new(setter, &self.r, "R"));
             });
         });
     }
