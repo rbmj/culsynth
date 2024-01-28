@@ -37,6 +37,7 @@ pub fn param_slider<'a>(setter: &'a ParamSetter, param: &'a IntParam) -> egui::w
 
 struct ParamSlider<'a> {
     param: &'a IntParam,
+    setter: &'a ParamSetter<'a>,
     slider: egui::widgets::Slider<'a>,
     label: egui::widgets::Label,
 }
@@ -68,6 +69,7 @@ impl<'a> ParamSlider<'a> {
         });
         Self {
             param,
+            setter,
             slider,
             label: egui::widgets::Label::new(label),
         }
@@ -77,10 +79,15 @@ impl<'a> ParamSlider<'a> {
 impl<'a> egui::Widget for ParamSlider<'a> {
     fn ui(self, ui: &mut egui::Ui) -> egui::Response {
         let param = self.param;
+        let setter = self.setter;
         let resp = ui.vertical(move |ui| {
             ui.set_min_width(SLIDER_WIDTH);
             let resp = ui.add(self.slider.vertical());
-            ui.add(self.label);
+            if ui.add(self.label.sense(egui::Sense::click())).double_clicked() {
+                setter.begin_set_parameter(param);
+                setter.set_parameter(param, param.default_plain_value());
+                setter.end_set_parameter(param);
+            }
             resp
         });
         if resp.inner.dragged() {

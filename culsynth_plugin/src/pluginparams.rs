@@ -43,7 +43,8 @@ pub struct OscPluginParams {
 impl Default for OscPluginParams {
     fn default() -> Self {
         Self {
-            course: IntParam::new("Course", 0, IntRange::Linear { min: -32, max: 32 }),
+            course: IntParam::new("Course", 0, IntRange::Linear { min: -32, max: 32 })
+                .with_unit(" semi"),
             fine: IntParam::new(
                 "Fine",
                 0,
@@ -51,7 +52,10 @@ impl Default for OscPluginParams {
                     min: -1024,
                     max: 1024,
                 },
-            ),
+            )
+            .with_unit(" cents")
+            .with_value_to_string(Arc::new(|x| ((100 * x) / 512).to_string()))
+            .with_string_to_value(Arc::new(|x| Some((x.parse::<i32>().ok()? * 512) / 100))),
             shape: new_fixed_param_percent("Shape", ScalarFxP::ZERO),
             sin: new_fixed_param_percent("Sin", ScalarFxP::ZERO),
             saw: new_fixed_param_percent("Saw", ScalarFxP::MAX),
