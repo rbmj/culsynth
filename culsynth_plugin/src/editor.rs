@@ -109,6 +109,7 @@ impl CulSynthEditor {
                 ui.separator();
                 self.params.ringmod.draw_on(ui, setter, "Mixer/Ring Modulator");
             });
+            ui.separator();
             ui.horizontal(|ui| {
                 self.params.filt.draw_on(ui, setter, "Filter");
                 ui.separator();
@@ -116,6 +117,7 @@ impl CulSynthEditor {
                 ui.separator();
                 self.params.lfo2.draw_on(ui, setter, "LFO 2");
             });
+            ui.separator();
             ui.horizontal(|ui| {
                 self.params.env_vcf.draw_on(ui, setter, "Filter Envelope");
                 ui.separator();
