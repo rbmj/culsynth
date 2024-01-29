@@ -477,6 +477,52 @@ pub struct CulSynthParams {
     pub modmatrix: ModMatrixPluginParams,
 }
 
+impl CulSynthParams {
+    pub fn param_from_cc(&self, cc: u8) -> Option<&IntParam> {
+        use culsynth::voice::cc;
+        match cc {
+            cc::OSC1_SIN => Some(&self.osc1.sin),
+            cc::OSC1_SQ => Some(&self.osc1.sq),
+            cc::OSC1_TRI => Some(&self.osc1.tri),
+            cc::OSC1_SAW => Some(&self.osc1.saw),
+            cc::RING_MIXA => Some(&self.ringmod.mix_a),
+            cc::ENV_FILT_ATTACK => Some(&self.env_vcf.a),
+            cc::ENV_FILT_DECAY => Some(&self.env_vcf.d),
+            cc::ENV_FILT_SUSTAIN => Some(&self.env_vcf.s),
+            cc::ENV_FILT_RELEASE => Some(&self.env_vcf.r),
+            cc::OSC2_SIN => Some(&self.osc2.sin),
+            cc::OSC2_SQ => Some(&self.osc2.sq),
+            cc::OSC2_TRI => Some(&self.osc2.tri),
+            cc::OSC2_SAW => Some(&self.osc2.saw),
+            cc::RING_MIXB => Some(&self.ringmod.mix_b),
+            cc::ENV_AMP_ATTACK => Some(&self.env_vca.a),
+            cc::ENV_AMP_DECAY => Some(&self.env_vca.d),
+            cc::ENV_AMP_SUSTAIN => Some(&self.env_vca.s),
+            cc::ENV_AMP_RELEASE => Some(&self.env_vca.r),
+            cc::FILT_CUTOFF => Some(&self.filt.cutoff),
+            cc::FILT_RESONANCE => Some(&self.filt.res),
+            cc::FILT_KBD => Some(&self.filt.kbd),
+            cc::FILT_VEL => Some(&self.filt.vel),
+            cc::FILT_ENV => Some(&self.filt.env),
+            cc::FILT_LOW => Some(&self.filt.low),
+            cc::FILT_BAND => Some(&self.filt.band),
+            cc::FILT_HIGH => Some(&self.filt.high),
+            cc::OSC1_SHAPE => Some(&self.osc1.shape),
+            cc::RING_MIXMOD => Some(&self.ringmod.mix_mod),
+            cc::OSC2_FINE => Some(&self.osc2.fine),
+            cc::LFO1_RATE => Some(&self.lfo1.rate),
+            cc::LFO1_DEPTH => Some(&self.lfo1.depth),
+            cc::LFO1_WAVE => Some(&self.lfo1.wave),
+            cc::LFO2_RATE => Some(&self.lfo2.rate),
+            cc::LFO2_DEPTH => Some(&self.lfo2.depth),
+            cc::LFO2_WAVE => Some(&self.lfo2.wave),
+            cc::OSC2_SHAPE => Some(&self.osc2.shape),
+
+            _ => None,
+        }
+    }
+}
+
 impl Default for CulSynthParams {
     fn default() -> Self {
         Self {

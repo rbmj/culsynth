@@ -1,9 +1,7 @@
 //! This contains all the code required to generate the actual plugins using the `nih-plug`
 //! framework.  Most of GUI code is in the [editor] module.
 use culsynth::context::{Context, GenericContext};
-use culsynth::voice::VoiceParams;
 use nih_plug::prelude::*;
-use std::iter::repeat;
 use std::sync::atomic::Ordering::Relaxed;
 use std::sync::atomic::{AtomicU32, AtomicUsize};
 use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
@@ -113,7 +111,11 @@ pub struct CulSynthPlugin {
     /// The sound engine currently in use to process audio for the synth.
     voices: Option<Box<dyn VoiceAllocator>>,
 
-    parambuf: Box<[VoiceParams<i16>]>,
+    /// Used by the audio thread to send control changes to the GUI
+    cc_tx: SyncSender<(u8, u8)>,
+
+    /// Used by the GUI thread to receive control changes
+    cc_rx: Option<Receiver<(u8, u8)>>,
 
     context: Arc<PluginContext>,
 }
@@ -142,6 +144,7 @@ impl CulSynthPlugin {
 impl Default for CulSynthPlugin {
     fn default() -> Self {
         let (midi_tx, midi_rx) = sync_channel::<i8>(32);
+        let (cc_tx, cc_rx) = sync_channel::<(u8, u8)>(32);
         let (synth_tx, synth_rx) = sync_channel::<Box<dyn VoiceAllocator>>(1);
         Self {
             params: Arc::new(CulSynthParams::default()),
@@ -149,8 +152,9 @@ impl Default for CulSynthPlugin {
             midi_rx,
             synth_tx,
             synth_rx,
+            cc_tx,
+            cc_rx: Some(cc_rx),
             voices: None,
-            parambuf: Default::default(),
             context: Arc::new(Default::default()),
         }
     }
@@ -186,10 +190,19 @@ impl Plugin for CulSynthPlugin {
     }
 
     fn editor(&mut self, _async_executor: AsyncExecutor<Self>) -> Option<Box<dyn Editor>> {
+        let cc_rx = match self.cc_rx.take() {
+            Some(x) => x,
+            None => {
+                let (tx, rx) = sync_channel::<(u8, u8)>(32);
+                self.cc_tx = tx;
+                rx
+            }
+        };
         editor::create(
             self.params.clone(),
             self.midi_tx.clone(),
             self.synth_tx.clone(),
+            cc_rx,
             self.get_context_reader(),
         )
     }
@@ -213,7 +226,6 @@ impl Plugin for CulSynthPlugin {
         }
         // JACK doesn't seem to honor max_buffer_size, so allocate more...
         let bufsz = std::cmp::max(buffer_config.max_buffer_size, 2048) as usize;
-        self.parambuf = repeat(VoiceParams::<i16>::default()).take(bufsz).collect();
         let voice_alloc: Box<dyn VoiceAllocator> = Box::new(PolySynth::<f32>::new(
             Context::new(buffer_config.sample_rate),
             16,
@@ -265,6 +277,7 @@ impl Plugin for CulSynthPlugin {
             buffer.iter_samples(),
             context,
             self.params.as_ref(),
+            &mut self.cc_tx,
             Some((&self.params.modmatrix).into()),
         );
         // To save resources, a plugin can (and probably should!) only perform expensive

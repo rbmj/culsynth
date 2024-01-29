@@ -99,8 +99,18 @@ where
     fn aftertouch(&mut self, value: u8) {
         self.aftertouch = ScalarFxP::from_bits((value as u16) << 9);
     }
-    fn modwheel(&mut self, value: u8) {
-        self.modwheel = ScalarFxP::from_bits((value as u16) << 9);
+    fn handle_cc(&mut self, cc: u8, value: u8, dispatcher: &mut SyncSender<(u8, u8)>) {
+        match cc {
+            midi::control_change::MODULATION_MSB => {
+                self.modwheel = ScalarFxP::from_bits((value as u16) << 9);
+            }
+            midi::control_change::MODULATION_LSB => {
+                self.modwheel |= ScalarFxP::from_bits((value as u16) << 2);
+            }
+            _ => {
+                let _ = dispatcher.try_send((cc, value));
+            }
+        }
     }
     fn pitch_bend(&mut self, v: i16) {
         if v < 0 {

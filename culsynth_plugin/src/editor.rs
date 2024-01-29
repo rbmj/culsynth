@@ -10,7 +10,10 @@ use culsynth::voice::modulation::{ModDest, ModSrc};
 use egui::widgets;
 use nih_plug::prelude::*;
 use nih_plug_egui::{create_egui_editor, egui, EguiState};
-use std::sync::{mpsc::SyncSender, Arc};
+use std::sync::{
+    mpsc::{Receiver, SyncSender},
+    Arc, Mutex,
+};
 
 mod kbd;
 mod param_widget;
@@ -26,8 +29,10 @@ struct CulSynthEditor {
     params: Arc<CulSynthParams>,
     midi_channel: SyncSender<i8>,
     synth_channel: SyncSender<Box<dyn VoiceAllocator>>,
+    cc_receiver: Mutex<Receiver<(u8, u8)>>,
     context: ContextReader,
     kbd_panel: kbd::KbdPanel,
+    nrpn: u16,
     show_mod_matrix: bool,
     show_settings: bool,
     show_about: bool,
@@ -38,17 +43,20 @@ impl CulSynthEditor {
         p: Arc<CulSynthParams>,
         midi_tx: SyncSender<i8>,
         synth_tx: SyncSender<Box<dyn VoiceAllocator>>,
+        cc_rx: Receiver<(u8, u8)>,
         ctx: ContextReader,
     ) -> Self {
         CulSynthEditor {
             params: p,
             midi_channel: midi_tx,
             synth_channel: synth_tx,
+            cc_receiver: Mutex::new(cc_rx),
             context: ctx,
             kbd_panel: Default::default(),
             show_mod_matrix: false,
             show_settings: false,
             show_about: false,
+            nrpn: 0,
         }
     }
     fn draw_status_bar(&mut self, egui_ctx: &egui::Context) {
@@ -240,8 +248,55 @@ impl CulSynthEditor {
             }
         });
     }
+    fn set_bool_param(param: &BoolParam, setter: &ParamSetter, value: bool) {
+        setter.begin_set_parameter(param);
+        setter.set_parameter(param, value);
+        setter.end_set_parameter(param);
+    }
+    fn process_ccs(&mut self, setter: &ParamSetter) {
+        use culsynth::voice::cc;
+        let cc_rx = self.cc_receiver.get_mut().unwrap();
+        while let Ok((cc, value)) = cc_rx.try_recv() {
+            let value_bool = value > 64;
+            match cc {
+                control_change::NON_REGISTERED_PARAMETER_NUMBER_MSB => {
+                    self.nrpn = (value as u16) << 7;
+                }
+                control_change::NON_REGISTERED_PARAMETER_NUMBER_LSB => {
+                    self.nrpn |= value as u16;
+                }
+                control_change::DATA_ENTRY_MSB => {}
+                control_change::DATA_ENTRY_LSB => {}
+                cc::LFO1_BIPOLAR => {
+                    Self::set_bool_param(&self.params.lfo1.bipolar, setter, value_bool);
+                }
+                cc::LFO1_RETRIGGER => {
+                    Self::set_bool_param(&self.params.lfo1.retrigger, setter, value_bool);
+                }
+                cc::LFO2_BIPOLAR => {
+                    Self::set_bool_param(&self.params.lfo2.bipolar, setter, value_bool);
+                }
+                cc::LFO2_RETRIGGER => {
+                    Self::set_bool_param(&self.params.lfo2.retrigger, setter, value_bool);
+                }
+                cc::OSC_SYNC => {
+                    Self::set_bool_param(&self.params.osc_sync, setter, value_bool);
+                }
+                _ => {
+                    if let Some(param) = self.params.param_from_cc(cc) {
+                        setter.begin_set_parameter(param);
+                        setter.set_parameter_normalized(param, value as f32 / 127.);
+                        setter.end_set_parameter(param);
+                    } else {
+                        nih_log!("Unhandled Midi CC {}", cc);
+                    }
+                }
+            }
+        }
+    }
     /// Draw the editor panel
     pub fn update(&mut self, egui_ctx: &egui::Context, setter: &ParamSetter) {
+        self.process_ccs(setter);
         self.draw_status_bar(egui_ctx);
         for midi_evt in self.kbd_panel.show(egui_ctx) {
             if let Err(e) = self.midi_channel.try_send(midi_evt) {
@@ -318,11 +373,12 @@ pub fn create(
     params: Arc<CulSynthParams>,
     midi_tx: SyncSender<i8>,
     synth_tx: SyncSender<Box<dyn VoiceAllocator>>,
+    cc_rx: Receiver<(u8, u8)>,
     context: ContextReader,
 ) -> Option<Box<dyn Editor>> {
     create_egui_editor(
         params.editor_state.clone(),
-        CulSynthEditor::new(params, midi_tx, synth_tx, context),
+        CulSynthEditor::new(params, midi_tx, synth_tx, cc_rx, context),
         |ctx, editor| editor.initialize(ctx),
         |ctx, setter, editor| editor.update(ctx, setter),
     )

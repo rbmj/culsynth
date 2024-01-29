@@ -5,7 +5,9 @@ use crate::{devices::*, DspFloat, DspFormat};
 
 use self::modulation::{ModMatrix, ModSection};
 
+pub mod cc;
 pub mod modulation;
+pub mod nrpn;
 
 /// A parameter pack for a [Voice]
 #[derive(Clone, Default)]
