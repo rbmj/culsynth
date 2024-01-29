@@ -18,8 +18,8 @@ name = "culsynth-standalone"
 path = "src/main.rs"
 
 [dependencies]
-nih_plug = { git = "https://github.com/robbert-vdh/nih-plug.git", version = "0.0.0", features = ["standalone", "vst3"] }
-nih_plug_egui = { git = "https://github.com/robbert-vdh/nih-plug.git", version = "0.0.0" }
+nih_plug = { git = "https://github.com/rbmj/nih-plug.git", version = "0.0.0", features = ["standalone", "vst3"] }
+nih_plug_egui = { git = "https://github.com/rbmj/nih-plug.git", version = "0.0.0" }
 fixed = "1.24"
 lazy_static = "1.4.0"
 regex = "1.10.3"
