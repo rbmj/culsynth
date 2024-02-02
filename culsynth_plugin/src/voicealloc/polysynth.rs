@@ -160,7 +160,8 @@ where
                 params.into(),
             ));
         }
-        out
+        // Signal is a hair hot (0dB), so attenuate it just a bit...
+        out / 8.
     }
     fn get_context(&self) -> &dyn GenericContext {
         <T::Context as culsynth::context::GetContext>::get_context(&self.ctx)

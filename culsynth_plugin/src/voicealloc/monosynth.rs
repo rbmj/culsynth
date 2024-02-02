@@ -100,7 +100,7 @@ where
             &input.into(),
             &ch_input.into(),
             params.into(),
-        ))
+        )) / 4. //Rescale from 0dB to -6dB to avoid DAWs going into the red
     }
     fn get_context(&self) -> &dyn GenericContext {
         <T::Context as culsynth::context::GetContext>::get_context(&self.ctx)
