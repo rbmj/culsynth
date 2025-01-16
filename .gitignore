@@ -3,7 +3,6 @@
 /.vscode
 .ipynb_checkpoints/
 __pycache__/
-Cargo.lock
 flamegraph.svg
 perf.data
 perf.data.old

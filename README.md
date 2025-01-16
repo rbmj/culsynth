@@ -55,6 +55,9 @@ distros) need to be installed in order to successfully compile:
 - `libx11-xcb-dev`
 - `libxcb-icccm4-dev`
 - `libxcb-dri2-0-dev`
+- `libasound2-dev`
+- `libglu1-mesa-dev`
+- `libjack-jackd2-dev`
 
 ## Future Work
 

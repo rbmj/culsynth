@@ -10,7 +10,7 @@ license.workspace = true
 [lib]
 name = "culsynth"
 path = "src/lib.rs"
-crate_type = ["cdylib"]
+crate-type = ["cdylib"]
 # Documentation will live in the binding header itself instead of the rust
 # implementation file
 doc = false

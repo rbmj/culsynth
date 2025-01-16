@@ -108,30 +108,30 @@ impl KbdPanel {
             },
         );
         //rectangles for the top and bottom portion of the key:
-        let top_key = egui::epaint::RectShape {
-            rect: egui::Rect {
+        let top_key = egui::epaint::RectShape::new(
+            egui::Rect {
                 min: egui::pos2(cursor.x + r.x as f32, cursor.y + r.y as f32),
                 max: egui::pos2(
                     cursor.x + (r.x + r.width) as f32,
                     cursor.y + (r.y + r.height) as f32,
                 ),
             },
-            rounding: egui::epaint::Rounding::none(),
-            fill: egui::epaint::Color32::WHITE,
-            stroke: egui::epaint::Stroke::NONE,
-        };
-        let bottom_key = egui::epaint::RectShape {
-            rect: egui::Rect {
+            egui::epaint::Rounding::ZERO,
+            egui::epaint::Color32::WHITE,
+            egui::epaint::Stroke::NONE,
+        );
+        let bottom_key = egui::epaint::RectShape::new(
+            egui::Rect {
                 min: egui::pos2(cursor.x + wide.x as f32, cursor.y + wide.y as f32),
                 max: egui::pos2(
                     cursor.x + (wide.x + wide.width) as f32,
                     cursor.y + (wide.y + wide.height) as f32,
                 ),
             },
-            rounding: egui::epaint::Rounding::none(),
-            fill: egui::epaint::Color32::WHITE,
-            stroke: egui::epaint::Stroke::NONE,
-        };
+            egui::epaint::Rounding::ZERO,
+            egui::epaint::Color32::WHITE,
+            egui::epaint::Stroke::NONE,
+        );
         (border, [top_key, bottom_key])
     }
     /// Returns true if `point`` is within (exclusive of borders) `rect`
@@ -170,21 +170,21 @@ impl KbdPanel {
                     ui.painter().add(rects[1]);
                 }
                 Element::BlackKey(r) => {
-                    let mut key = egui::epaint::RectShape {
-                        rect: egui::Rect {
+                    let mut key = egui::epaint::RectShape::new(
+                        egui::Rect {
                             min: egui::pos2(cursor.x + r.x as f32, cursor.y + r.y as f32),
                             max: egui::pos2(
                                 cursor.x + (r.x + r.width) as f32,
                                 cursor.y + (r.y + r.height) as f32,
                             ),
                         },
-                        rounding: egui::epaint::Rounding::none(),
-                        fill: egui::epaint::Color32::BLACK,
-                        stroke: egui::epaint::Stroke {
+                        egui::epaint::Rounding::ZERO,
+                        egui::epaint::Color32::BLACK,
+                        egui::epaint::Stroke {
                             width: 1.0,
                             color: egui::epaint::Color32::GRAY,
                         },
-                    };
+                    );
                     match pointer {
                         None => {}
                         Some(pos) => {

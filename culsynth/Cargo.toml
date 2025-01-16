@@ -11,7 +11,7 @@ license.workspace = true
 [lib]
 name = "culsynth"
 path = "src/lib.rs"
-crate_type = ["rlib"]
+crate-type = ["rlib"]
 
 [dependencies]
 fixed = "1.24"
