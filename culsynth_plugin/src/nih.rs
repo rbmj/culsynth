@@ -1,9 +1,88 @@
 use crate::*;
 use culsynth::context::Context;
+use culsynth::voice::VoiceParams;
 use nih_plug::prelude::*;
 use std::sync::atomic::Ordering::Relaxed;
 
 use std::sync::{mpsc::sync_channel, Arc};
+
+/// Contains all of the global state for the plugin
+pub struct CulSynthPlugin {
+    params: Arc<CulSynthParams>,
+
+    /// Used by the GUI thread to send MIDI events to the audio thread when,
+    /// for example, a user presses a key on a on screen virtual keyboard.
+    ///
+    /// The MIDI event is packaged as an i8, where a positive integer indicates
+    /// a "Note On" for that note number, and a negative integer indicates a
+    /// "Note Off" at the absolute value of the integer
+    midi_tx: SyncSender<i8>,
+
+    /// Used by the audio thread to receive MIDI events from the GUI thread.
+    ///
+    /// The MIDI event is packaged as an i8, where a positive integer indicates
+    /// a "Note On" for that note number, and a negative integer indicates a
+    /// "Note Off" at the absolute value of the integer
+    midi_rx: Receiver<i8>,
+
+    /// Used by the GUI thread to replace the current synth engine
+    synth_tx: SyncSender<Box<dyn VoiceAllocator>>,
+
+    /// Used by the audio thread to receive replacement synth engines from the
+    /// GUI thread.
+    synth_rx: Receiver<Box<dyn VoiceAllocator>>,
+
+    /// The sound engine currently in use to process audio for the synth.
+    voices: Option<Box<dyn VoiceAllocator>>,
+
+    /// Used by the audio thread to send control changes to the GUI
+    cc_tx: SyncSender<(u8, u8)>,
+
+    /// Used by the GUI thread to receive control changes
+    cc_rx: Option<Receiver<(u8, u8)>>,
+
+    context: Arc<PluginContext>,
+}
+
+impl CulSynthPlugin {
+    fn update_sample_rate(&mut self, sr: u32, fixed: bool) {
+        let mut value = sr as i32;
+        if fixed {
+            value = -value;
+        }
+        self.context.sample_rate.store(value, Relaxed);
+    }
+    fn update_context(&mut self, ctx: &dyn GenericContext, mode: VoiceMode) {
+        let sr = ctx.sample_rate();
+        let fixed = ctx.is_fixed_point();
+        self.update_sample_rate(sr, fixed);
+        self.context.voice_mode.store(mode as u32, Relaxed);
+    }
+    fn get_context_reader(&mut self) -> ContextReader {
+        ContextReader {
+            context: self.context.clone(),
+        }
+    }
+}
+
+impl Default for CulSynthPlugin {
+    fn default() -> Self {
+        let (midi_tx, midi_rx) = sync_channel::<i8>(32);
+        let (cc_tx, cc_rx) = sync_channel::<(u8, u8)>(32);
+        let (synth_tx, synth_rx) = sync_channel::<Box<dyn VoiceAllocator>>(1);
+        Self {
+            params: Arc::new(CulSynthParams::default()),
+            midi_tx,
+            midi_rx,
+            synth_tx,
+            synth_rx,
+            cc_tx,
+            cc_rx: Some(cc_rx),
+            voices: None,
+            context: Arc::new(Default::default()),
+        }
+    }
+}
 
 impl Plugin for CulSynthPlugin {
     const NAME: &'static str = crate::NAME;
@@ -118,13 +197,46 @@ impl Plugin for CulSynthPlugin {
             }
         }
         assert!(buffer.samples() <= self.context.bufsz.load(Relaxed));
-        voices.process(
-            buffer.iter_samples(),
-            context,
-            self.params.as_ref(),
-            &mut self.cc_tx,
-            Some((&self.params.modmatrix).into()),
-        );
+
+        let smps = buffer.iter_samples();
+        let dispatcher: &mut SyncSender<(u8, u8)> = &mut self.cc_tx;
+        let mut matrix = Some((&self.params.modmatrix).into());
+        // Replace ProcessContext with a MidiReceiver
+        let mut next_event = context.next_event();
+        for (smpid, ch_smps) in smps.enumerate() {
+            let params: VoiceParams<i16> = self.params.as_ref().into();
+            // Process MIDI events:
+            while let Some(event) = next_event {
+                if event.timing() > smpid as u32 {
+                    break;
+                }
+                match event {
+                    nih_plug::midi::NoteEvent::NoteOn { note, velocity, .. } => {
+                        voices.note_on(note, (velocity * 127f32) as u8);
+                    }
+                    nih_plug::midi::NoteEvent::NoteOff { note, velocity, .. } => {
+                        voices.note_off(note, (velocity * 127f32) as u8);
+                    }
+                    nih_plug::midi::NoteEvent::MidiCC { cc, value, .. } => {
+                        // nih-plug guarantees that cc will be < 127, so panic is appropriate
+                        let cc = wmidi::ControlFunction(wmidi::U7::new(cc).unwrap());
+                        voices.handle_cc(cc, (value * 127f32) as u8, dispatcher);
+                    }
+                    nih_plug::midi::NoteEvent::MidiChannelPressure { pressure, .. } => {
+                        voices.aftertouch((pressure * 127f32) as u8);
+                    }
+                    nih_plug::midi::NoteEvent::MidiPitchBend { value, .. } => {
+                        voices.pitch_bend((((value - 0.5) * (i16::MAX as f32)) as i16) << 1);
+                    }
+                    _ => (),
+                }
+                next_event = context.next_event();
+            }
+            let out = voices.next(&params, matrix.take().as_ref());
+            for smp in ch_smps {
+                *smp = out;
+            }
+        }
         // To save resources, a plugin can (and probably should!) only perform expensive
         // calculations that are only displayed on the GUI while the GUI is open
         if self.params.editor_state.is_open() {

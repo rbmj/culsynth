@@ -9,9 +9,17 @@ use culsynth::voice::modulation::ModMatrix;
 use culsynth::voice::{Voice, VoiceChannelInput, VoiceInput, VoiceParams};
 use culsynth::{IScalarFxP, NoteFxP, ScalarFxP, SignedNoteFxP};
 
-use nih_plug::buffer::SamplesIter;
-use nih_plug::context::process::ProcessContext;
-use nih_plug::midi;
+use wmidi::MidiMessage;
+
+pub trait MidiCcHandler {
+    fn handle_cc(&mut self, cc: wmidi::ControlFunction, value: u8);
+}
+
+impl MidiCcHandler for SyncSender<(u8, u8)> {
+    fn handle_cc(&mut self, cc: wmidi::ControlFunction, value: u8) {
+        let _ = self.try_send((cc.into(), value));
+    }
+}
 
 /// This trait is the main abstraction for this module - the plugin may send it
 /// note on/off events and it will assign those events to voices, stealing if
@@ -45,50 +53,33 @@ pub trait VoiceAllocator: Send {
     fn get_context(&self) -> &dyn GenericContext;
     /// Is this Voice Allocator polyphonic?
     fn is_poly(&self) -> bool;
+    /// Get the MIDI channel associated with this VoiceAllocator, or None for all channels
+    fn get_channel(&self) -> Option<wmidi::Channel>;
     /// Handle a MIDI control change message:
-    fn handle_cc(&mut self, cc: u8, value: u8, dispatcher: &mut SyncSender<(u8, u8)>);
-    /// Process the provided samples in the given process context and
-    /// parameters.  If `matrix.is_some()`, update the mod matrix as well.
-    fn process(
+    fn handle_cc(
         &mut self,
-        smps: SamplesIter,
-        ctx: &mut dyn ProcessContext<CulSynthPlugin>,
-        params: &CulSynthParams,
-        dispatcher: &mut SyncSender<(u8, u8)>,
-        mut matrix: Option<ModMatrix<i16>>,
-    ) {
-        let mut next_event = ctx.next_event();
-        for (smpid, ch_smps) in smps.enumerate() {
-            let params: VoiceParams<i16> = params.into();
-            // Process MIDI events:
-            while let Some(event) = next_event {
-                if event.timing() > smpid as u32 {
-                    break;
-                }
-                match event {
-                    midi::NoteEvent::NoteOn { note, velocity, .. } => {
-                        self.note_on(note, (velocity * 127f32) as u8);
-                    }
-                    midi::NoteEvent::NoteOff { note, velocity, .. } => {
-                        self.note_off(note, (velocity * 127f32) as u8);
-                    }
-                    midi::NoteEvent::MidiCC { cc, value, .. } => {
-                        self.handle_cc(cc, (value * 127f32) as u8, dispatcher);
-                    }
-                    midi::NoteEvent::MidiChannelPressure { pressure, .. } => {
-                        self.aftertouch((pressure * 127f32) as u8);
-                    }
-                    midi::NoteEvent::MidiPitchBend { value, .. } => {
-                        self.pitch_bend((((value - 0.5) * (i16::MAX as f32)) as i16) << 1);
-                    }
-                    _ => (),
-                }
-                next_event = ctx.next_event();
+        cc: wmidi::ControlFunction,
+        value: u8,
+        dispatcher: &mut dyn MidiCcHandler,
+    );
+    fn handle_midi(&mut self, msg: MidiMessage, dispatcher: &mut dyn MidiCcHandler) {
+        if let (Some(my_ch), Some(msg_ch)) = (self.get_channel(), msg.channel()) {
+            if my_ch != msg_ch {
+                return;
             }
-            let out = self.next(&params, matrix.take().as_ref());
-            for smp in ch_smps {
-                *smp = out;
+        }
+        match msg {
+            MidiMessage::NoteOn(_, note, velocity) => self.note_on(note.into(), velocity.into()),
+            MidiMessage::NoteOff(_, note, velocity) => self.note_off(note.into(), velocity.into()),
+            MidiMessage::ChannelPressure(_, velocity) => self.aftertouch(velocity.into()),
+            MidiMessage::PitchBendChange(_, value) => {
+                let bend: u16 = value.into();
+                self.pitch_bend((bend as i32 - 8192i32) as i16)
             }
+            MidiMessage::ControlChange(_, cc, value) => {
+                self.handle_cc(cc, value.into(), dispatcher)
+            }
+            _ => (),
         }
     }
 }
@@ -98,6 +89,3 @@ pub use monosynth::MonoSynth;
 
 mod polysynth;
 pub use polysynth::PolySynth;
-
-use crate::pluginparams::CulSynthParams;
-use crate::CulSynthPlugin;

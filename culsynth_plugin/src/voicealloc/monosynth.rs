@@ -53,6 +53,9 @@ where
             //self.velocity = ScalarFxP::from_bits((velocity as u16) << 9);
         }
     }
+    fn get_channel(&self) -> Option<wmidi::Channel> {
+        None //TODO
+    }
     fn aftertouch(&mut self, value: u8) {
         self.aftertouch = ScalarFxP::from_bits((value as u16) << 9);
     }
@@ -108,16 +111,21 @@ where
     fn is_poly(&self) -> bool {
         false
     }
-    fn handle_cc(&mut self, cc: u8, value: u8, dispatcher: &mut SyncSender<(u8, u8)>) {
+    fn handle_cc(
+        &mut self,
+        cc: wmidi::ControlFunction,
+        value: u8,
+        dispatcher: &mut dyn MidiCcHandler,
+    ) {
         match cc {
-            midi::control_change::MODULATION_MSB => {
+            wmidi::ControlFunction::MODULATION_WHEEL => {
                 self.modwheel = ScalarFxP::from_bits((value as u16) << 9);
             }
-            midi::control_change::MODULATION_LSB => {
+            wmidi::ControlFunction::MODULATION_WHEEL_LSB => {
                 self.modwheel |= ScalarFxP::from_bits((value as u16) << 2);
             }
             _ => {
-                let _ = dispatcher.try_send((cc, value));
+                let _ = dispatcher.handle_cc(cc, value);
             }
         }
     }

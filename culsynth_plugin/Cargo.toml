@@ -25,5 +25,6 @@ lazy_static = "1.4.0"
 regex = "1.10.3"
 piano_keyboard = "0.2.3"
 rand = "0.8"
+wmidi = "4.0"
 
 culsynth = { path = "../culsynth", version = "0.2.0", features = ["rand_defaults"]}

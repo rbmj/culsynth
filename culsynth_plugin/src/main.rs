@@ -1,6 +1,9 @@
-use culsynth_plugin::CulSynthPlugin;
-use nih_plug::prelude::*;
-
+#[cfg(not(target_family = "wasm"))]
 fn main() {
-    nih_export_standalone::<CulSynthPlugin>();
+    nih_plug::prelude::nih_export_standalone::<culsynth_plugin::nih::CulSynthPlugin>();
+}
+
+#[cfg(target_family = "wasm")]
+fn main() {
+    //TODO
 }
