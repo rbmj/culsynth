@@ -33,20 +33,20 @@ impl LfoOptions {
     const BIPOLAR: u16 = 1 << 8;
     const RETRIGGER: u16 = 1 << 9;
     /// The LFO Waveform (Sine, Square, Sample+Hold, etc.)
-    pub fn wave(&self) -> Option<LfoWave> {
+    pub const fn wave(&self) -> Option<LfoWave> {
         let value = (self.bits & 0xFF) as u8;
-        LfoWave::try_from(value).ok()
+        LfoWave::new_from_u8(value)
     }
     /// Is this LFO unipolar (0:1) or bipolar (-1:1)?
-    pub fn bipolar(&self) -> bool {
+    pub const fn bipolar(&self) -> bool {
         self.bits & Self::BIPOLAR != 0
     }
     /// Does this LFO retrigger/reset on each gate?
-    pub fn retrigger(&self) -> bool {
+    pub const fn retrigger(&self) -> bool {
         self.bits & Self::RETRIGGER != 0
     }
     /// Pack the LFO parameters into a `LfoOptions` value
-    pub fn new(wave: LfoWave, bipolar: bool, retrigger: bool) -> Self {
+    pub const fn new(wave: LfoWave, bipolar: bool, retrigger: bool) -> Self {
         LfoOptions {
             bits: (wave as u16)
                 | if bipolar { Self::BIPOLAR } else { 0 }
@@ -62,7 +62,7 @@ impl Default for LfoOptions {
     }
 }
 
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, PartialEq)]
 #[repr(u8)]
 /// The LFO waveform in use
 pub enum LfoWave {
@@ -119,6 +119,14 @@ impl LfoWave {
             "S+G",
         ][*self as usize]
     }
+    /// Try to create a LfoWave from a u8
+    pub const fn new_from_u8(value: u8) -> Option<Self> {
+        if value >= LfoWave::Sine as u8 && value <= LfoWave::SampleGlide as u8 {
+            unsafe { Some(transmute::<u8, LfoWave>(value)) }
+        } else {
+            None
+        }
+    }
 }
 
 impl From<LfoWave> for &'static str {
@@ -130,11 +138,7 @@ impl From<LfoWave> for &'static str {
 impl TryFrom<u8> for LfoWave {
     type Error = &'static str;
     fn try_from(value: u8) -> Result<Self, &'static str> {
-        if value >= LfoWave::Sine as u8 && value <= LfoWave::SampleGlide as u8 {
-            unsafe { Ok(transmute::<u8, LfoWave>(value)) }
-        } else {
-            Err("Conversion of u8 to LfoWave Overflowed")
-        }
+        Self::new_from_u8(value).ok_or("Conversion of u8 to LfoWave Overflowed")
     }
 }
 
@@ -155,6 +159,17 @@ impl<T: DspFloat> From<&LfoParams<i16>> for LfoParams<T> {
             freq: value.freq.to_num(),
             depth: value.depth.to_num(),
             opts: value.opts,
+        }
+    }
+}
+
+impl<T: DspFormatBase> LfoParams<T> {
+    /// Default constructor
+    pub const fn new() -> Self {
+        Self {
+            freq: T::LfoFreq::ZERO,
+            depth: T::Scalar::ZERO,
+            opts: LfoOptions::new(LfoWave::Sine, true, true),
         }
     }
 }

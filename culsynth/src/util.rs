@@ -2,7 +2,7 @@
 
 // currently the only users of this function are unit tests... shut up dead code warning
 #[cfg(test)]
-pub fn calculate_cents(base: f32, freq: f32) -> f32 {
+pub(crate) fn calculate_cents(base: f32, freq: f32) -> f32 {
     1200.0 * f32::log2(freq / base)
 }
 

@@ -16,10 +16,11 @@ crate-type = ["rlib"]
 [dependencies]
 fixed = "1.24"
 num-traits = { version = "0.2", default-features = false }
-rand = { version = "0.8.5", default-features = false, features = ["small_rng"] }
+rand = { workspace = true }
 arrayvec = { version = "0.7.4", default-features = false }
+wmidi = { workspace = true }
+
 
 [features]
 libm = ["num-traits/libm"]
 rand_defaults = ["rand/default"]
-

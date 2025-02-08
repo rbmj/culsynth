@@ -1,6 +1,7 @@
 //! This contains all the code required to generate the actual plugins using the `nih-plug`
 //! framework.  Most of GUI code is in the [editor] module.
 use culsynth::context::GenericContext;
+use culsynth::{CoarseTuneFxP, FineTuneFxP};
 use std::sync::atomic::Ordering::Relaxed;
 use std::sync::atomic::{AtomicI32, AtomicU32, AtomicUsize};
 use std::sync::mpsc::{Receiver, SyncSender};
@@ -17,6 +18,11 @@ use pluginparams::CulSynthParams;
 
 mod voicealloc;
 use voicealloc::{PolySynth, VoiceAllocator};
+
+struct Tuning {
+    fine: FineTuneFxP,
+    coarse: CoarseTuneFxP,
+}
 
 #[cfg(not(target_family = "wasm"))]
 pub mod nih;

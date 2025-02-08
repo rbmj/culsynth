@@ -10,7 +10,7 @@ pub struct RingModInput<T: DspFormatBase> {
 }
 
 /// Params for a [RingMod]
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct RingModParams<T: DspFormatBase> {
     /// Gain of the original first (carrier) signal, to be mixed
     /// back into the device's output.
@@ -20,6 +20,23 @@ pub struct RingModParams<T: DspFormatBase> {
     pub mix_b: T::Scalar,
     /// Gain of the modulated result to be mixed into the device's output
     pub mix_mod: T::Scalar,
+}
+
+impl<T: DspFormatBase> RingModParams<T> {
+    /// Default Constructor
+    pub const fn new() -> Self {
+        Self {
+            mix_a: T::Scalar::ONE,
+            mix_b: T::Scalar::ZERO,
+            mix_mod: T::Scalar::ZERO,
+        }
+    }
+}
+
+impl<T: DspFormatBase> Default for RingModParams<T> {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<T: DspFloat> From<&RingModParams<i16>> for RingModParams<T> {

@@ -2,7 +2,10 @@ use culsynth::devices::{EnvParams, LfoParams, MixOscParams, ModFiltParams, RingM
 use culsynth::devices::{LfoOptions, LfoWave, SyncedMixOscsParams};
 use culsynth::voice::modulation::{ModDest, ModMatrix, ModSrc};
 use culsynth::voice::VoiceParams;
-use culsynth::{EnvParamFxP, IScalarFxP, LfoFreqFxP, NoteFxP, ScalarFxP, SignedNoteFxP};
+use culsynth::{
+    CoarseTuneFxP, EnvParamFxP, FineTuneFxP, IScalarFxP, LfoFreqFxP, NoteFxP, ScalarFxP,
+    SignedNoteFxP,
+};
 use nih_plug::prelude::*;
 use nih_plug_egui::EguiState;
 
@@ -16,11 +19,9 @@ use crate::fixedparam::{
 /// Contains all of the parameters for an oscillator within the plugin
 #[derive(Params)]
 pub struct OscPluginParams {
-    /// Course tuning: -32 to +32 semitones
-    #[id = "course"]
-    pub course: IntParam,
+    #[id = "coarse"]
+    pub coarse: IntParam,
 
-    /// Fine tuning: -1024 to 1024 mapping to -2 to +2 semitones
     #[id = "fine"]
     pub fine: IntParam,
 
@@ -40,22 +41,20 @@ pub struct OscPluginParams {
     pub saw: IntParam,
 }
 
+impl OscPluginParams {
+    pub(crate) fn tuning(&self) -> crate::Tuning {
+        crate::Tuning {
+            coarse: CoarseTuneFxP::from_bits(self.coarse.value() as i16),
+            fine: FineTuneFxP::from_bits(self.fine.value() as i16),
+        }
+    }
+}
+
 impl Default for OscPluginParams {
     fn default() -> Self {
         Self {
-            course: IntParam::new("Course", 0, IntRange::Linear { min: -32, max: 32 })
-                .with_unit(" semi"),
-            fine: IntParam::new(
-                "Fine",
-                0,
-                IntRange::Linear {
-                    min: -1024,
-                    max: 1024,
-                },
-            )
-            .with_unit(" cents")
-            .with_value_to_string(Arc::new(|x| ((100 * x) / 512).to_string()))
-            .with_string_to_value(Arc::new(|x| Some((x.parse::<i32>().ok()? * 512) / 100))),
+            coarse: new_fixed_param("Coarse", CoarseTuneFxP::ZERO),
+            fine: new_fixed_param("Fine", FineTuneFxP::ZERO),
             shape: new_fixed_param_percent("Shape", ScalarFxP::ZERO),
             sin: new_fixed_param_percent("Sin", ScalarFxP::ZERO),
             saw: new_fixed_param_percent("Saw", ScalarFxP::MAX),
@@ -67,10 +66,11 @@ impl Default for OscPluginParams {
 
 impl From<&OscPluginParams> for MixOscParams<i16> {
     fn from(value: &OscPluginParams) -> Self {
+        let coarse = CoarseTuneFxP::from_bits(value.coarse.smoothed.next() as i16);
+        let fine = FineTuneFxP::from_bits(value.fine.smoothed.next() as i16);
+        let tune = coarse + CoarseTuneFxP::from_num(fine);
         MixOscParams {
-            tune: SignedNoteFxP::from_bits(
-                ((value.course.smoothed.next() << 9) + value.fine.smoothed.next()) as i16,
-            ),
+            tune: SignedNoteFxP::from_num(tune),
             shape: ScalarFxP::from_bits(value.shape.smoothed.next() as u16),
             sin: ScalarFxP::from_bits(value.sin.smoothed.next() as u16),
             sq: ScalarFxP::from_bits(value.sq.smoothed.next() as u16),
@@ -478,7 +478,18 @@ pub struct CulSynthParams {
 }
 
 impl CulSynthParams {
-    pub fn param_from_cc(&self, cc: u8) -> Option<&IntParam> {
+    pub fn bool_param_from_cc(&self, cc: wmidi::ControlFunction) -> Option<&BoolParam> {
+        use culsynth::voice::cc;
+        match cc {
+            cc::LFO1_RETRIGGER => Some(&self.lfo1.retrigger),
+            cc::LFO1_BIPOLAR => Some(&self.lfo1.bipolar),
+            cc::LFO2_RETRIGGER => Some(&self.lfo2.retrigger),
+            cc::LFO2_BIPOLAR => Some(&self.lfo2.bipolar),
+            cc::OSC_SYNC => Some(&self.osc_sync),
+            _ => None,
+        }
+    }
+    pub fn int_param_from_cc(&self, cc: wmidi::ControlFunction) -> Option<&IntParam> {
         use culsynth::voice::cc;
         match cc {
             cc::OSC1_SIN => Some(&self.osc1.sin),
@@ -517,7 +528,17 @@ impl CulSynthParams {
             cc::LFO2_DEPTH => Some(&self.lfo2.depth),
             cc::LFO2_WAVE => Some(&self.lfo2.wave),
             cc::OSC2_SHAPE => Some(&self.osc2.shape),
-
+            cc::OSC1_COARSE => Some(&self.osc1.coarse),
+            cc::OSC1_FINE => Some(&self.osc1.fine),
+            cc::OSC2_COARSE => Some(&self.osc2.coarse),
+            cc::ENV_M1_ATTACK => Some(&self.env1.a),
+            cc::ENV_M1_DECAY => Some(&self.env1.d),
+            cc::ENV_M1_SUSTAIN => Some(&self.env1.s),
+            cc::ENV_M1_RELEASE => Some(&self.env1.r),
+            cc::ENV_M2_ATTACK => Some(&self.env2.a),
+            cc::ENV_M2_DECAY => Some(&self.env2.d),
+            cc::ENV_M2_SUSTAIN => Some(&self.env2.s),
+            cc::ENV_M2_RELEASE => Some(&self.env2.r),
             _ => None,
         }
     }

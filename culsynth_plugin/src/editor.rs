@@ -1,11 +1,7 @@
-use crate::pluginparams::{
-    CulSynthParams, EnvPluginParams, FiltPluginParams, LfoPluginParams, ModMatrixPluginParams,
-    OscPluginParams, RingModPluginParams,
-};
-use crate::voicealloc::{MonoSynth, PolySynth, VoiceAllocator};
+use crate::pluginparams::{CulSynthParams, ModMatrixPluginParams};
+use crate::voicealloc::{MidiCcHandler, MonoSynth, PolySynth, VoiceAllocator};
 use crate::{ContextReader, VoiceMode};
 use culsynth::context::{Context, ContextFxP};
-use culsynth::devices::LfoWave;
 use culsynth::voice::modulation::{ModDest, ModSrc};
 use egui::widgets;
 use nih_plug::prelude::*;
@@ -16,8 +12,11 @@ use std::sync::{
 };
 
 mod kbd;
+mod main_ui;
 mod param_widget;
-use param_widget::{param_slider, ParamWidget};
+
+const SLIDER_WIDTH: f32 = 130f32;
+const SLIDER_SPACING: f32 = 40f32;
 
 // Makes sense to also define this here, makes it a bit easier to keep track of
 pub(crate) fn default_state() -> Arc<EguiState> {
@@ -27,6 +26,7 @@ pub(crate) fn default_state() -> Arc<EguiState> {
 /// Struct to hold the global state information for the plugin editor (GUI).
 struct CulSynthEditor {
     params: Arc<CulSynthParams>,
+    main_ui: main_ui::MainUi,
     midi_channel: SyncSender<i8>,
     synth_channel: SyncSender<Box<dyn VoiceAllocator>>,
     cc_receiver: Mutex<Receiver<(u8, u8)>>,
@@ -48,6 +48,7 @@ impl CulSynthEditor {
     ) -> Self {
         CulSynthEditor {
             params: p,
+            main_ui: Default::default(),
             midi_channel: midi_tx,
             synth_channel: synth_tx,
             cc_receiver: Mutex::new(cc_rx),
@@ -104,38 +105,29 @@ impl CulSynthEditor {
             });
     }
     fn draw_main_controls(&mut self, setter: &ParamSetter, ui: &mut egui::Ui) {
-        ui.spacing_mut().slider_width = 130f32;
-        ui.vertical(|ui| {
-            ui.horizontal(|ui| {
-                self.params.osc1.draw_on(ui, setter, "Oscillator 1");
-                ui.separator();
-                param_widget::osc_with_sync(&self.params.osc2, &self.params.osc_sync).draw_on(
-                    ui,
-                    setter,
-                    "Oscillator 2",
-                );
-                ui.separator();
-                self.params.ringmod.draw_on(ui, setter, "Mixer/Ring Modulator");
-            });
-            ui.separator();
-            ui.horizontal(|ui| {
-                self.params.filt.draw_on(ui, setter, "Filter");
-                ui.separator();
-                self.params.lfo1.draw_on(ui, setter, "LFO 1");
-                ui.separator();
-                self.params.lfo2.draw_on(ui, setter, "LFO 2");
-            });
-            ui.separator();
-            ui.horizontal(|ui| {
-                self.params.env_vcf.draw_on(ui, setter, "Filter Envelope");
-                ui.separator();
-                self.params.env_vca.draw_on(ui, setter, "Amplifier Envelope");
-                ui.separator();
-                self.params.env1.draw_on(ui, setter, "Mod Envelope 1");
-                ui.separator();
-                self.params.env2.draw_on(ui, setter, "Mod Envelope 2");
-            });
-        });
+        // Convert pluginparams to voiceparams
+        let params: culsynth::voice::VoiceParams<i16> = (&*self.params).into();
+        let tuning = (self.params.osc1.tuning(), self.params.osc2.tuning());
+        struct Dispatcher<'a>(&'a CulSynthParams, &'a ParamSetter<'a>);
+        impl<'a> MidiCcHandler for Dispatcher<'a> {
+            fn handle_cc(&mut self, control: wmidi::ControlFunction, value: u8) {
+                if let Some(param) = self.0.int_param_from_cc(control) {
+                    self.1.begin_set_parameter(param);
+                    self.1.set_parameter_normalized(param, value as f32 / 127.);
+                    self.1.end_set_parameter(param);
+                    return;
+                }
+                if let Some(param) = self.0.bool_param_from_cc(control) {
+                    self.1.begin_set_parameter(param);
+                    self.1.set_parameter(param, value != 0);
+                    self.1.end_set_parameter(param);
+                    return;
+                }
+                let control_raw: u8 = control.into();
+                nih_log!("Unhandled MIDI CC: {}", control_raw);
+            }
+        }
+        self.main_ui.draw(ui, &params, tuning, &mut Dispatcher(&*self.params, setter));
     }
     fn draw_settings(
         ui: &mut egui::Ui,
@@ -213,6 +205,7 @@ impl CulSynthEditor {
         }
     }
     fn draw_modmatrix(matrix: &ModMatrixPluginParams, ui: &mut egui::Ui, setter: &ParamSetter) {
+        /*
         egui::Grid::new("MODMATRIX").show(ui, |ui| {
             ui.label("");
             ui.label("Slot A");
@@ -247,6 +240,7 @@ impl CulSynthEditor {
                 ui.end_row();
             }
         });
+        */
     }
     fn set_bool_param(param: &BoolParam, setter: &ParamSetter, value: bool) {
         setter.begin_set_parameter(param);
@@ -258,15 +252,15 @@ impl CulSynthEditor {
         let cc_rx = self.cc_receiver.get_mut().unwrap();
         while let Ok((cc, value)) = cc_rx.try_recv() {
             let value_bool = value > 64;
-            match cc {
-                control_change::NON_REGISTERED_PARAMETER_NUMBER_MSB => {
+            match wmidi::ControlFunction(wmidi::U7::from_u8_lossy(cc)) {
+                wmidi::ControlFunction::NON_REGISTERED_PARAMETER_NUMBER_MSB => {
                     self.nrpn = (value as u16) << 7;
                 }
-                control_change::NON_REGISTERED_PARAMETER_NUMBER_LSB => {
+                wmidi::ControlFunction::NON_REGISTERED_PARAMETER_NUMBER_LSB => {
                     self.nrpn |= value as u16;
                 }
-                control_change::DATA_ENTRY_MSB => {}
-                control_change::DATA_ENTRY_LSB => {}
+                wmidi::ControlFunction::DATA_ENTRY_MSB => {}
+                wmidi::ControlFunction::DATA_ENTRY_LSB => {}
                 cc::LFO1_BIPOLAR => {
                     Self::set_bool_param(&self.params.lfo1.bipolar, setter, value_bool);
                 }
@@ -282,13 +276,13 @@ impl CulSynthEditor {
                 cc::OSC_SYNC => {
                     Self::set_bool_param(&self.params.osc_sync, setter, value_bool);
                 }
-                _ => {
-                    if let Some(param) = self.params.param_from_cc(cc) {
+                cc => {
+                    if let Some(param) = self.params.int_param_from_cc(cc) {
                         setter.begin_set_parameter(param);
                         setter.set_parameter_normalized(param, value as f32 / 127.);
                         setter.end_set_parameter(param);
                     } else {
-                        nih_log!("Unhandled Midi CC {}", cc);
+                        nih_log!("Unhandled Midi CC {}", u8::from(cc));
                     }
                 }
             }

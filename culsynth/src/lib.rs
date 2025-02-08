@@ -64,6 +64,12 @@ pub type LfoFreqFxP = fixedmath::U7F9;
 pub type IScalarFxP = fixedmath::I1F15;
 /// A 32-bit fixed point number representing a sinusoid's phase.  
 type PhaseFxP = fixedmath::I4F28;
+/// A 16 bit fixed point number representing a tuning offset from -32 to +32
+/// semitones
+pub type CoarseTuneFxP = fixedmath::I6F10;
+/// A 16 bit fixed point number representing a tuning offset from -2 to +2
+/// semitones
+pub type FineTuneFxP = fixedmath::I3F13;
 
 mod fixed_traits;
 pub use fixed_traits::Fixed16;

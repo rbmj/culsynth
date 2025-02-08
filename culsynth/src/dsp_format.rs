@@ -92,6 +92,10 @@ pub trait DspType<T: DspFormatBase>:
     const PI: Self;
     /// A constant representing the value 2*[PI]
     const TAU: Self;
+    /// Zero
+    const ZERO: Self;
+    /// One
+    const ONE: Self;
     /// Returns zero
     fn zero() -> Self;
     /// Returns one
@@ -167,6 +171,8 @@ where
 {
     const PI: Self = Self::PI;
     const TAU: Self = Self::TAU;
+    const ZERO: Self = Self::ZERO;
+    const ONE: Self = Self::ONE;
     fn zero() -> Self {
         T::ZERO
     }
@@ -235,6 +241,8 @@ impl DspFormatBase for i16 {
 impl<T: Fixed16 + Send> DspType<i16> for T {
     const PI: Self = T::PI;
     const TAU: Self = T::TAU;
+    const ZERO: Self = T::ZERO;
+    const ONE: Self = T::ONE_OR_MAX;
     fn zero() -> Self {
         Self::ZERO
     }
@@ -258,6 +266,8 @@ impl<T: Fixed16 + Send> DspType<i16> for T {
 impl DspType<i16> for FrequencyFxP {
     const PI: Self = FrequencyFxP::PI;
     const TAU: Self = FrequencyFxP::TAU;
+    const ZERO: Self = FrequencyFxP::ZERO;
+    const ONE: Self = FrequencyFxP::ONE;
     fn zero() -> Self {
         Self::ZERO
     }
@@ -281,6 +291,8 @@ impl DspType<i16> for FrequencyFxP {
 impl DspType<i16> for PhaseFxP {
     const PI: Self = PhaseFxP::PI;
     const TAU: Self = PhaseFxP::TAU;
+    const ZERO: Self = PhaseFxP::ZERO;
+    const ONE: Self = PhaseFxP::ONE;
     fn zero() -> Self {
         Self::ZERO
     }
