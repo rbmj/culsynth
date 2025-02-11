@@ -99,7 +99,7 @@ mod detail {
         let floor = x.floor();
         let index = (floor.as_() + 4) as usize;
         let frac_exp = exp_approx_small(x - floor - T::ONE_HALF);
-        frac_exp * LOOKUP_TABLE[index].into()
+        frac_exp * (*LOOKUP_TABLE.get(index).unwrap_or(LOOKUP_TABLE.last().unwrap())).into()
     }
 
     /// Convert a MIDI note number to a frequency in Hz
