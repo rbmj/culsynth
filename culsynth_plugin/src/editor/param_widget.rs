@@ -3,12 +3,12 @@
 
 use culsynth::{Fixed16, ScalarFxP};
 
-use crate::voicealloc::MidiCcHandler;
+use crate::MidiHandler;
 
 use super::*;
 
 pub struct MidiCcSlider<'a> {
-    //dispatch: &'a mut dyn MidiCcHandler,
+    //dispatch: &'a mut dyn MidiHandler,
     slider: egui::widgets::Slider<'a>,
     label: egui::widgets::Label,
     default_value: f64,
@@ -20,7 +20,7 @@ impl<'a> MidiCcSlider<'a> {
         default_value: f64,
         control: wmidi::ControlFunction,
         label: &'static str,
-        dispatcher: &'a mut dyn MidiCcHandler,
+        dispatcher: &'a dyn MidiHandler,
         range: core::ops::RangeInclusive<f64>,
     ) -> Self {
         let r_max = *range.end();
@@ -30,7 +30,7 @@ impl<'a> MidiCcSlider<'a> {
             slider: widgets::Slider::from_get_set(range, move |val| match val {
                 Some(val) => {
                     let cc_value = 127f64 * ((val - r_min) / (r_max - r_min));
-                    dispatcher.handle_cc(control, cc_value as u8);
+                    dispatcher.send_cc(control, wmidi::U7::from_u8_lossy(cc_value as u8));
                     val
                 }
                 None => value,
@@ -45,7 +45,7 @@ impl<'a> MidiCcSlider<'a> {
         units: Option<&'static str>,
         control: wmidi::ControlFunction,
         label: &'static str,
-        dispatcher: &'a mut dyn MidiCcHandler,
+        dispatcher: &'a dyn MidiHandler,
     ) -> Self
     where
         T::Bits: Into<f64> + Into<i32>,
@@ -57,9 +57,9 @@ impl<'a> MidiCcSlider<'a> {
                 let val_int: i32 = T::saturating_from_num(x).to_bits().into();
                 let low_int: i32 = T::MIN.to_bits().into();
                 let cc_value = (val_int - low_int) as u32;
-                let _lsb = ((cc_value >> 2) & 0x7F) as u8;
-                let msb = ((cc_value >> 9) & 0x7F) as u8;
-                dispatcher.handle_cc(control, msb);
+                let _lsb = wmidi::U7::from_u8_lossy((cc_value >> 2) as u8);
+                let msb = wmidi::U7::from_u8_lossy((cc_value >> 9) as u8);
+                dispatcher.send_cc(control, msb);
                 x
             }
             None => value.wrapping_to_num(),
@@ -81,7 +81,7 @@ impl<'a> MidiCcSlider<'a> {
         units: Option<&'static str>,
         control: wmidi::ControlFunction,
         label: &'static str,
-        dispatcher: &'a mut dyn MidiCcHandler,
+        dispatcher: &'a dyn MidiHandler,
     ) -> Self {
         let mut ret = Self::new_fixed(
             value,
@@ -93,6 +93,54 @@ impl<'a> MidiCcSlider<'a> {
         );
         ret.slider = ret.slider.custom_formatter(|x, _| (x * 100f64).round().to_string());
         ret
+    }
+    pub fn new_fixed_nrpn<T: Fixed16>(
+        value: T,
+        default: T,
+        units: Option<&'static str>,
+        nrpn: wmidi::U14,
+        label: &'static str,
+        dispatcher: &'a dyn MidiHandler,
+    ) -> Self
+    where
+        T::Bits: Into<f64> + Into<i32>,
+    {
+        let r_max: f64 = T::MAX.to_num();
+        let r_min: f64 = T::MIN.to_num();
+        let mut slider = widgets::Slider::from_get_set(r_min..=r_max, move |newval| match newval {
+            Some(x) => {
+                let val_int: i32 = T::saturating_from_num(x).to_bits().into();
+                let low_int: i32 = T::MIN.to_bits().into();
+                let cc_value = (val_int - low_int) as u32;
+                let nrpn: u16 = nrpn.into();
+                let value_lsb = wmidi::U7::from_u8_lossy((cc_value >> 2) as u8);
+                let value_msb = wmidi::U7::from_u8_lossy((cc_value >> 9) as u8);
+                let nrpn_lsb = wmidi::U7::from_u8_lossy(nrpn as u8);
+                let nrpn_msb = wmidi::U7::from_u8_lossy((nrpn >> 7) as u8);
+                dispatcher.send_cc(
+                    wmidi::ControlFunction::NON_REGISTERED_PARAMETER_NUMBER_MSB,
+                    nrpn_msb,
+                );
+                dispatcher.send_cc(
+                    wmidi::ControlFunction::NON_REGISTERED_PARAMETER_NUMBER_LSB,
+                    nrpn_lsb,
+                );
+                dispatcher.send_cc(wmidi::ControlFunction::DATA_ENTRY_MSB, value_msb);
+                dispatcher.send_cc(wmidi::ControlFunction::DATA_ENTRY_LSB, value_lsb);
+                x
+            }
+            None => value.wrapping_to_num(),
+        })
+        .show_value(false);
+        if let Some(units) = units {
+            slider = slider.suffix(units);
+        }
+        Self {
+            //dispatch: dispatcher,
+            slider: slider,
+            label: egui::widgets::Label::new(label),
+            default_value: default.to_num(),
+        }
     }
 }
 

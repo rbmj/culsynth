@@ -3,26 +3,28 @@ use nih_plug_egui::egui;
 use piano_keyboard::Rectangle as PianoRectangle;
 use piano_keyboard::{Element, Keyboard2d, KeyboardBuilder};
 
-/// Map a keyboard key to a MIDI note number, or `None` if unmapped.
-fn key_to_notenum(k: egui::Key) -> Option<i8> {
-    match k {
-        egui::Key::A => Some(culsynth::midi_const::C4 as i8),
-        egui::Key::S => Some(culsynth::midi_const::D4 as i8),
-        egui::Key::D => Some(culsynth::midi_const::E4 as i8),
-        egui::Key::F => Some(culsynth::midi_const::F4 as i8),
-        egui::Key::G => Some(culsynth::midi_const::G4 as i8),
-        egui::Key::H => Some(culsynth::midi_const::A4 as i8),
-        egui::Key::J => Some(culsynth::midi_const::B4 as i8),
-        egui::Key::K => Some(culsynth::midi_const::C5 as i8),
-        egui::Key::L => Some(culsynth::midi_const::D5 as i8),
+use crate::MidiHandler;
 
-        egui::Key::W => Some(culsynth::midi_const::Db4 as i8),
-        egui::Key::E => Some(culsynth::midi_const::Eb4 as i8),
-        egui::Key::T => Some(culsynth::midi_const::Gb4 as i8),
-        egui::Key::Y => Some(culsynth::midi_const::Ab4 as i8),
-        egui::Key::U => Some(culsynth::midi_const::Bb4 as i8),
-        egui::Key::O => Some(culsynth::midi_const::Db5 as i8),
-        egui::Key::P => Some(culsynth::midi_const::Eb5 as i8),
+/// Map a keyboard key to a MIDI note number, or `None` if unmapped.
+fn key_to_notenum(k: egui::Key) -> Option<u8> {
+    match k {
+        egui::Key::A => Some(culsynth::midi_const::C4 as u8),
+        egui::Key::S => Some(culsynth::midi_const::D4 as u8),
+        egui::Key::D => Some(culsynth::midi_const::E4 as u8),
+        egui::Key::F => Some(culsynth::midi_const::F4 as u8),
+        egui::Key::G => Some(culsynth::midi_const::G4 as u8),
+        egui::Key::H => Some(culsynth::midi_const::A4 as u8),
+        egui::Key::J => Some(culsynth::midi_const::B4 as u8),
+        egui::Key::K => Some(culsynth::midi_const::C5 as u8),
+        egui::Key::L => Some(culsynth::midi_const::D5 as u8),
+
+        egui::Key::W => Some(culsynth::midi_const::Db4 as u8),
+        egui::Key::E => Some(culsynth::midi_const::Eb4 as u8),
+        egui::Key::T => Some(culsynth::midi_const::Gb4 as u8),
+        egui::Key::Y => Some(culsynth::midi_const::Ab4 as u8),
+        egui::Key::U => Some(culsynth::midi_const::Bb4 as u8),
+        egui::Key::O => Some(culsynth::midi_const::Db5 as u8),
+        egui::Key::P => Some(culsynth::midi_const::Eb5 as u8),
         _ => None,
     }
 }
@@ -32,22 +34,24 @@ fn key_to_notenum(k: egui::Key) -> Option<i8> {
 /// [egui::TopBottomPanel]
 #[derive(Default)]
 pub struct KbdPanel {
-    last_note: Option<i8>,
+    last_note: Option<u8>,
 }
 
 impl KbdPanel {
     /// Helper function to handle keyboard input
     #[rustfmt::skip]
-    fn handle_kbd_input(&mut self, ui: &egui::Ui, events: &mut Vec<i8>) {
+    fn handle_kbd_input(&mut self, ui: &egui::Ui, midi_handler: &impl MidiHandler) {
         ui.input(|i| {
             for evt in i.events.iter() {
                 if let egui::Event::Key{key, pressed, repeat, ..} = evt {
                     if *repeat { continue; }
-                    if let Some(mut k) = key_to_notenum(*key) {
+                    if let Some(k) = key_to_notenum(*key) {
+                        let note = wmidi::Note::from_u8_lossy(k);
                         if !(*pressed) {
-                            k += -128; //Note off
+                            midi_handler.send(wmidi::MidiMessage::NoteOff(wmidi::Channel::Ch1, note, wmidi::Velocity::MIN))
+                        } else {
+                            midi_handler.send(wmidi::MidiMessage::NoteOn(wmidi::Channel::Ch1, note, wmidi::Velocity::MAX))
                         }
-                        events.push(k);
                     }
                 }
             }
@@ -141,13 +145,13 @@ impl KbdPanel {
     /// Draw the keyboard built into `kbd` on `ui`, returning either:
     ///  - the MIDI note number for the key the mouse is on if clicked/dragged
     ///  - `None` if the user has not clicked or the mouse is not on a key
-    fn draw_kbd(kbd: Keyboard2d, ui: &mut egui::Ui) -> Option<i8> {
+    fn draw_kbd(kbd: Keyboard2d, ui: &mut egui::Ui) -> Option<u8> {
         let response = ui.allocate_response(
             egui::vec2(kbd.width as f32, kbd.height as f32),
             egui::Sense::click_and_drag(),
         );
         let pointer = response.interact_pointer_pos();
-        let mut new_note: Option<i8> = None;
+        let mut new_note: Option<u8> = None;
         let cursor = response.rect.left_top();
         for (i, k) in kbd.iter().enumerate() {
             match k {
@@ -159,7 +163,7 @@ impl KbdPanel {
                             if Self::point_in_rect(&pos, &rects[0].rect)
                                 || Self::point_in_rect(&pos, &rects[1].rect)
                             {
-                                new_note = Some((kbd.left_white_key + i as u8) as i8);
+                                new_note = Some(kbd.left_white_key + i as u8);
                                 rects[0].fill = egui::epaint::Color32::GOLD;
                                 rects[1].fill = egui::epaint::Color32::GOLD;
                             }
@@ -189,7 +193,7 @@ impl KbdPanel {
                         None => {}
                         Some(pos) => {
                             if Self::point_in_rect(&pos, &key.rect) {
-                                new_note = Some((kbd.left_white_key + i as u8) as i8);
+                                new_note = Some(kbd.left_white_key + i as u8);
                                 key.fill = egui::epaint::Color32::GOLD;
                             }
                         }
@@ -202,14 +206,9 @@ impl KbdPanel {
     }
     /// Draw the bottom keyboard panel and handle keyboard/mouse input so the
     /// user can interact with the plugin without a MIDI controller
-    ///
-    /// The return value is a Vec of MIDI note numbers, with a value >= zero
-    /// indicating a Note On for that note, and a negative number representing
-    /// a Note Off for (value + 128)
-    pub fn show(&mut self, egui_ctx: &egui::Context) -> Vec<i8> {
-        let mut ret: Vec<i8> = Default::default();
+    pub fn show(&mut self, egui_ctx: &egui::Context, midi_handler: &impl MidiHandler) {
         egui::TopBottomPanel::bottom("keyboard").show(egui_ctx, |ui| {
-            self.handle_kbd_input(ui, &mut ret);
+            self.handle_kbd_input(ui, midi_handler);
             let keyboard = KeyboardBuilder::new()
                 .white_black_gap_present(false)
                 .set_width(ui.available_width() as u16)
@@ -220,19 +219,19 @@ impl KbdPanel {
                     let new_note = Self::draw_kbd(kbd, ui);
                     // now send the MIDI events if required:
                     if new_note != self.last_note {
-                        match self.last_note {
-                            None => {}
-                            Some(k) => {
-                                // note off the last note
-                                ret.push(k + (-128));
-                            }
+                        if let Some(k) = self.last_note {
+                            midi_handler.send(wmidi::MidiMessage::NoteOff(
+                                wmidi::Channel::Ch1,
+                                wmidi::Note::from_u8_lossy(k),
+                                wmidi::Velocity::MIN,
+                            ));
                         }
-                        match new_note {
-                            None => {}
-                            Some(k) => {
-                                // note on the new note
-                                ret.push(k);
-                            }
+                        if let Some(k) = new_note {
+                            midi_handler.send(wmidi::MidiMessage::NoteOn(
+                                wmidi::Channel::Ch1,
+                                wmidi::Note::from_u8_lossy(k),
+                                wmidi::Velocity::MAX,
+                            ));
                         }
                     }
                     self.last_note = new_note;
@@ -242,6 +241,5 @@ impl KbdPanel {
                 }
             }
         });
-        ret
     }
 }

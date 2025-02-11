@@ -34,6 +34,14 @@ impl ModSrc {
     pub const fn elements() -> &'static [ModSrc] {
         &Self::ELEM
     }
+    /// Convert a `u8` to a `ModSrc`
+    pub const fn from_u8(val: u8) -> Option<Self> {
+        if val as usize > Self::numel() {
+            None
+        } else {
+            Some(Self::ELEM[val as usize])
+        }
+    }
     /// The first value in elements
     pub const fn min() -> Self {
         Self::Velocity
@@ -56,6 +64,17 @@ impl ModSrc {
             Self::Env2 => "Envelope 2",
             Self::Lfo1 => "LFO 1",
             Self::Lfo2 => "LFO 2",
+        }
+    }
+    /// Returns if this is a secondary modulation source.
+    ///
+    /// LFO2 and ENV2 are secondary sources, and cannot modulate themselves or
+    /// each other.
+    pub const fn is_secondary(&self) -> bool {
+        match self {
+            Self::Env2 => true,
+            Self::Lfo2 => true,
+            _ => false,
         }
     }
 }

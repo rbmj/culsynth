@@ -111,12 +111,7 @@ where
     fn is_poly(&self) -> bool {
         false
     }
-    fn handle_cc(
-        &mut self,
-        cc: wmidi::ControlFunction,
-        value: u8,
-        dispatcher: &mut dyn MidiCcHandler,
-    ) {
+    fn handle_cc(&mut self, cc: wmidi::ControlFunction, value: u8, dispatcher: &dyn MidiHandler) {
         match cc {
             wmidi::ControlFunction::MODULATION_WHEEL => {
                 self.modwheel = ScalarFxP::from_bits((value as u16) << 9);
@@ -125,7 +120,7 @@ where
                 self.modwheel |= ScalarFxP::from_bits((value as u16) << 2);
             }
             _ => {
-                let _ = dispatcher.handle_cc(cc, value);
+                dispatcher.send_cc(cc, wmidi::U7::from_u8_lossy(value));
             }
         }
     }

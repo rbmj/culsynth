@@ -2,10 +2,8 @@
 //! framework.  Most of GUI code is in the [editor] module.
 use culsynth::context::GenericContext;
 use culsynth::{CoarseTuneFxP, FineTuneFxP};
-use std::sync::atomic::Ordering::Relaxed;
 use std::sync::atomic::{AtomicI32, AtomicU32, AtomicUsize};
 use std::sync::mpsc::{Receiver, SyncSender};
-use std::sync::Arc;
 
 use wmidi::MidiMessage;
 
@@ -27,15 +25,41 @@ struct Tuning {
 #[cfg(not(target_family = "wasm"))]
 pub mod nih;
 
+#[cfg(not(target_family = "wasm"))]
+pub(crate) use nih_plug_egui::egui;
+
+#[cfg(target_family = "wasm")]
+pub(crate) use egui;
+
 #[cfg(target_family = "wasm")]
 pub mod wasm;
 
-pub trait MidiSender {
-    fn send_midi(&mut self, msg: MidiMessage<'static>);
-}
-
-pub trait MidiReceiver {
-    fn recv_midi(&mut self) -> Option<MidiMessage<'static>>;
+pub trait MidiHandler {
+    fn send(&self, msg: MidiMessage<'static>);
+    fn ch(&self) -> wmidi::Channel;
+    fn send_cc(&self, cc: wmidi::ControlFunction, value: wmidi::U7) {
+        self.send(MidiMessage::ControlChange(self.ch(), cc, value));
+    }
+    fn send_nrpn(&self, nrpn: wmidi::U14, value: wmidi::U14) {
+        let nrpn: u16 = nrpn.into();
+        let value: u16 = value.into();
+        self.send_cc(
+            wmidi::ControlFunction::NON_REGISTERED_PARAMETER_NUMBER_MSB,
+            wmidi::U7::from_u8_lossy((nrpn >> 7) as u8),
+        );
+        self.send_cc(
+            wmidi::ControlFunction::NON_REGISTERED_PARAMETER_NUMBER_LSB,
+            wmidi::U7::from_u8_lossy(nrpn as u8),
+        );
+        self.send_cc(
+            wmidi::ControlFunction::DATA_ENTRY_MSB,
+            wmidi::U7::from_u8_lossy((value >> 7) as u8),
+        );
+        self.send_cc(
+            wmidi::ControlFunction::DATA_ENTRY_LSB,
+            wmidi::U7::from_u8_lossy(value as u8),
+        );
+    }
 }
 
 const NAME: &'static str = "CulSynth";
@@ -61,53 +85,5 @@ impl VoiceMode {
             Self::Mono => "Mono",
             Self::Poly16 => "Poly16",
         }
-    }
-}
-
-struct PluginContext {
-    sample_rate: AtomicI32,
-    bufsz: AtomicUsize,
-    voice_mode: AtomicU32,
-}
-
-impl Default for PluginContext {
-    fn default() -> Self {
-        Self {
-            sample_rate: AtomicI32::new(-44100),
-            bufsz: AtomicUsize::new(2048),
-            voice_mode: AtomicU32::new(0),
-        }
-    }
-}
-
-pub struct ContextReader {
-    context: Arc<PluginContext>,
-}
-
-impl ContextReader {
-    /// Get the current context.  Returns a tuple of (sample_rate, fixed_point).
-    pub fn get(&self) -> (u32, bool) {
-        let mut fixed = false;
-        let mut sr = self.context.sample_rate.load(Relaxed);
-        if sr < 0 {
-            fixed = true;
-            sr = -sr;
-        }
-        (sr as u32, fixed)
-    }
-    pub fn sample_rate(&self) -> u32 {
-        let (sr, _) = self.get();
-        sr
-    }
-    pub fn is_fixed(&self) -> bool {
-        let (_, fixed) = self.get();
-        fixed
-    }
-    pub fn bufsz(&self) -> usize {
-        self.context.bufsz.load(Relaxed)
-    }
-    pub fn voice_mode(&self) -> VoiceMode {
-        let mode_u32 = self.context.voice_mode.load(Relaxed);
-        unsafe { std::mem::transmute((mode_u32 & 0xFF) as u8) }
     }
 }

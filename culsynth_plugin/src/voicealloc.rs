@@ -2,24 +2,13 @@
 //! and having it "decide" how to handle the notes based on the polyphony mode,
 //! selected logic form (fixed, float32, float64), etc.
 
-use std::sync::mpsc::SyncSender;
-
+use crate::MidiHandler;
 use culsynth::context::GenericContext;
 use culsynth::voice::modulation::ModMatrix;
 use culsynth::voice::{Voice, VoiceChannelInput, VoiceInput, VoiceParams};
 use culsynth::{IScalarFxP, NoteFxP, ScalarFxP, SignedNoteFxP};
 
 use wmidi::MidiMessage;
-
-pub trait MidiCcHandler {
-    fn handle_cc(&mut self, cc: wmidi::ControlFunction, value: u8);
-}
-
-impl MidiCcHandler for SyncSender<(u8, u8)> {
-    fn handle_cc(&mut self, cc: wmidi::ControlFunction, value: u8) {
-        let _ = self.try_send((cc.into(), value));
-    }
-}
 
 /// This trait is the main abstraction for this module - the plugin may send it
 /// note on/off events and it will assign those events to voices, stealing if
@@ -56,13 +45,8 @@ pub trait VoiceAllocator: Send {
     /// Get the MIDI channel associated with this VoiceAllocator, or None for all channels
     fn get_channel(&self) -> Option<wmidi::Channel>;
     /// Handle a MIDI control change message:
-    fn handle_cc(
-        &mut self,
-        cc: wmidi::ControlFunction,
-        value: u8,
-        dispatcher: &mut dyn MidiCcHandler,
-    );
-    fn handle_midi(&mut self, msg: MidiMessage, dispatcher: &mut dyn MidiCcHandler) {
+    fn handle_cc(&mut self, cc: wmidi::ControlFunction, value: u8, dispatcher: &dyn MidiHandler);
+    fn handle_midi(&mut self, msg: MidiMessage, dispatcher: &dyn MidiHandler) {
         if let (Some(my_ch), Some(msg_ch)) = (self.get_channel(), msg.channel()) {
             if my_ch != msg_ch {
                 return;

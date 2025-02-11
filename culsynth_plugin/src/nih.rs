@@ -1,10 +1,62 @@
 use crate::*;
 use culsynth::context::Context;
 use culsynth::voice::VoiceParams;
+use midihandler::MidiSender;
 use nih_plug::prelude::*;
 use std::sync::atomic::Ordering::Relaxed;
 
 use std::sync::{mpsc::sync_channel, Arc};
+
+pub(crate) mod editor;
+pub(crate) mod midihandler;
+
+struct PluginContext {
+    sample_rate: AtomicI32,
+    bufsz: AtomicUsize,
+    voice_mode: AtomicU32,
+}
+
+impl Default for PluginContext {
+    fn default() -> Self {
+        Self {
+            sample_rate: AtomicI32::new(-44100),
+            bufsz: AtomicUsize::new(2048),
+            voice_mode: AtomicU32::new(0),
+        }
+    }
+}
+
+pub struct ContextReader {
+    context: Arc<PluginContext>,
+}
+
+impl ContextReader {
+    /// Get the current context.  Returns a tuple of (sample_rate, fixed_point).
+    pub fn get(&self) -> (u32, bool) {
+        let mut fixed = false;
+        let mut sr = self.context.sample_rate.load(Relaxed);
+        if sr < 0 {
+            fixed = true;
+            sr = -sr;
+        }
+        (sr as u32, fixed)
+    }
+    pub fn sample_rate(&self) -> u32 {
+        let (sr, _) = self.get();
+        sr
+    }
+    pub fn is_fixed(&self) -> bool {
+        let (_, fixed) = self.get();
+        fixed
+    }
+    pub fn bufsz(&self) -> usize {
+        self.context.bufsz.load(Relaxed)
+    }
+    pub fn voice_mode(&self) -> VoiceMode {
+        let mode_u32 = self.context.voice_mode.load(Relaxed);
+        unsafe { std::mem::transmute((mode_u32 & 0xFF) as u8) }
+    }
+}
 
 /// Contains all of the global state for the plugin
 pub struct CulSynthPlugin {
@@ -16,14 +68,14 @@ pub struct CulSynthPlugin {
     /// The MIDI event is packaged as an i8, where a positive integer indicates
     /// a "Note On" for that note number, and a negative integer indicates a
     /// "Note Off" at the absolute value of the integer
-    midi_tx: SyncSender<i8>,
+    midi_tx: SyncSender<wmidi::MidiMessage<'static>>,
 
     /// Used by the audio thread to receive MIDI events from the GUI thread.
     ///
     /// The MIDI event is packaged as an i8, where a positive integer indicates
     /// a "Note On" for that note number, and a negative integer indicates a
     /// "Note Off" at the absolute value of the integer
-    midi_rx: Receiver<i8>,
+    midi_rx: Receiver<wmidi::MidiMessage<'static>>,
 
     /// Used by the GUI thread to replace the current synth engine
     synth_tx: SyncSender<Box<dyn VoiceAllocator>>,
@@ -36,10 +88,10 @@ pub struct CulSynthPlugin {
     voices: Option<Box<dyn VoiceAllocator>>,
 
     /// Used by the audio thread to send control changes to the GUI
-    cc_tx: SyncSender<(u8, u8)>,
+    cc_tx: MidiSender,
 
     /// Used by the GUI thread to receive control changes
-    cc_rx: Option<Receiver<(u8, u8)>>,
+    cc_rx: Option<Receiver<wmidi::MidiMessage<'static>>>,
 
     context: Arc<PluginContext>,
 }
@@ -67,8 +119,8 @@ impl CulSynthPlugin {
 
 impl Default for CulSynthPlugin {
     fn default() -> Self {
-        let (midi_tx, midi_rx) = sync_channel::<i8>(32);
-        let (cc_tx, cc_rx) = sync_channel::<(u8, u8)>(32);
+        let (midi_tx, midi_rx) = sync_channel::<wmidi::MidiMessage<'static>>(32);
+        let (cc_tx, cc_rx) = sync_channel::<wmidi::MidiMessage<'static>>(32);
         let (synth_tx, synth_rx) = sync_channel::<Box<dyn VoiceAllocator>>(1);
         Self {
             params: Arc::new(CulSynthParams::default()),
@@ -76,7 +128,10 @@ impl Default for CulSynthPlugin {
             midi_rx,
             synth_tx,
             synth_rx,
-            cc_tx,
+            cc_tx: MidiSender {
+                tx: cc_tx,
+                ch: wmidi::Channel::Ch1,
+            },
             cc_rx: Some(cc_rx),
             voices: None,
             context: Arc::new(Default::default()),
@@ -117,12 +172,13 @@ impl Plugin for CulSynthPlugin {
         let cc_rx = match self.cc_rx.take() {
             Some(x) => x,
             None => {
-                let (tx, rx) = sync_channel::<(u8, u8)>(32);
-                self.cc_tx = tx;
+                let ch = self.cc_tx.ch();
+                let (tx, rx) = sync_channel::<wmidi::MidiMessage<'static>>(32);
+                self.cc_tx = MidiSender { tx, ch };
                 rx
             }
         };
-        crate::editor::create(
+        editor::create(
             self.params.clone(),
             self.midi_tx.clone(),
             self.synth_tx.clone(),
@@ -189,17 +245,18 @@ impl Plugin for CulSynthPlugin {
             Some(ref mut x) => x,
             None => return ProcessStatus::Error("Uninitialized"),
         };
-        while let Ok(note) = self.midi_rx.try_recv() {
-            if note < 0 {
-                voices.note_off((note - (-128)) as u8, 0);
-            } else {
-                voices.note_on(note as u8, 100);
+        while let Ok(msg) = self.midi_rx.try_recv() {
+            match msg {
+                wmidi::MidiMessage::NoteOff(_, note, vel) => {
+                    voices.note_off(note.into(), vel.into())
+                }
+                wmidi::MidiMessage::NoteOn(_, note, vel) => voices.note_on(note.into(), vel.into()),
+                _ => {}
             }
         }
         assert!(buffer.samples() <= self.context.bufsz.load(Relaxed));
 
         let smps = buffer.iter_samples();
-        let dispatcher: &mut SyncSender<(u8, u8)> = &mut self.cc_tx;
         let mut matrix = Some((&self.params.modmatrix).into());
         // Replace ProcessContext with a MidiReceiver
         let mut next_event = context.next_event();
@@ -220,7 +277,7 @@ impl Plugin for CulSynthPlugin {
                     nih_plug::midi::NoteEvent::MidiCC { cc, value, .. } => {
                         // nih-plug guarantees that cc will be < 127, so panic is appropriate
                         let cc = wmidi::ControlFunction(wmidi::U7::new(cc).unwrap());
-                        voices.handle_cc(cc, (value * 127f32) as u8, dispatcher);
+                        voices.handle_cc(cc, (value * 127f32) as u8, &self.cc_tx);
                     }
                     nih_plug::midi::NoteEvent::MidiChannelPressure { pressure, .. } => {
                         voices.aftertouch((pressure * 127f32) as u8);

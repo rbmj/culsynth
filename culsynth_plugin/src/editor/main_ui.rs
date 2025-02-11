@@ -7,7 +7,7 @@ use culsynth::{CoarseTuneFxP, FineTuneFxP};
 
 use super::egui;
 use super::param_widget::MidiCcSlider;
-use crate::voicealloc::MidiCcHandler;
+use crate::MidiHandler;
 use crate::Tuning;
 
 #[derive(Default)]
@@ -19,7 +19,7 @@ impl MainUi {
         ui: &mut egui::Ui,
         params: &VoiceParams<i16>,
         tune: (Tuning, Tuning),
-        dispatcher: &mut dyn MidiCcHandler,
+        dispatcher: &dyn MidiHandler,
     ) {
         ui.spacing_mut().slider_width = super::SLIDER_WIDTH;
         ui.vertical(|ui| {
@@ -81,7 +81,7 @@ impl MainUi {
                 draw_env(
                     ui,
                     "Mod Envelope 1",
-                    &params.amp_env_p,
+                    &params.env1_p,
                     &ENV_M1_CCS_ALL,
                     dispatcher,
                 );
@@ -89,7 +89,7 @@ impl MainUi {
                 draw_env(
                     ui,
                     "Mod Envelope 2",
-                    &params.amp_env_p,
+                    &params.env2_p,
                     &ENV_M2_CCS_ALL,
                     dispatcher,
                 );
@@ -105,7 +105,7 @@ fn draw_osc(
     tuning: Tuning,
     osc_ccs: &OscCCs,
     sync: Option<(wmidi::ControlFunction, bool)>,
-    dispatcher: &mut dyn MidiCcHandler,
+    dispatcher: &dyn MidiHandler,
 ) {
     let default_params = MixOscParams::<i16>::default();
     ui.vertical(|ui| {
@@ -119,7 +119,14 @@ fn draw_osc(
                     "Click to Enable Sync"
                 };
                 if ui.selectable_label(sync_on, sync_str).clicked() {
-                    dispatcher.handle_cc(sync_cc, if sync_on { 0 } else { 127 });
+                    dispatcher.send_cc(
+                        sync_cc,
+                        if sync_on {
+                            wmidi::U7::MIN
+                        } else {
+                            wmidi::U7::MAX
+                        },
+                    );
                 }
             });
         } else {
@@ -192,7 +199,7 @@ fn draw_lfo(
     label: &'static str,
     params: &LfoParams<i16>,
     lfo_ccs: &LfoCCs,
-    dispatcher: &mut dyn MidiCcHandler,
+    dispatcher: &dyn MidiHandler,
 ) {
     const DEFAULT_PARAMS: LfoParams<i16> = LfoParams::new();
     const DEFAULT_WAVE: LfoWave = DEFAULT_PARAMS.opts.wave().unwrap();
@@ -221,20 +228,30 @@ fn draw_lfo(
                 let cur_wave = params.opts.wave().unwrap_or(DEFAULT_WAVE);
                 for wave in LfoWave::waves() {
                     if ui.selectable_label(cur_wave == *wave, wave.to_str_short()).clicked() {
-                        dispatcher.handle_cc(lfo_ccs.wave, *wave as u8);
+                        dispatcher.send_cc(lfo_ccs.wave, wmidi::U7::from_u8_lossy(*wave as u8));
                     }
                 }
             });
             ui.vertical(|ui| {
                 if ui.selectable_label(params.opts.retrigger(), "Retrigger").clicked() {
-                    dispatcher.handle_cc(
+                    dispatcher.send_cc(
                         lfo_ccs.retrigger,
-                        if params.opts.retrigger() { 0 } else { 127 },
+                        if params.opts.retrigger() {
+                            wmidi::U7::MIN
+                        } else {
+                            wmidi::U7::MAX
+                        },
                     );
                 }
                 if ui.selectable_label(params.opts.bipolar(), "Bipolar").clicked() {
-                    dispatcher
-                        .handle_cc(lfo_ccs.bipolar, if params.opts.bipolar() { 0 } else { 127 });
+                    dispatcher.send_cc(
+                        lfo_ccs.bipolar,
+                        if params.opts.bipolar() {
+                            wmidi::U7::MIN
+                        } else {
+                            wmidi::U7::MAX
+                        },
+                    );
                 }
             });
         });
@@ -246,7 +263,7 @@ fn draw_ringmod(
     label: &'static str,
     params: &RingModParams<i16>,
     ccs: &RingModCCs,
-    dispatcher: &mut dyn MidiCcHandler,
+    dispatcher: &dyn MidiHandler,
 ) {
     const DEFAULT_PARAMS: RingModParams<i16> = RingModParams::new();
     ui.vertical(|ui| {
@@ -285,7 +302,7 @@ fn draw_filter(
     label: &'static str,
     params: &ModFiltParams<i16>,
     ccs: &FiltCCs,
-    dispatcher: &mut dyn MidiCcHandler,
+    dispatcher: &dyn MidiHandler,
 ) {
     let default_params: ModFiltParams<i16> = Default::default();
     ui.vertical(|ui| {
@@ -364,7 +381,7 @@ fn draw_env(
     label: &'static str,
     params: &EnvParams<i16>,
     ccs: &EnvCCs,
-    dispatcher: &mut dyn MidiCcHandler,
+    dispatcher: &dyn MidiHandler,
 ) {
     let default_params: EnvParams<i16> = Default::default();
     ui.vertical(|ui| {

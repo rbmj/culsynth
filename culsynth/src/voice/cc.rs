@@ -201,3 +201,10 @@ pub const RING_CCS_ALL: RingModCCs = RingModCCs {
     mix_b: RING_MIXB,
     mix_mod: RING_MIXMOD,
 };
+
+pub fn modmatrix_nrpn_lsb(src: crate::voice::modulation::ModSrc, slot: usize) -> u8 {
+    let src = src as u8;
+    let slot = slot as u8;
+    let lsb = ((src & 0xF) | (slot << 4)) & 0x7F;
+    lsb
+}

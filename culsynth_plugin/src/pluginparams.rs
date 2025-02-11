@@ -324,6 +324,7 @@ impl ModMatrixRowParams {
             is_secondary,
         }
     }
+
     pub fn slot(&self, idx: usize) -> (&IntParam, &IntParam) {
         [
             (&self.a, &self.a_magnitude),
@@ -410,6 +411,22 @@ impl ModMatrixPluginParams {
             ModSrc::Lfo1 => &self.lfo1,
             ModSrc::Lfo2 => &self.lfo2,
         }
+    }
+    pub fn nrpn_to_slot(&self, midi: u8) -> Option<(&IntParam, &IntParam)> {
+        let src = ModSrc::from_u8(midi & 0xF)?;
+        let slot = midi as usize >> 4;
+        let row = self.row(src);
+        if slot < row.len() {
+            Some(row.slot(slot))
+        } else {
+            None
+        }
+    }
+    pub fn slot_to_nrpn(&self, src: ModSrc, slot: usize) -> u8 {
+        let src = src as u8;
+        let slot = slot as u8;
+        let lsb = ((src & 0xF) | (slot << 4)) & 0x7F;
+        lsb
     }
 }
 
@@ -547,7 +564,7 @@ impl CulSynthParams {
 impl Default for CulSynthParams {
     fn default() -> Self {
         Self {
-            editor_state: crate::editor::default_state(),
+            editor_state: crate::nih::editor::default_state(),
             osc_sync: BoolParam::new("Oscillator Sync", false),
             osc1: Default::default(),
             osc2: Default::default(),
