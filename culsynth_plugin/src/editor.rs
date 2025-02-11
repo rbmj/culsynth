@@ -1,6 +1,6 @@
-use crate::egui;
-use crate::MidiHandler;
-use crate::Tuning;
+use crate::voicealloc::{MonoSynth, PolySynth, VoiceAllocator};
+use crate::{egui, ContextReader};
+use crate::{MidiHandler, Tuning, VoiceMode};
 use culsynth::voice::modulation::{ModDest, ModMatrix};
 use culsynth::voice::VoiceParams;
 use egui::widgets;
@@ -12,11 +12,25 @@ mod param_widget;
 const SLIDER_WIDTH: f32 = 130f32;
 const SLIDER_SPACING: f32 = 40f32;
 
+pub trait SynthSender {
+    fn send(&self, synth: Box<dyn VoiceAllocator>);
+}
+
+impl SynthSender for std::sync::mpsc::SyncSender<Box<dyn VoiceAllocator>> {
+    fn send(&self, synth: Box<dyn VoiceAllocator>) {
+        if let Err(_) = self.try_send(synth) {
+            //TODO: log this
+        }
+    }
+}
+
 /// Struct to hold the global state information for the plugin editor (GUI).
 pub struct Editor {
     main_ui: main_ui::MainUi,
     kbd_panel: kbd::KbdPanel,
     show_mod_matrix: bool,
+    show_settings: bool,
+    show_about: bool,
 }
 
 impl Editor {
@@ -25,10 +39,9 @@ impl Editor {
             main_ui: Default::default(),
             kbd_panel: Default::default(),
             show_mod_matrix: false,
+            show_settings: false,
+            show_about: false,
         }
-    }
-    pub fn show_mod_matrix(&mut self, val: bool) {
-        self.show_mod_matrix = val;
     }
     fn draw_modmatrix(ui: &mut egui::Ui, matrix: &ModMatrix<i16>, handler: &impl MidiHandler) {
         egui::Grid::new("MODMATRIX").show(ui, |ui| {
@@ -81,21 +94,169 @@ impl Editor {
     pub fn update(
         &mut self,
         egui_ctx: &egui::Context,
+        proc_ctx: &impl ContextReader,
         params: &VoiceParams<i16>,
         tuning: (Tuning, Tuning),
         matrix: &ModMatrix<i16>,
         midi_handler: &impl MidiHandler,
+        synth_sender: Option<&impl SynthSender>,
     ) {
+        self.draw_status_bar(egui_ctx, proc_ctx);
         self.kbd_panel.show(egui_ctx, midi_handler);
         egui::CentralPanel::default().show(egui_ctx, |ui| {
             self.main_ui.draw(ui, params, tuning, midi_handler);
         });
+        egui::Window::new("Settings")
+            .open(&mut self.show_settings)
+            .show(egui_ctx, |ui| {
+                Self::draw_settings(ui, egui_ctx, proc_ctx, synth_sender)
+            });
+        egui::Window::new("About").open(&mut self.show_about).collapsible(false).show(
+            egui_ctx,
+            |ui| {
+                ui.vertical_centered(|ui| {
+                    ui.label(format!("CulSynth v{}", env!("CARGO_PKG_VERSION")));
+                    ui.label("Copyright 2023 Robert Blair Mason");
+                    ui.label("This program is open-source software");
+                    ui.hyperlink_to(
+                        "(see https://github.com/rbmj/culsynth for details)",
+                        "https://github.com/rbmj/culsynth",
+                    );
+                });
+            },
+        );
         egui::Window::new("Modulation Matrix").open(&mut self.show_mod_matrix).show(
             egui_ctx,
             |ui| {
                 Self::draw_modmatrix(ui, matrix, midi_handler);
             },
         );
+    }
+    fn draw_status_bar(&mut self, egui_ctx: &egui::Context, proc_ctx: &impl ContextReader) {
+        egui::TopBottomPanel::top("status")
+            .frame(egui::Frame::none().fill(egui::Color32::from_gray(32)))
+            .max_height(20f32)
+            .show(egui_ctx, |ui| {
+                let width = ui.available_width();
+                let third = width / 3f32;
+                ui.columns(3, |columns| {
+                    columns[0].horizontal_centered(|ui| {
+                        if ui.button("Settings").clicked() {
+                            self.show_settings = true;
+                        }
+                        if ui.button("Mod Matrix").clicked() {
+                            self.show_mod_matrix = true;
+                        }
+                        if ui.button("About").clicked() {
+                            self.show_about = true;
+                        }
+                    });
+                    columns[0].expand_to_include_x(third);
+                    columns[1].expand_to_include_x(width - third);
+                    columns[2].with_layout(
+                        egui::Layout::right_to_left(egui::Align::Center),
+                        |ui| {
+                            let (sr, fixed_point) = proc_ctx.get();
+                            let fixed_str = if fixed_point {
+                                "16 bit fixed"
+                            } else {
+                                "32 bit float"
+                            };
+                            ui.label(format!(
+                                "{}.{} kHz / {}",
+                                sr / 1000,
+                                (sr % 1000) / 100,
+                                fixed_str,
+                            ));
+                        },
+                    );
+                    columns[1].centered_and_justified(|ui| {
+                        ui.label(format!("CulSynth v{}", env!("CARGO_PKG_VERSION")));
+                    });
+                });
+            });
+    }
+    fn draw_settings(
+        ui: &mut egui::Ui,
+        _egui_ctx: &egui::Context,
+        context: &impl ContextReader,
+        synth_sender: Option<&impl SynthSender>,
+    ) {
+        let voice_mode = context.voice_mode();
+        let (sr, fixed_point) = context.get();
+        let context_strs = ["32 bit float", "16 bit fixed"];
+        let fixed_point_idx: usize = if fixed_point { 1 } else { 0 };
+        let fixed_context = culsynth::context::ContextFxP::maybe_create(sr);
+        let mut new_is_fixed = fixed_point;
+        let mut new_voice_mode = voice_mode;
+        ui.vertical(|ui| {
+            /*
+            // Doesn't currently work
+            ui.horizontal(|ui| {
+                if ui.button("Zoom In").clicked() {
+                    egui::gui_zoom::zoom_in(egui_ctx);
+                }
+                if ui.button("Zoom Out").clicked() {
+                    egui::gui_zoom::zoom_out(egui_ctx);
+                }
+            });
+            */
+            ui.label(format!(
+                "Sample Rate: {}.{} kHz",
+                sr / 1000,
+                (sr % 1000) / 100
+            ));
+            if let Some(sender) = synth_sender {
+                ui.horizontal(|ui| {
+                    egui::ComboBox::from_id_source("FloatFixedSelect")
+                        .selected_text(context_strs[fixed_point_idx])
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(&mut new_is_fixed, false, context_strs[0]);
+                            ui.add_enabled_ui(fixed_context.is_some(), |ui| {
+                                ui.selectable_value(&mut new_is_fixed, true, context_strs[1]);
+                            });
+                        });
+                    egui::ComboBox::from_id_source("MonoPoly")
+                        .selected_text(voice_mode.to_str())
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(
+                                &mut new_voice_mode,
+                                VoiceMode::Mono,
+                                VoiceMode::Mono.to_str(),
+                            );
+                            ui.selectable_value(
+                                &mut new_voice_mode,
+                                VoiceMode::Poly16,
+                                VoiceMode::Poly16.to_str(),
+                            );
+                        });
+                });
+                if new_is_fixed != fixed_point || new_voice_mode != voice_mode {
+                    let new_synth: Option<Box<dyn VoiceAllocator>> = if new_is_fixed {
+                        fixed_context.map(|ctx| {
+                            let ret: Box<dyn VoiceAllocator> = match new_voice_mode {
+                                crate::VoiceMode::Mono => Box::new(MonoSynth::<i16>::new(ctx)),
+                                crate::VoiceMode::Poly16 => {
+                                    Box::new(PolySynth::<i16>::new(ctx, 16))
+                                }
+                            };
+                            ret
+                        })
+                    } else {
+                        Some(match new_voice_mode {
+                            VoiceMode::Mono => Box::new(MonoSynth::<f32>::new(
+                                culsynth::context::Context::new(sr as f32),
+                            )),
+                            VoiceMode::Poly16 => Box::new(PolySynth::<f32>::new(
+                                culsynth::context::Context::new(sr as f32),
+                                16,
+                            )),
+                        })
+                    };
+                    new_synth.map(|s| sender.send(s));
+                }
+            }
+        });
     }
     pub fn initialize(&mut self, egui_ctx: &egui::Context) {
         let mut fonts = egui::FontDefinitions::default();

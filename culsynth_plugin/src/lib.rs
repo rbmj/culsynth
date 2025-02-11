@@ -82,3 +82,12 @@ impl VoiceMode {
         }
     }
 }
+
+pub trait ContextReader {
+    /// Get the current context.  Returns a tuple of (sample_rate, fixed_point).
+    fn get(&self) -> (u32, bool);
+    fn sample_rate(&self) -> u32;
+    fn is_fixed(&self) -> bool;
+    fn bufsz(&self) -> usize;
+    fn voice_mode(&self) -> VoiceMode;
+}

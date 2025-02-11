@@ -30,13 +30,13 @@ impl Default for PluginContext {
     }
 }
 
-pub struct ContextReader {
+pub struct PluginContextReader {
     context: Arc<PluginContext>,
 }
 
-impl ContextReader {
+impl crate::ContextReader for PluginContextReader {
     /// Get the current context.  Returns a tuple of (sample_rate, fixed_point).
-    pub fn get(&self) -> (u32, bool) {
+    fn get(&self) -> (u32, bool) {
         let mut fixed = false;
         let mut sr = self.context.sample_rate.load(Relaxed);
         if sr < 0 {
@@ -45,18 +45,18 @@ impl ContextReader {
         }
         (sr as u32, fixed)
     }
-    pub fn sample_rate(&self) -> u32 {
+    fn sample_rate(&self) -> u32 {
         let (sr, _) = self.get();
         sr
     }
-    pub fn is_fixed(&self) -> bool {
+    fn is_fixed(&self) -> bool {
         let (_, fixed) = self.get();
         fixed
     }
-    pub fn bufsz(&self) -> usize {
+    fn bufsz(&self) -> usize {
         self.context.bufsz.load(Relaxed)
     }
-    pub fn voice_mode(&self) -> VoiceMode {
+    fn voice_mode(&self) -> VoiceMode {
         let mode_u32 = self.context.voice_mode.load(Relaxed);
         unsafe { std::mem::transmute((mode_u32 & 0xFF) as u8) }
     }
@@ -114,8 +114,8 @@ impl CulSynthPlugin {
         self.update_sample_rate(sr, fixed);
         self.context.voice_mode.store(mode as u32, Relaxed);
     }
-    fn get_context_reader(&mut self) -> ContextReader {
-        ContextReader {
+    fn get_context_reader(&mut self) -> PluginContextReader {
+        PluginContextReader {
             context: self.context.clone(),
         }
     }
