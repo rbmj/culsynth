@@ -15,30 +15,6 @@ pub struct MidiCcSlider<'a> {
 }
 
 impl<'a> MidiCcSlider<'a> {
-    pub fn new(
-        value: f64,
-        default_value: f64,
-        control: wmidi::ControlFunction,
-        label: &'static str,
-        dispatcher: &'a dyn MidiHandler,
-        range: core::ops::RangeInclusive<f64>,
-    ) -> Self {
-        let r_max = *range.end();
-        let r_min = *range.start();
-        Self {
-            //dispatch: dispatcher,
-            slider: widgets::Slider::from_get_set(range, move |val| match val {
-                Some(val) => {
-                    let cc_value = 127f64 * ((val - r_min) / (r_max - r_min));
-                    dispatcher.send_cc(control, wmidi::U7::from_u8_lossy(cc_value as u8));
-                    val
-                }
-                None => value,
-            }),
-            label: egui::widgets::Label::new(label),
-            default_value,
-        }
-    }
     pub fn new_fixed<T: Fixed16>(
         value: T,
         default: T,
@@ -142,13 +118,20 @@ impl<'a> MidiCcSlider<'a> {
             default_value: default.to_num(),
         }
     }
+    pub fn vertical(self) -> Self {
+        Self {
+            slider: self.slider.vertical(),
+            label: self.label,
+            default_value: self.default_value,
+        }
+    }
 }
 
 impl<'a> egui::Widget for MidiCcSlider<'a> {
     fn ui(self, ui: &mut egui::Ui) -> egui::Response {
         let resp = ui.vertical(move |ui| {
             ui.set_min_width(SLIDER_SPACING);
-            let resp = ui.add(self.slider.vertical());
+            let resp = ui.add(self.slider);
             if ui.add(self.label.sense(egui::Sense::click())).double_clicked() {
                 //TODO: Reset to default
             }
