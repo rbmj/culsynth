@@ -111,7 +111,7 @@ where
                 self.modwheel |= ScalarFxP::from_bits((value as u16) << 2);
             }
             _ => {
-                let _ = dispatcher.send_cc(cc, wmidi::U7::from_u8_lossy(value));
+                dispatcher.send_cc(cc, wmidi::U7::from_u8_lossy(value));
             }
         }
     }

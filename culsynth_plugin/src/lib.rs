@@ -9,8 +9,6 @@ use wmidi::MidiMessage;
 
 mod editor;
 
-mod fixedparam;
-
 mod voicealloc;
 use voicealloc::{PolySynth, VoiceAllocator};
 

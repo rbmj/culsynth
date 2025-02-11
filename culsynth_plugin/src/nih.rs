@@ -8,6 +8,7 @@ use std::sync::atomic::Ordering::Relaxed;
 use std::sync::{mpsc::sync_channel, Arc};
 
 pub mod editor;
+pub mod fixedparam;
 pub mod midihandler;
 pub mod pluginparams;
 

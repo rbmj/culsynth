@@ -11,7 +11,7 @@ use nih_plug_egui::EguiState;
 
 use std::sync::Arc;
 
-use crate::fixedparam::{
+use super::fixedparam::{
     new_fixed_param, new_fixed_param_env, new_fixed_param_freq, new_fixed_param_lfo,
     new_fixed_param_percent,
 };
