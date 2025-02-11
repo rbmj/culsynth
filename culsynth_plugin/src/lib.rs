@@ -11,9 +11,6 @@ mod editor;
 
 mod fixedparam;
 
-pub mod pluginparams;
-use pluginparams::CulSynthParams;
-
 mod voicealloc;
 use voicealloc::{PolySynth, VoiceAllocator};
 

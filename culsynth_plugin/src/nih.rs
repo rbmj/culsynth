@@ -7,8 +7,11 @@ use std::sync::atomic::Ordering::Relaxed;
 
 use std::sync::{mpsc::sync_channel, Arc};
 
-pub(crate) mod editor;
-pub(crate) mod midihandler;
+pub mod editor;
+pub mod midihandler;
+pub mod pluginparams;
+
+pub use pluginparams::CulSynthParams;
 
 struct PluginContext {
     sample_rate: AtomicI32,

@@ -1,4 +1,4 @@
-use crate::pluginparams::CulSynthParams;
+use super::CulSynthParams;
 use crate::MidiHandler;
 use nih_plug::context::gui::ParamSetter;
 use nih_plug::nih_log;

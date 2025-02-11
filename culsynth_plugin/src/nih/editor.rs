@@ -1,10 +1,10 @@
 use nih_plug::prelude::*;
 use nih_plug_egui::{create_egui_editor, egui, EguiState};
 
+use super::CulSynthParams;
 use crate::editor::Editor;
 use crate::nih::midihandler::{MidiHandlerFactory, MidiSender};
 use crate::nih::ContextReader;
-use crate::pluginparams::CulSynthParams;
 use crate::voicealloc::{MonoSynth, PolySynth, VoiceAllocator};
 use crate::{MidiHandler, VoiceMode};
 

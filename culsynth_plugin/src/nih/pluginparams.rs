@@ -422,12 +422,6 @@ impl ModMatrixPluginParams {
             None
         }
     }
-    pub fn slot_to_nrpn(&self, src: ModSrc, slot: usize) -> u8 {
-        let src = src as u8;
-        let slot = slot as u8;
-        let lsb = ((src & 0xF) | (slot << 4)) & 0x7F;
-        lsb
-    }
 }
 
 impl From<&ModMatrixPluginParams> for ModMatrix<i16> {
