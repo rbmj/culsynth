@@ -37,13 +37,28 @@ impl LfoOptions {
         let value = (self.bits & 0xFF) as u8;
         LfoWave::new_from_u8(value)
     }
+    /// Set the LFO Waveform
+    pub const fn set_wave(&mut self, wave: LfoWave) {
+        self.bits &= 0xFF00;
+        self.bits |= wave as u16;
+    }
     /// Is this LFO unipolar (0:1) or bipolar (-1:1)?
     pub const fn bipolar(&self) -> bool {
         self.bits & Self::BIPOLAR != 0
     }
+    /// Set bipolar (true) or unipolar (false)
+    pub const fn set_bipolar(&mut self, bipolar: bool) {
+        self.bits &= !Self::BIPOLAR;
+        self.bits |= if bipolar { Self::BIPOLAR } else { 0 };
+    }
     /// Does this LFO retrigger/reset on each gate?
     pub const fn retrigger(&self) -> bool {
         self.bits & Self::RETRIGGER != 0
+    }
+    /// Turn on (true)/off (false) retriggering
+    pub const fn set_retrigger(&mut self, retrigger: bool) {
+        self.bits &= !Self::RETRIGGER;
+        self.bits |= if retrigger { Self::RETRIGGER } else { 0 };
     }
     /// Pack the LFO parameters into a `LfoOptions` value
     pub const fn new(wave: LfoWave, bipolar: bool, retrigger: bool) -> Self {

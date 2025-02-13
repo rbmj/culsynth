@@ -6,6 +6,7 @@ members = [
     "culsynth_plugin",
     "culsynth_bindings",
     "culsynth_2040",
+    "culsynth_web",
     "xtask",
 ]
 
@@ -24,3 +25,8 @@ opt-level = 1
 [workspace.dependencies]
 wmidi = "4.0"
 rand = { version = "0.9.0", default-features = false, features = ["small_rng"] }
+fixed = "1.28"
+eframe = { version = "0.31", features = []}
+egui = { version = "0.31", features = ["persistence", "log", "serde"] }
+log = { version = "0.4" }
+serde = { version = "1.0" }

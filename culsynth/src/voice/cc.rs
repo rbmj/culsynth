@@ -17,6 +17,12 @@
 
 use wmidi::{ControlFunction, U7};
 
+pub const NRPN_CATEGORY_CC: U7 = U7::from_u8_lossy(0);
+pub const NRPN_CATEGORY_MODDEST: U7 = U7::from_u8_lossy(1);
+pub const NRPN_CATEGORY_MODMAG: U7 = U7::from_u8_lossy(2);
+
+pub const CC_SIGNED_ZERO: wmidi::U7 = U7::from_u8_lossy(64);
+
 pub const OSC1_SIN: ControlFunction = ControlFunction(U7::from_u8_lossy(80));
 pub const OSC1_SQ: ControlFunction = ControlFunction(U7::from_u8_lossy(81));
 pub const OSC1_TRI: ControlFunction = ControlFunction(U7::from_u8_lossy(82));
@@ -52,7 +58,7 @@ pub const OSC1_SHAPE: ControlFunction = ControlFunction(U7::from_u8_lossy(17));
 pub const RING_MIXMOD: ControlFunction = ControlFunction(U7::from_u8_lossy(35));
 pub const OSC2_FINE: ControlFunction = ControlFunction(U7::from_u8_lossy(36));
 pub const LFO1_RATE: ControlFunction = ControlFunction(U7::from_u8_lossy(37));
-pub const LFO1_DEPTH: ControlFunction = ControlFunction(U7::from_u8_lossy(38));
+pub const LFO1_DEPTH: ControlFunction = ControlFunction(U7::from_u8_lossy(31));
 pub const LFO1_WAVE: ControlFunction = ControlFunction(U7::from_u8_lossy(39));
 pub const LFO2_RATE: ControlFunction = ControlFunction(U7::from_u8_lossy(40));
 pub const LFO2_DEPTH: ControlFunction = ControlFunction(U7::from_u8_lossy(41));

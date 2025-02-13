@@ -1,11 +1,12 @@
-use crate::*;
-use culsynth::context::Context;
+use crate::voicealloc::{PolySynth, VoiceAllocator};
+use crate::{MidiHandler, VoiceMode};
+use culsynth::context::{Context, GenericContext};
 use culsynth::voice::VoiceParams;
 use midihandler::MidiSender;
 use nih_plug::prelude::*;
-use std::sync::atomic::Ordering::Relaxed;
-
-use std::sync::{mpsc::sync_channel, Arc};
+use std::sync::atomic::{AtomicI32, AtomicU32, AtomicUsize, Ordering::Relaxed};
+use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
+use std::sync::Arc;
 
 pub mod editor;
 pub mod fixedparam;

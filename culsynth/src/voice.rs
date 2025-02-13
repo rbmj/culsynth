@@ -1,7 +1,7 @@
 //! This module contains a struct composing various devices together as a
 //! single voice unit for a basic subtractive synthesizer.
 
-use crate::{devices::*, DspFloat, DspFormat};
+use crate::{devices::*, DspFloat, DspFormat, Fixed16};
 
 use self::modulation::{ModMatrix, ModSection};
 
@@ -30,6 +30,80 @@ pub struct VoiceParams<T: DspFormat> {
     pub env1_p: EnvParams<T>,
     /// Modulation Envelope 2
     pub env2_p: EnvParams<T>,
+}
+
+impl VoiceParams<i16> {
+    /// Apply the given MIDI control change to this parameter pack
+    pub fn apply_cc(&mut self, cc: wmidi::ControlFunction, value: wmidi::U7) {
+        match cc {
+            cc::OSC1_SIN => self.oscs_p.primary.sin.set_from_u7(value),
+            cc::OSC1_SQ => self.oscs_p.primary.sq.set_from_u7(value),
+            cc::OSC1_TRI => self.oscs_p.primary.tri.set_from_u7(value),
+            cc::OSC1_SAW => self.oscs_p.primary.saw.set_from_u7(value),
+            cc::RING_MIXA => self.ring_p.mix_a.set_from_u7(value),
+
+            cc::ENV_FILT_ATTACK => self.filt_env_p.attack.set_from_u7(value),
+            cc::ENV_FILT_DECAY => self.filt_env_p.decay.set_from_u7(value),
+            cc::ENV_FILT_SUSTAIN => self.filt_env_p.sustain.set_from_u7(value),
+            cc::ENV_FILT_RELEASE => self.filt_env_p.release.set_from_u7(value),
+
+            cc::OSC2_SIN => self.oscs_p.secondary.sin.set_from_u7(value),
+            cc::OSC2_SQ => self.oscs_p.secondary.sq.set_from_u7(value),
+            cc::OSC2_TRI => self.oscs_p.secondary.tri.set_from_u7(value),
+            cc::OSC2_SAW => self.oscs_p.secondary.saw.set_from_u7(value),
+            cc::RING_MIXB => self.ring_p.mix_b.set_from_u7(value),
+
+            cc::ENV_AMP_ATTACK => self.amp_env_p.attack.set_from_u7(value),
+            cc::ENV_AMP_DECAY => self.amp_env_p.decay.set_from_u7(value),
+            cc::ENV_AMP_SUSTAIN => self.amp_env_p.sustain.set_from_u7(value),
+            cc::ENV_AMP_RELEASE => self.amp_env_p.release.set_from_u7(value),
+
+            cc::FILT_CUTOFF => self.filt_p.cutoff.set_from_u7(value),
+            cc::FILT_RESONANCE => self.filt_p.resonance.set_from_u7(value),
+            cc::FILT_KBD => self.filt_p.kbd_tracking.set_from_u7(value),
+            cc::FILT_VEL => self.filt_p.vel_mod.set_from_u7(value),
+            cc::FILT_ENV => self.filt_p.env_mod.set_from_u7(value),
+            cc::FILT_LOW => self.filt_p.low_mix.set_from_u7(value),
+            cc::FILT_BAND => self.filt_p.band_mix.set_from_u7(value),
+            cc::FILT_HIGH => self.filt_p.high_mix.set_from_u7(value),
+            cc::OSC1_SHAPE => self.oscs_p.primary.shape.set_from_u7(value),
+
+            cc::RING_MIXMOD => self.ring_p.mix_mod.set_from_u7(value),
+            cc::OSC2_FINE => {}
+            cc::LFO1_RATE => self.lfo1_p.freq.set_from_u7(value),
+            cc::LFO1_DEPTH => self.lfo1_p.depth.set_from_u7(value),
+            cc::LFO1_WAVE => {
+                LfoWave::new_from_u8(value.into()).map(|w| self.lfo1_p.opts.set_wave(w));
+            }
+            cc::LFO2_RATE => self.lfo2_p.freq.set_from_u7(value),
+            cc::LFO2_DEPTH => self.lfo2_p.depth.set_from_u7(value),
+            cc::LFO2_WAVE => {
+                LfoWave::new_from_u8(value.into()).map(|w| self.lfo2_p.opts.set_wave(w));
+            }
+            cc::OSC2_SHAPE => self.oscs_p.secondary.shape.set_from_u7(value),
+
+            cc::LFO1_RETRIGGER => self.lfo1_p.opts.set_retrigger(value > cc::CC_SIGNED_ZERO),
+            cc::LFO1_BIPOLAR => self.lfo1_p.opts.set_bipolar(value > cc::CC_SIGNED_ZERO),
+            cc::LFO2_RETRIGGER => self.lfo2_p.opts.set_retrigger(value > cc::CC_SIGNED_ZERO),
+            cc::LFO2_BIPOLAR => self.lfo2_p.opts.set_bipolar(value > cc::CC_SIGNED_ZERO),
+            cc::OSC_SYNC => self.oscs_p.sync = value > cc::CC_SIGNED_ZERO,
+
+            cc::OSC1_COARSE => {}
+            cc::OSC1_FINE => {}
+            cc::OSC2_COARSE => {}
+
+            cc::ENV_M1_ATTACK => self.env1_p.attack.set_from_u7(value),
+            cc::ENV_M1_DECAY => self.env1_p.decay.set_from_u7(value),
+            cc::ENV_M1_SUSTAIN => self.env1_p.sustain.set_from_u7(value),
+            cc::ENV_M1_RELEASE => self.env1_p.release.set_from_u7(value),
+
+            cc::ENV_M2_ATTACK => self.env2_p.attack.set_from_u7(value),
+            cc::ENV_M2_DECAY => self.env2_p.decay.set_from_u7(value),
+            cc::ENV_M2_SUSTAIN => self.env2_p.sustain.set_from_u7(value),
+            cc::ENV_M2_RELEASE => self.env2_p.release.set_from_u7(value),
+            _ => {}
+        }
+    }
 }
 
 impl<T: DspFloat> From<&VoiceParams<i16>> for VoiceParams<T> {

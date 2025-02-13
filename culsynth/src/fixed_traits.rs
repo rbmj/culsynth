@@ -23,6 +23,12 @@ pub trait Fixed16: Fixed {
     fn widen(self) -> Self::Widened;
     /// Create a widened from bits
     fn widened_from_bits(bits: i32) -> Self::Widened;
+    /// Set a fixed point number to a value based on a MIDI U7
+    fn set_from_u7(&mut self, value: wmidi::U7) {
+        *self = Self::from_u7(value);
+    }
+    /// Get this type based on a MIDI U7
+    fn from_u7(value: wmidi::U7) -> Self;
 }
 
 impl<N> Fixed16 for fixed::FixedI16<N>
@@ -30,6 +36,7 @@ where
     N: Unsigned + LeEqU16 + LeEqU32 + Add<N> + Add<U16>,
     Sum<N, N>: Unsigned + LeEqU32,
     Sum<N, U16>: Unsigned + LeEqU32,
+    Self::Bits: From<i16>,
 {
     fn multiply_fixed(self, rhs: Self) -> Self {
         Self::from_num(self.wide_mul(rhs))
@@ -44,6 +51,12 @@ where
     fn widened_from_bits(bits: i32) -> Self::Widened {
         Self::Widened::from_bits(bits)
     }
+    fn from_u7(cc: wmidi::U7) -> Self {
+        let cc: u8 = cc.into();
+        let control = (cc as i8) - 64;
+        let value = (control as i16) << 9;
+        Self::from_bits(value.into())
+    }
 }
 
 impl<N> Fixed16 for fixed::FixedU16<N>
@@ -51,6 +64,7 @@ where
     N: Unsigned + LeEqU16 + LeEqU32 + Add<N> + Add<U16>,
     Sum<N, N>: Unsigned + LeEqU32,
     Sum<N, U16>: Unsigned + LeEqU32,
+    Self::Bits: From<u16>,
 {
     fn multiply_fixed(self, rhs: Self) -> Self {
         Self::from_num(self.wide_mul(rhs))
@@ -64,5 +78,10 @@ where
     }
     fn widened_from_bits(bits: i32) -> Self::Widened {
         Self::Widened::from_bits(bits)
+    }
+    fn from_u7(cc: wmidi::U7) -> Self {
+        let cc: u8 = cc.into();
+        let value = (cc as u16) << 9;
+        Self::from_bits(value.into())
     }
 }

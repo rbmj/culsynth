@@ -1,29 +1,26 @@
 //! This contains all the code required to generate the actual plugins using the `nih-plug`
 //! framework.  Most of GUI code is in the [editor] module.
-use culsynth::context::GenericContext;
 use culsynth::{CoarseTuneFxP, FineTuneFxP};
-use std::sync::atomic::{AtomicI32, AtomicU32, AtomicUsize};
-use std::sync::mpsc::{Receiver, SyncSender};
-
 use wmidi::MidiMessage;
 
-mod editor;
-
+pub mod editor;
 mod voicealloc;
-use voicealloc::{PolySynth, VoiceAllocator};
 
-struct Tuning {
-    fine: FineTuneFxP,
-    coarse: CoarseTuneFxP,
+pub use culsynth as backend;
+
+#[derive(Default, Clone, Copy)]
+pub struct Tuning {
+    pub fine: FineTuneFxP,
+    pub coarse: CoarseTuneFxP,
 }
 
-#[cfg(not(target_family = "wasm"))]
+#[cfg(feature = "nih")]
 pub mod nih;
 
-#[cfg(not(target_family = "wasm"))]
+#[cfg(feature = "nih")]
 pub(crate) use nih_plug_egui::egui;
 
-#[cfg(target_family = "wasm")]
+#[cfg(not(feature = "nih"))]
 pub(crate) use egui;
 
 #[cfg(target_family = "wasm")]
@@ -85,7 +82,9 @@ impl VoiceMode {
 
 pub trait ContextReader {
     /// Get the current context.  Returns a tuple of (sample_rate, fixed_point).
-    fn get(&self) -> (u32, bool);
+    fn get(&self) -> (u32, bool) {
+        (self.sample_rate(), self.is_fixed())
+    }
     fn sample_rate(&self) -> u32;
     fn is_fixed(&self) -> bool;
     fn bufsz(&self) -> usize;

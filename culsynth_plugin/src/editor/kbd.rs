@@ -1,5 +1,5 @@
-use nih_plug::nih_log;
-use nih_plug_egui::egui;
+use crate::egui;
+use log::warn;
 use piano_keyboard::Rectangle as PianoRectangle;
 use piano_keyboard::{Element, Keyboard2d, KeyboardBuilder};
 
@@ -120,9 +120,10 @@ impl KbdPanel {
                     cursor.y + (r.y + r.height) as f32,
                 ),
             },
-            egui::epaint::Rounding::ZERO,
+            egui::epaint::CornerRadius::ZERO,
             egui::epaint::Color32::WHITE,
             egui::epaint::Stroke::NONE,
+            egui::StrokeKind::Inside,
         );
         let bottom_key = egui::epaint::RectShape::new(
             egui::Rect {
@@ -132,9 +133,10 @@ impl KbdPanel {
                     cursor.y + (wide.y + wide.height) as f32,
                 ),
             },
-            egui::epaint::Rounding::ZERO,
+            egui::epaint::CornerRadius::ZERO,
             egui::epaint::Color32::WHITE,
             egui::epaint::Stroke::NONE,
+            egui::StrokeKind::Inside,
         );
         (border, [top_key, bottom_key])
     }
@@ -170,8 +172,9 @@ impl KbdPanel {
                         }
                     }
                     ui.painter().add(border);
-                    ui.painter().add(rects[0]);
-                    ui.painter().add(rects[1]);
+                    for rect in rects.into_iter() {
+                        ui.painter().add(rect);
+                    }
                 }
                 Element::BlackKey(r) => {
                     let mut key = egui::epaint::RectShape::new(
@@ -182,12 +185,13 @@ impl KbdPanel {
                                 cursor.y + (r.y + r.height) as f32,
                             ),
                         },
-                        egui::epaint::Rounding::ZERO,
+                        egui::epaint::CornerRadius::ZERO,
                         egui::epaint::Color32::BLACK,
                         egui::epaint::Stroke {
                             width: 1.0,
                             color: egui::epaint::Color32::GRAY,
                         },
+                        egui::StrokeKind::Middle,
                     );
                     match pointer {
                         None => {}
@@ -237,7 +241,7 @@ impl KbdPanel {
                     self.last_note = new_note;
                 }
                 Err(s) => {
-                    nih_log!("{}", s);
+                    warn!("{}", s);
                 }
             }
         });

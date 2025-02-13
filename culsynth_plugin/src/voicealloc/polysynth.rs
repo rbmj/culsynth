@@ -2,7 +2,6 @@ use std::collections::VecDeque;
 
 use super::*;
 use culsynth::DspFormat;
-use nih_plug::nih_error;
 use rand::random;
 
 struct PolySynthVoice<T: DspFormat> {
@@ -81,7 +80,7 @@ where
         } else if let Some(i) = self.active_voices.pop_front() {
             self.note_on_i(i, note, velocity);
         } else {
-            nih_error!("Unable to steal voice");
+            log::warn!("Unable to steal voice");
         }
     }
     fn get_channel(&self) -> Option<wmidi::Channel> {

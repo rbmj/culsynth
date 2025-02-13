@@ -1,5 +1,6 @@
 use super::CulSynthParams;
 use crate::MidiHandler;
+use culsynth::voice::cc;
 use nih_plug::context::gui::ParamSetter;
 use nih_plug::nih_log;
 use std::sync::atomic::{AtomicU8, Ordering::Relaxed};
@@ -67,12 +68,12 @@ impl<'a> PluginMidiHandler<'a> {
         let val_lsb: u8 = val.into();
         let val_msb = self.parent.nrpn_value_msb.load(Relaxed);
         let value = ((val_msb as u16) << 7) | val_lsb as u16;
-        let msb = self.parent.nrpn_cc_msb.load(Relaxed);
+        let msb = wmidi::U7::from_u8_lossy(self.parent.nrpn_cc_msb.load(Relaxed));
         let lsb = self.parent.nrpn_cc_lsb.load(Relaxed);
         const MAX_VAL: f32 = ((1 << 14) - 1) as f32;
         let norm_value = (value as f32) / MAX_VAL;
         match msb {
-            0 => {
+            cc::NRPN_CATEGORY_CC => {
                 // If MSB of NRPN is 0, treat as high-fidelity CC
                 let new_cc = wmidi::ControlFunction(wmidi::U7::from_u8_lossy(lsb));
                 // This will screw up LFOs, so ignore:
@@ -87,7 +88,7 @@ impl<'a> PluginMidiHandler<'a> {
                     self.setter.end_set_parameter(param);
                 }
             }
-            1 => {
+            cc::NRPN_CATEGORY_MODDEST => {
                 //Treat as ModMatrix Destination Assignment
                 if let Some((dst, _)) = self.params.modmatrix.nrpn_to_slot(lsb) {
                     self.setter.begin_set_parameter(dst);
@@ -95,7 +96,7 @@ impl<'a> PluginMidiHandler<'a> {
                     self.setter.end_set_parameter(dst);
                 }
             }
-            2 => {
+            cc::NRPN_CATEGORY_MODMAG => {
                 //Treat as ModMatrix Magnitude Assignment
                 if let Some((_, mag)) = self.params.modmatrix.nrpn_to_slot(lsb) {
                     self.setter.begin_set_parameter(mag);
@@ -104,6 +105,7 @@ impl<'a> PluginMidiHandler<'a> {
                 }
             }
             _ => {
+                let msb: u8 = msb.into();
                 nih_log!("Unhandled NRPN: {} {} {}", msb, lsb, value);
             }
         }
@@ -140,7 +142,7 @@ impl<'a> PluginMidiHandler<'a> {
                     self.setter.end_set_parameter(param);
                 } else if let Some(param) = self.params.bool_param_from_cc(cc) {
                     self.setter.begin_set_parameter(param);
-                    self.setter.set_parameter(param, val_raw != 0);
+                    self.setter.set_parameter(param, val_raw > 64);
                     self.setter.end_set_parameter(param);
                 } else {
                     self.to_voice.send(MidiMessage::ControlChange(ch, cc, val));

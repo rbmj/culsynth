@@ -47,6 +47,16 @@ impl<T: DspFormatBase> ModMatrix<T> {
             .iter()
             .find_map(|x| if x.0 == dest { Some(x.1) } else { None })
     }
+    /// Get the ModSrc and Slot corresponding to a NRPN number
+    pub fn nrpn_to_slot(&self, midi: u8) -> Option<(ModSrc, usize)> {
+        let src = ModSrc::from_u8(midi & 0xF)?;
+        let slot = midi as usize >> 4;
+        Some((src, slot))
+    }
+    /// Get an entry in the modmatrix (mutable)
+    pub fn get_mut(&mut self, src: ModSrc, slot: usize) -> Option<&mut (ModDest, T::IScalar)> {
+        self.rows[src as usize].1.get_mut(slot)
+    }
 }
 
 impl<T: DspFloat> From<&ModMatrix<i16>> for ModMatrix<T> {

@@ -5,6 +5,8 @@ use culsynth::voice::modulation::{ModDest, ModMatrix};
 use culsynth::voice::VoiceParams;
 use egui::widgets;
 
+use std::sync::Arc;
+
 mod kbd;
 mod main_ui;
 mod param_widget;
@@ -24,6 +26,11 @@ impl SynthSender for std::sync::mpsc::SyncSender<Box<dyn VoiceAllocator>> {
     }
 }
 
+struct NullSender {}
+impl SynthSender for NullSender {
+    fn send(&self, _synth: Box<dyn VoiceAllocator>) {}
+}
+
 /// Struct to hold the global state information for the plugin editor (GUI).
 pub struct Editor {
     main_ui: main_ui::MainUi,
@@ -33,7 +40,17 @@ pub struct Editor {
     show_about: bool,
 }
 
+impl Default for Editor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Editor {
+    pub fn null_sender() -> Option<&'static impl SynthSender> {
+        let n: Option<&NullSender> = None;
+        n
+    }
     pub fn new() -> Self {
         Editor {
             main_ui: Default::default(),
@@ -59,7 +76,7 @@ impl Editor {
                     ui.vertical(|ui| {
                         ui.separator();
                         let mut new_dst = *dst;
-                        egui::ComboBox::from_id_source(id_str).selected_text(dst.to_str()).show_ui(
+                        egui::ComboBox::from_id_salt(id_str).selected_text(dst.to_str()).show_ui(
                             ui,
                             |ui| {
                                 let sec = src.is_secondary();
@@ -134,7 +151,7 @@ impl Editor {
     }
     fn draw_status_bar(&mut self, egui_ctx: &egui::Context, proc_ctx: &impl ContextReader) {
         egui::TopBottomPanel::top("status")
-            .frame(egui::Frame::none().fill(egui::Color32::from_gray(32)))
+            .frame(egui::Frame::NONE.fill(egui::Color32::from_gray(32)))
             .max_height(20f32)
             .show(egui_ctx, |ui| {
                 let width = ui.available_width();
@@ -208,7 +225,7 @@ impl Editor {
             ));
             if let Some(sender) = synth_sender {
                 ui.horizontal(|ui| {
-                    egui::ComboBox::from_id_source("FloatFixedSelect")
+                    egui::ComboBox::from_id_salt("FloatFixedSelect")
                         .selected_text(context_strs[fixed_point_idx])
                         .show_ui(ui, |ui| {
                             ui.selectable_value(&mut new_is_fixed, false, context_strs[0]);
@@ -216,7 +233,7 @@ impl Editor {
                                 ui.selectable_value(&mut new_is_fixed, true, context_strs[1]);
                             });
                         });
-                    egui::ComboBox::from_id_source("MonoPoly")
+                    egui::ComboBox::from_id_salt("MonoPoly")
                         .selected_text(voice_mode.to_str())
                         .show_ui(ui, |ui| {
                             ui.selectable_value(
@@ -262,21 +279,21 @@ impl Editor {
         let mut fonts = egui::FontDefinitions::default();
         fonts.font_data.insert(
             "culsynth_noto_sans_math".to_owned(),
-            egui::FontData::from_static(include_bytes!(
+            Arc::new(egui::FontData::from_static(include_bytes!(
                 "../../resources/fonts/NotoSansMath-Regular.ttf"
-            )),
+            ))),
         );
         fonts.font_data.insert(
             "culsynth_noto_sans_sym".to_owned(),
-            egui::FontData::from_static(include_bytes!(
+            Arc::new(egui::FontData::from_static(include_bytes!(
                 "../../resources/fonts/NotoSansSymbols-Regular.ttf"
-            )),
+            ))),
         );
         fonts.font_data.insert(
             "culsynth_noto_sans_math".to_owned(),
-            egui::FontData::from_static(include_bytes!(
+            Arc::new(egui::FontData::from_static(include_bytes!(
                 "../../resources/fonts/NotoSansMath-Regular.ttf"
-            )),
+            ))),
         );
         fonts
             .families
