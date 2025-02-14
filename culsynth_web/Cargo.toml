@@ -11,9 +11,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-rand = { workspace = true}
-getrandom = { version = "0.3.1", features = ["wasm_js"]}
-culsynth_plugin = { path = "../culsynth_plugin", version = "0.2.0", default-features = false, features = ["eframe"]}
+culsynth_plugin = { path = "../culsynth_plugin", version = "0.2.0", default-features = false, features = ["eframe", "wasm"]}
 eframe = { workspace = true }
 egui = { workspace = true }
 log = { workspace = true }
@@ -21,5 +19,5 @@ wmidi = {workspace = true }
 fixed = { workspace = true }
 serde = { workspace = true }
 wasm-bindgen = { version = "0.2.100"}
-web-sys = {version = "0.3.77", features = ["AudioContext"] }
+web-sys = {version = "0.3.77", features = ["AudioContext", "BaseAudioContext", "AudioNode", "MessagePort", "AudioWorkletNode", "Document", "HtmlCanvasElement", "Window"] }
 wasm-bindgen-futures = "0.4"

@@ -282,7 +282,9 @@ impl Plugin for CulSynthPlugin {
                     nih_plug::midi::NoteEvent::MidiCC { cc, value, .. } => {
                         // nih-plug guarantees that cc will be < 127, so panic is appropriate
                         let cc = wmidi::ControlFunction(wmidi::U7::new(cc).unwrap());
-                        voices.handle_cc(cc, (value * 127f32) as u8, &self.cc_tx);
+                        let midi_value = (value * 127f32) as u8;
+                        voices.handle_cc(cc, midi_value);
+                        self.cc_tx.send_cc(cc, wmidi::U7::from_u8_lossy(midi_value));
                     }
                     nih_plug::midi::NoteEvent::MidiChannelPressure { pressure, .. } => {
                         voices.aftertouch((pressure * 127f32) as u8);

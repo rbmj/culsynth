@@ -1,5 +1,4 @@
 use super::*;
-use rand::random;
 
 use culsynth::{voice::VoiceInput, DspFormat};
 
@@ -18,10 +17,29 @@ pub struct MonoSynth<T: DspFormat> {
     gate: bool,
 }
 
+#[cfg(not(feature = "getrandom"))]
+mod detail {
+    pub fn get_seeds() -> (u64, u64) {
+        (0x6d671523e8f014c8u64, 0xca3cea9b8fd864e0u64)
+    }
+}
+
+#[cfg(feature = "getrandom")]
+mod detail {
+    pub fn get_seeds() -> (u64, u64) {
+        let mut rand0 = [0u8; 8];
+        getrandom::fill(&mut rand0).unwrap();
+        let mut rand1 = [0u8; 8];
+        getrandom::fill(&mut rand1).unwrap();
+        (u64::from_ne_bytes(rand0), u64::from_ne_bytes(rand1))
+    }
+}
+
 impl<T: DspFormat> MonoSynth<T> {
     pub fn new(ctx: T::Context) -> Self {
+        let (rand0, rand1) = detail::get_seeds();
         Self {
-            voice: Voice::new_with_seeds(random(), random()),
+            voice: Voice::new_with_seeds(rand0, rand1),
             matrix: Default::default(),
             ctx,
             note: NoteFxP::lit("69"), //A440, nice
@@ -111,7 +129,7 @@ where
     fn is_poly(&self) -> bool {
         false
     }
-    fn handle_cc(&mut self, cc: wmidi::ControlFunction, value: u8, dispatcher: &dyn MidiHandler) {
+    fn handle_cc(&mut self, cc: wmidi::ControlFunction, value: u8) {
         match cc {
             wmidi::ControlFunction::MODULATION_WHEEL => {
                 self.modwheel = ScalarFxP::from_bits((value as u16) << 9);
@@ -119,9 +137,7 @@ where
             wmidi::ControlFunction::MODULATION_WHEEL_LSB => {
                 self.modwheel |= ScalarFxP::from_bits((value as u16) << 2);
             }
-            _ => {
-                dispatcher.send_cc(cc, wmidi::U7::from_u8_lossy(value));
-            }
+            _ => {}
         }
     }
 }

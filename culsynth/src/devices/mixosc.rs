@@ -1,7 +1,7 @@
 use super::*;
 
 /// A parameter pack for [MixOsc].
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct MixOscParams<T: DspFormatBase> {
     /// The tuning offset, in semitones offset from 12TET/A440
     pub tune: T::NoteOffset,
@@ -16,6 +16,19 @@ pub struct MixOscParams<T: DspFormatBase> {
     pub tri: T::Scalar,
     /// Sawtooth wave gain
     pub saw: T::Scalar,
+}
+
+impl<T: DspFormatBase> Default for MixOscParams<T> {
+    fn default() -> Self {
+        MixOscParams {
+            tune: T::NoteOffset::ZERO,
+            shape: T::Scalar::ZERO,
+            sin: T::Scalar::ZERO,
+            sq: T::Scalar::ZERO,
+            tri: T::Scalar::ZERO,
+            saw: T::Scalar::ONE,
+        }
+    }
 }
 
 impl<T: DspFloat> From<&MixOscParams<i16>> for MixOscParams<T> {

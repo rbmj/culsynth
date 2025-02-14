@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 
 use super::*;
 use culsynth::DspFormat;
-use rand::random;
+use oorandom::Rand64;
 
 struct PolySynthVoice<T: DspFormat> {
     voice: Voice<T>,
@@ -12,9 +12,9 @@ struct PolySynthVoice<T: DspFormat> {
 }
 
 impl<T: DspFormat> PolySynthVoice<T> {
-    fn new() -> Self {
+    fn new(seed1: u64, seed2: u64) -> Self {
         Self {
-            voice: Voice::new_with_seeds(random(), random()),
+            voice: Voice::new_with_seeds(seed1, seed2),
             note: NoteFxP::from_num(69), //A440
             gate: false,
             vel: ScalarFxP::ZERO,
@@ -36,9 +36,21 @@ pub struct PolySynth<T: DspFormat> {
 
 impl<T: DspFormat> PolySynth<T> {
     pub fn new(context: T::Context, num_voices: usize) -> Self {
-        let voices = std::iter::repeat_with(|| PolySynthVoice::<T>::new())
-            .take(num_voices)
-            .collect::<Box<[_]>>();
+        #[cfg(feature = "getrandom")]
+        fn seed() -> u128 {
+            let mut buf = [0u8; 16];
+            getrandom::fill(&mut buf).unwrap();
+            u128::from_ne_bytes(buf)
+        }
+        #[cfg(not(feature = "getrandom"))]
+        fn seed() -> u128 {
+            0x3893078422aee095a673b3c84bed3378u128
+        }
+        let mut rng = Rand64::new(seed());
+        let voices =
+            std::iter::repeat_with(|| PolySynthVoice::<T>::new(rng.rand_u64(), rng.rand_u64()))
+                .take(num_voices)
+                .collect::<Box<[_]>>();
         let mut active_voices = VecDeque::<usize>::new();
         let mut inactive_voices = VecDeque::<usize>::new();
         active_voices.reserve(voices.len());
@@ -101,7 +113,7 @@ where
     fn aftertouch(&mut self, value: u8) {
         self.aftertouch = ScalarFxP::from_bits((value as u16) << 9);
     }
-    fn handle_cc(&mut self, cc: wmidi::ControlFunction, value: u8, dispatcher: &dyn MidiHandler) {
+    fn handle_cc(&mut self, cc: wmidi::ControlFunction, value: u8) {
         match cc {
             wmidi::ControlFunction::MODULATION_WHEEL => {
                 self.modwheel = ScalarFxP::from_bits((value as u16) << 9);
@@ -109,9 +121,7 @@ where
             wmidi::ControlFunction::MODULATION_WHEEL_LSB => {
                 self.modwheel |= ScalarFxP::from_bits((value as u16) << 2);
             }
-            _ => {
-                dispatcher.send_cc(cc, wmidi::U7::from_u8_lossy(value));
-            }
+            _ => {}
         }
     }
     fn pitch_bend(&mut self, v: i16) {

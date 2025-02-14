@@ -3,7 +3,9 @@
 use culsynth::{CoarseTuneFxP, FineTuneFxP};
 use wmidi::MidiMessage;
 
+#[cfg(not(feature = "audioworklet"))]
 pub mod editor;
+
 mod voicealloc;
 
 pub use culsynth as backend;
@@ -20,11 +22,19 @@ pub mod nih;
 #[cfg(feature = "nih")]
 pub(crate) use nih_plug_egui::egui;
 
-#[cfg(not(feature = "nih"))]
+#[cfg(feature = "eframe")]
 pub(crate) use egui;
+
+#[cfg(feature = "eframe")]
+pub mod eframe;
 
 #[cfg(target_family = "wasm")]
 pub mod wasm;
+
+#[cfg(feature = "audioworklet")]
+pub mod audioworklet;
+
+pub mod ownedmidihandler;
 
 pub trait MidiHandler {
     fn send(&self, msg: MidiMessage<'static>);

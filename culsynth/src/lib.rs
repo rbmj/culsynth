@@ -15,7 +15,7 @@
 //! preserve information about the location of the decimal place within the type
 //! system, but does require some duplication of code throughout the crate.
 
-#![no_std]
+#![cfg_attr(not(feature = "std"), no_std)]
 #![warn(missing_docs)]
 
 use fixed::{traits::Fixed, FixedI32};

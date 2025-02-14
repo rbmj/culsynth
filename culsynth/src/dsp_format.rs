@@ -113,6 +113,8 @@ pub trait DspType<T: DspFormatBase>:
     /// Multiply this type by a Scalar.  This will never overflow
     /// (by definition, the result will always be smaller)
     fn scale(self, rhs: T::Scalar) -> Self;
+    /// Convert to a f32
+    fn to_float(self) -> f32;
 }
 
 // Floating-point implementation:
@@ -192,6 +194,9 @@ where
     fn scale(self, rhs: Self) -> Self {
         self * rhs
     }
+    fn to_float(self) -> f32 {
+        self.as_f32()
+    }
 }
 
 // 16-bit fixed point:
@@ -261,6 +266,9 @@ impl<T: Fixed16 + Send> DspType<i16> for T {
     fn scale(self, rhs: ScalarFxP) -> Self {
         self.scale_fixed(rhs)
     }
+    fn to_float(self) -> f32 {
+        self.to_num()
+    }
 }
 
 impl DspType<i16> for FrequencyFxP {
@@ -285,6 +293,9 @@ impl DspType<i16> for FrequencyFxP {
     }
     fn scale(self, rhs: ScalarFxP) -> Self {
         scale_fixedfloat(self, rhs)
+    }
+    fn to_float(self) -> f32 {
+        self.to_num()
     }
 }
 
@@ -315,6 +326,9 @@ impl DspType<i16> for PhaseFxP {
             scaled = scaled.neg();
         }
         scaled
+    }
+    fn to_float(self) -> f32 {
+        self.to_num()
     }
 }
 

@@ -108,17 +108,7 @@
         </p>
         <div class="lds-dual-ring"></div>
     </div>
-    <script type="module">
-        import init, {  } from './pkg/culsynth_web.js';
-        async function run() {
-            let wasm;
-            wasm = await init();
-            console.log(wasm);
-            wasm.__wbindgen_start();
-            console.log(wasm);
-        }
-        run();
-    </script>
+    <script type="module" src="main.js"></script>
 </body>
 
 </html>

@@ -2,7 +2,7 @@ use super::*;
 use crate::{IScalarFxP, PhaseFxP};
 use core::mem::transmute;
 use core::option::Option;
-use rand::{rngs::SmallRng, RngCore, SeedableRng};
+use oorandom::Rand32;
 
 /// Default random seed to use if not provided a seed
 const RANDOM_SEED: u64 = 0xce607a9d25ec3d88u64; //random 64 bit integer
@@ -192,7 +192,7 @@ impl<T: DspFormatBase> LfoParams<T> {
 /// An LFO
 #[derive(Clone)]
 pub struct Lfo<T: DspFormatBase + detail::LfoOps> {
-    rng: SmallRng,
+    rng: Rand32,
     phase: T::Phase,
     rand_smps: [T::Sample; 2],
     last_gate: bool,
@@ -202,7 +202,7 @@ impl<T: DspFormatBase + detail::LfoOps> Lfo<T> {
     /// Constructor
     pub fn new(seed: u64) -> Self {
         let mut retval = Self {
-            rng: SmallRng::seed_from_u64(seed),
+            rng: Rand32::new(seed),
             phase: T::Phase::zero(),
             rand_smps: [T::Sample::zero(); 2],
             last_gate: false,
@@ -213,7 +213,7 @@ impl<T: DspFormatBase + detail::LfoOps> Lfo<T> {
     }
     fn update_rands(&mut self) {
         self.rand_smps[1] = self.rand_smps[0];
-        let rand_num = self.rng.next_u32() & (u16::MAX as u32);
+        let rand_num = self.rng.rand_u32() & (u16::MAX as u32);
         let rand_scalar = ScalarFxP::from_bits(rand_num as u16);
         self.rand_smps[0] = T::sample_from_fixed(IScalarFxP::from_num(rand_scalar));
     }

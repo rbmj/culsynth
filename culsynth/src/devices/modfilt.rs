@@ -13,7 +13,7 @@ pub struct ModFiltInput<T: DspFormatBase> {
 }
 
 /// A parameter pack for a [ModFiltFxP]
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct ModFiltParams<T: DspFormatBase> {
     /// The amount of envelope modulation, from 0 (none) to 1 (the envelope
     /// will, at peak, fully open the filter)
@@ -33,6 +33,37 @@ pub struct ModFiltParams<T: DspFormatBase> {
     pub band_mix: T::Scalar,
     /// The mix of the high-pass output of the filter
     pub high_mix: T::Scalar,
+}
+
+impl<T: DspFormatBase> Default for ModFiltParams<T> {
+    fn default() -> Self {
+        ModFiltParams {
+            env_mod: T::Scalar::ZERO,
+            vel_mod: T::Scalar::ZERO,
+            kbd_tracking: T::Scalar::ZERO,
+            cutoff: T::note_from_scalar(T::Scalar::one()),
+            resonance: T::Scalar::ZERO,
+            low_mix: T::Scalar::one(),
+            band_mix: T::Scalar::ZERO,
+            high_mix: T::Scalar::ZERO,
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl<T: DspFormatBase> std::fmt::Display for ModFiltParams<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        write!(f, "MFilt {{ Cut {:.0} Res {:.0}% Vel {:.0}% Env {:.0}% Kbd {:.0}% L {:.0}% B {:.0}% H {:.0}% }}",
+            self.cutoff.to_float(),
+            self.resonance.to_float() * 100f32,
+            self.vel_mod.to_float() * 100f32,
+            self.env_mod.to_float() * 100f32,
+            self.kbd_tracking.to_float() * 100f32,
+            self.low_mix.to_float() * 100f32,
+            self.band_mix.to_float() * 100f32,
+            self.high_mix.to_float() * 100f32,
+        )
+    }
 }
 
 impl<T: DspFloat> From<&ModFiltParams<i16>> for ModFiltParams<T> {

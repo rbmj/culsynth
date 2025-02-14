@@ -28,16 +28,19 @@ piano_keyboard = "0.2.3"
 eframe = { workspace = true, optional = true }
 egui = { workspace = true, optional = true}
 log = { workspace = true}
-rand = { workspace = true }
+oorandom = { workspace = true }
 wmidi = {workspace = true }
 fixed = { workspace = true }
-culsynth = { path = "../culsynth", version = "0.2.0", features = ["rand_defaults"]}
-
-[target.'cfg(target_family = "wasm")'.dependencies]
+getrandom = { version = "0.3.1" , optional = true }
+culsynth = { path = "../culsynth", version = "0.2.0", features = ["std"]}
 wasm-bindgen = { version = "0.2.100", optional = true }
-web-sys = {version = "0.3.77", optional = true }
+web-sys = {version = "0.3.77", optional = true , features = ["MessagePort", "AudioWorklet", "AudioWorkletProcessor"]}
+console_error_panic_hook = { version = "0.1.7", optional = true }
+console_log = { version = "1.0", optional = true }
 
 [features]
-default = ["nih"]
+default = ["nih", "getrandom"]
 nih = ["dep:nih_plug", "dep:nih_plug_egui"]
 eframe = ["dep:eframe", "dep:egui"]
+wasm = ["getrandom?/wasm_js"]
+audioworklet = ["dep:wasm-bindgen", "dep:web-sys", "getrandom?/wasm_js", "dep:console_error_panic_hook", "dep:console_log"]
