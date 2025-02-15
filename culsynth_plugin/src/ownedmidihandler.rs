@@ -82,7 +82,7 @@ impl OwnedMidiHandler {
             data.tuning.0.coarse + CoarseTuneFxP::from_num(data.tuning.0.fine),
         );
         let osc2_tune = SignedNoteFxP::from_num(
-            data.tuning.0.coarse + CoarseTuneFxP::from_num(data.tuning.0.fine),
+            data.tuning.1.coarse + CoarseTuneFxP::from_num(data.tuning.1.fine),
         );
         data.params.oscs_p.primary.tune = osc1_tune;
         data.params.oscs_p.secondary.tune = osc2_tune;

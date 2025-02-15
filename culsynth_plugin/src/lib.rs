@@ -22,7 +22,7 @@ pub mod nih;
 #[cfg(feature = "nih")]
 pub(crate) use nih_plug_egui::egui;
 
-#[cfg(feature = "eframe")]
+#[cfg(all(not(feature = "nih"), not(feature = "audioworklet")))]
 pub(crate) use egui;
 
 #[cfg(feature = "eframe")]
