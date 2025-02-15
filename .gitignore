@@ -10,4 +10,4 @@ perf.data.old
 /culsynth_web/package-lock.json
 /culsynth_web/package.json
 /culsynth_web/dist
-/static
+/static/pkg

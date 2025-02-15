@@ -31,8 +31,10 @@ jobs:
       run: cargo test --verbose
     - name: Install wasm-pack
       run: cargo install wasm-pack
-    - name: Build webapp
-      run: ./build.sh
+    - name: Build webapp audioworklet
+      run: wasm-pack build --target web --no-typescript --out-dir ../static/pkg culsynth_plugin --no-default-features --features "audioworklet"
+    - name: build webapp editorui
+      run: wasm-pack build --target web --no-typescript --out-dir ../static/pkg culsynth_web
     - name: Upload to GitHub Pages
       id: deployment
       uses: actions/upload-pages-artifact@v3

@@ -8,4 +8,3 @@ mkdir -p static
 wasm-pack build --target web --no-typescript --out-dir ../static/pkg culsynth_plugin --no-default-features --features "audioworklet"
 #cd ../culsynth_web
 wasm-pack build --target web --no-typescript --out-dir ../static/pkg culsynth_web
-cp culsynth_web/*.js culsynth_web/*.html static
