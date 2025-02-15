@@ -1,7 +1,7 @@
 import init, { start_app } from './pkg/culsynth_web.js';
 
 const ctx = new AudioContext()
-await ctx.audioWorklet.addModule('processor.js')
+await ctx.audioWorklet.addModule('./processor.js')
 const node = new AudioWorkletNode(ctx, 'synth-processor', {
     numberOfInputs: 0,
     numberOfOutputs: 1,

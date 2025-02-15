@@ -6,3 +6,6 @@ __pycache__/
 flamegraph.svg
 perf.data
 perf.data.old
+/culsynth_web/node_modules
+/culsynth_web/dist
+/static

@@ -2833,6 +2833,7 @@ dependencies = [
 [[package]]
 name = "nih_plug"
 version = "0.0.0"
+source = "git+https://github.com/rbmj/nih-plug.git#f699d33c65f96856d1ac6d76ab8e97da34ae7699"
 dependencies = [
  "anyhow",
  "anymap",
@@ -2868,6 +2869,7 @@ dependencies = [
 [[package]]
 name = "nih_plug_derive"
 version = "0.1.0"
+source = "git+https://github.com/rbmj/nih-plug.git#f699d33c65f96856d1ac6d76ab8e97da34ae7699"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2877,6 +2879,7 @@ dependencies = [
 [[package]]
 name = "nih_plug_egui"
 version = "0.0.0"
+source = "git+https://github.com/rbmj/nih-plug.git#f699d33c65f96856d1ac6d76ab8e97da34ae7699"
 dependencies = [
  "baseview 0.1.0 (git+https://github.com/RustAudio/baseview.git?rev=9a0b42c09d712777b2edb4c5e0cb6baf21e988f0)",
  "crossbeam",
