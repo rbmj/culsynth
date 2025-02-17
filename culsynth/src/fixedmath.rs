@@ -91,7 +91,7 @@ pub fn sin_pi(x: IScalar) -> IScalar {
     const fn calc(theta: IScalar) -> IScalar {
         const DELTA: f32 = 1f32 / (1 << 17) as f32;
         const CONV_FACTOR: f32 = (1u16 << 15) as f32;
-        let theta_float = std::f32::consts::PI * (theta.to_bits() as f32) / CONV_FACTOR;
+        let theta_float = core::f32::consts::PI * (theta.to_bits() as f32) / CONV_FACTOR;
         let mut n = 1u64;
         let mut term = theta_float;
         let mut acc = theta_float;
