@@ -4,7 +4,7 @@ use culsynth::{
         modulation::{ModDest, ModMatrix},
         VoiceParams,
     },
-    CoarseTuneFxP, SignedNoteFxP,
+    SignedNoteFxP,
 };
 use culsynth::{Fixed16, IScalarFxP};
 use std::cell::RefCell;
@@ -78,12 +78,10 @@ impl OwnedMidiHandler {
     }
     pub fn get_params(&self) -> VoiceParams<i16> {
         let mut data = self.data.borrow_mut();
-        let osc1_tune = SignedNoteFxP::from_num(
-            data.tuning.0.coarse + CoarseTuneFxP::from_num(data.tuning.0.fine),
-        );
-        let osc2_tune = SignedNoteFxP::from_num(
-            data.tuning.1.coarse + CoarseTuneFxP::from_num(data.tuning.1.fine),
-        );
+        let osc1_tune = SignedNoteFxP::from_num(data.tuning.0.coarse)
+            + SignedNoteFxP::from_num(data.tuning.0.fine);
+        let osc2_tune = SignedNoteFxP::from_num(data.tuning.1.coarse)
+            + SignedNoteFxP::from_num(data.tuning.1.fine);
         data.params.oscs_p.primary.tune = osc1_tune;
         data.params.oscs_p.secondary.tune = osc2_tune;
         data.params.clone()

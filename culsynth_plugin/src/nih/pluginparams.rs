@@ -68,9 +68,9 @@ impl From<&OscPluginParams> for MixOscParams<i16> {
     fn from(value: &OscPluginParams) -> Self {
         let coarse = CoarseTuneFxP::from_bits(value.coarse.smoothed.next() as i16);
         let fine = FineTuneFxP::from_bits(value.fine.smoothed.next() as i16);
-        let tune = coarse + CoarseTuneFxP::from_num(fine);
+        let tune = SignedNoteFxP::from_num(coarse) + SignedNoteFxP::from_num(fine);
         MixOscParams {
-            tune: SignedNoteFxP::from_num(tune),
+            tune,
             shape: ScalarFxP::from_bits(value.shape.smoothed.next() as u16),
             sin: ScalarFxP::from_bits(value.sin.smoothed.next() as u16),
             sq: ScalarFxP::from_bits(value.sq.smoothed.next() as u16),
