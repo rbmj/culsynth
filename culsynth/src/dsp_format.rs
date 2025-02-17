@@ -1,6 +1,6 @@
 use super::*;
 use core::ops::{Add, Neg, Sub};
-use fixed::traits::FromFixed;
+use fixed::traits::{FromFixed, ToFixed};
 use fixedmath::scale_fixedfloat;
 
 /// A trait encompassing the different sample data types (e.g. 16 bit fixed,
@@ -66,6 +66,7 @@ pub trait DspFloat:
     crate::Float
     + Send
     + FromFixed
+    + ToFixed
     + DspFormatBase<
         Sample = Self,
         Note = Self,
@@ -300,10 +301,10 @@ impl DspType<i16> for FrequencyFxP {
 }
 
 impl DspType<i16> for PhaseFxP {
-    const PI: Self = PhaseFxP::PI;
-    const TAU: Self = PhaseFxP::TAU;
+    const PI: Self = PhaseFxP::MAX;
+    const TAU: Self = PhaseFxP::ZERO;
     const ZERO: Self = PhaseFxP::ZERO;
-    const ONE: Self = PhaseFxP::ONE;
+    const ONE: Self = PhaseFxP::MAX;
     fn zero() -> Self {
         Self::ZERO
     }

@@ -1,5 +1,5 @@
 use super::*;
-use crate::{IScalarFxP, PhaseFxP};
+use crate::{IScalarFxP, LfoFreqFxP, PhaseFxP};
 use core::mem::transmute;
 use core::option::Option;
 use oorandom::Rand32;
@@ -11,7 +11,11 @@ pub(crate) mod detail {
     use super::*;
 
     pub trait LfoOps: crate::DspFormatBase {
-        fn phase_per_smp(context: &Self::Context, frequency: Self::LfoFreq) -> Self::Phase;
+        fn next_phase(
+            phase: Self::Phase,
+            context: &Self::Context,
+            frequency: Self::LfoFreq,
+        ) -> Self::Phase;
         fn calc_lfo(
             phase: Self::Phase,
             wave: lfo::LfoWave,
@@ -238,10 +242,10 @@ impl<T: DspFormat> Device<T> for Lfo<T> {
             value = (value + T::Sample::one()).divide_by_two();
         }
         value = value.scale(params.depth);
-        self.phase = self.phase + T::phase_per_smp(context, params.freq);
+        let old_phase = self.phase;
+        self.phase = T::next_phase(old_phase, context, params.freq);
         // Check if we've crossed from positive phase back to negative:
-        if self.phase >= T::Phase::PI {
-            self.phase = self.phase - T::Phase::TAU;
+        if old_phase >= self.phase {
             self.update_rands();
         }
         value
@@ -256,61 +260,38 @@ impl<T: DspFormatBase + detail::LfoOps> Default for Lfo<T> {
 
 impl detail::LfoOps for i16 {
     fn calc_lfo(phase: PhaseFxP, wave: lfo::LfoWave, rands: &[SampleFxP; 2]) -> SampleFxP {
-        use crate::fixed_traits::Fixed16;
-        use crate::fixedmath::{cos_fixed, sin_fixed};
-        const TWO: SampleFxP = SampleFxP::lit("2");
-        let frac_2phase_pi = SampleFxP::from_num(phase).scale_fixed(ScalarFxP::FRAC_2_PI);
         match wave {
-            LfoWave::Saw => frac_2phase_pi.unwrapped_shr(1),
+            LfoWave::Saw => SampleFxP::from_num(phase),
             LfoWave::Square => {
-                if phase < 0 {
+                if phase < PhaseFxP::ZERO {
                     SampleFxP::NEG_ONE
                 } else {
                     SampleFxP::ONE
                 }
             }
             LfoWave::Triangle => {
-                if phase < PhaseFxP::FRAC_PI_2.unwrapped_neg() {
-                    frac_2phase_pi.unwrapped_neg() - TWO
-                } else if phase > PhaseFxP::FRAC_PI_2 {
-                    TWO - frac_2phase_pi
-                } else {
-                    frac_2phase_pi
-                }
+                SampleFxP::ONE - (SampleFxP::from_num(phase).abs().unwrapped_shl(1))
             }
-            LfoWave::Sine => {
-                if phase < PhaseFxP::FRAC_PI_2.unwrapped_neg() {
-                    // phase in [-pi, pi/2)
-                    // Use the identity sin(x) = -cos(x+pi/2) since our taylor series
-                    // approximations are centered about zero and this will be more accurate
-                    cos_fixed(SampleFxP::from_num(phase + PhaseFxP::FRAC_PI_2)).unwrapped_neg()
-                } else if phase < PhaseFxP::FRAC_PI_2 {
-                    // phase in [pi/2, pi)
-                    // sin(x) = cos(x-pi/2)
-                    cos_fixed(SampleFxP::from_num(phase - PhaseFxP::FRAC_PI_2))
-                } else {
-                    sin_fixed(SampleFxP::from_num(phase))
-                }
-            }
+            LfoWave::Sine => SampleFxP::from_num(fixedmath::sin_pi(IScalarFxP::from_num(phase))),
             LfoWave::SampleHold => rands[0],
             LfoWave::SampleGlide => {
-                rands[0] + SampleFxP::multiply(frac_2phase_pi, rands[1] - rands[0])
+                let phase_plus_one = SampleFxP::from_num(phase) + SampleFxP::ONE;
+                rands[0] + SampleFxP::multiply(phase_plus_one.unwrapped_shr(1), rands[1] - rands[0])
             }
         }
     }
-    fn phase_per_smp(context: &ContextFxP, frequency: Self::LfoFreq) -> Self::Phase {
-        PhaseFxP::from_num(
-            frequency.wide_mul(context.sample_rate.frac_2pi4096_sr()).unwrapped_shr(12),
-        )
+    fn next_phase(phase: PhaseFxP, context: &ContextFxP, frequency: LfoFreqFxP) -> Self::Phase {
+        let phase_per_smp = PhaseFxP::from_num(
+            frequency.wide_mul(context.sample_rate.frac_32768_sr()).unwrapped_shr(15),
+        );
+        phase.wrapping_add(phase_per_smp)
     }
 }
 
 impl<T: DspFloat> detail::LfoOps for T {
     fn calc_lfo(phase: T, wave: lfo::LfoWave, rands: &[T; 2]) -> T {
-        let frac_2phase_pi = (phase + phase) / T::PI;
-        let pi_2 = T::FRAC_PI_2;
         match wave {
-            LfoWave::Saw => frac_2phase_pi / T::TWO,
+            LfoWave::Saw => phase,
             LfoWave::Square => {
                 if phase < T::ZERO {
                     T::ONE.neg()
@@ -318,34 +299,19 @@ impl<T: DspFloat> detail::LfoOps for T {
                     T::ONE
                 }
             }
-            LfoWave::Triangle => {
-                if phase < pi_2.neg() {
-                    frac_2phase_pi.neg() - T::TWO
-                } else if phase > pi_2 {
-                    T::TWO - frac_2phase_pi
-                } else {
-                    frac_2phase_pi
-                }
-            }
-            LfoWave::Sine => {
-                if phase < pi_2.neg() {
-                    // phase in [-pi, pi/2)
-                    // Use the identity sin(x) = -cos(x+pi/2) since our taylor series
-                    // approximations are centered about zero and this will be more accurate
-                    T::fcos(phase + pi_2).neg()
-                } else if phase < pi_2 {
-                    // phase in [pi/2, pi)
-                    // sin(x) = cos(x-pi/2)
-                    T::fcos(phase - pi_2)
-                } else {
-                    T::fsin(phase)
-                }
-            }
+            LfoWave::Triangle => T::ONE - (phase.abs() * T::TWO),
+            LfoWave::Sine => (phase * T::PI).fsin(),
             LfoWave::SampleHold => rands[0],
-            LfoWave::SampleGlide => rands[0] + (frac_2phase_pi * (rands[1] - rands[0])),
+            LfoWave::SampleGlide => {
+                rands[0] + (((phase + T::ONE) / T::TWO) * (rands[1] - rands[0]))
+            }
         }
     }
-    fn phase_per_smp(context: &Context<T>, frequency: T) -> T {
-        (frequency * T::TAU) / context.sample_rate
+    fn next_phase(mut phase: T, context: &Context<T>, frequency: T) -> T {
+        phase = phase + (frequency / context.sample_rate);
+        if phase >= T::ONE {
+            phase = phase - T::TWO;
+        }
+        phase
     }
 }

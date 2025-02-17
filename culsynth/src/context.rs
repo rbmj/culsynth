@@ -133,6 +133,17 @@ impl FixedSampleRate {
             Self::Khz48_0 => RET480,
         }
     }
+    /// An unsigned, 16 bit fixed point number representing the quantity
+    /// 32768 / sample_rate.  Right shift 15 bits to get the inverse of the
+    /// sample rate.
+    pub const fn frac_32768_sr(&self) -> ScalarFxP {
+        const RET441: ScalarFxP = ScalarFxP::lit("0x0.be37");
+        const RET480: ScalarFxP = ScalarFxP::lit("0x0.aec3");
+        match self {
+            Self::Khz44_1 => RET441,
+            Self::Khz48_0 => RET480,
+        }
+    }
 }
 
 impl TryFrom<u32> for FixedSampleRate {

@@ -38,21 +38,168 @@ pub type Frequency = U14F18; // 14 bits will hold the highest MIDI freq
 /// name assigned.  Note that 0xFFFF is slightly less than 1.0, so we will lose
 /// a (very) small amount of signal when maxed out.
 pub type Scalar = U0F16;
+/// A signed 16 bit fixed point number in the interval `[-1, 1)`.
+pub type IScalar = I1F15;
+/// An unsigned 32 bit fixed point number with 16 fractional bits
+/// Called a ScaleOutput because it can hold 1/x or 1*x for any Scalar
+pub type ScaleOutput = U16F16;
 
 //for the following constants, we'll use as many bits as we can fit
 //in a couple cases, that means we'll buy a extra place shifting right
-const FRAC_16_21: Scalar = Scalar::lit("0x0.c30c"); //0x0.c30 repeating
-const FRAC_4_5: Scalar = Scalar::lit("0x0.cccd"); //0x0.c repeating
 const FRAC_2_3: Scalar = Scalar::lit("0x0.aaab"); //0x0.a repeating
-const FRAC_8_15: Scalar = Scalar::lit("0x0.8889"); //0x0.8 repeating
-
-//when to apply a small angle approximation
-const SMALL_ANGLE_LESS: Sample = Sample::lit("0x0.1");
 
 // (4/3)*ln(2)
 const FRAC_4LN2_3: Scalar = Scalar::lit("0x0.ec98");
 // Frequency of E4 ~= 329.63 Hz
 const FREQ_E4: Frequency = Frequency::lit("329.627557");
+
+// The functions below are helpers because the one's in std are not const
+// evaluable on stable... when that gets out of nightly these can be removed
+
+// Calculate x!
+const fn factorial(mut x: u64) -> u64 {
+    let mut ret = 1;
+    while x > 1 {
+        ret *= x;
+        x -= 1;
+    }
+    ret
+}
+
+// Calculate x^n
+// should do pow-mod here but it's only to generate the lookup table...
+const fn float_powi(x: f32, mut n: u64) -> f32 {
+    let mut ret = 1f32;
+    while n > 0 {
+        ret *= x;
+        n -= 1;
+    }
+    ret
+}
+
+// Absolute value
+const fn f_abs(x: f32) -> f32 {
+    if x < 0f32 {
+        -x
+    } else {
+        x
+    }
+}
+
+/// Calculate sin(x*pi)
+pub fn sin_pi(x: IScalar) -> IScalar {
+    const fn calc(theta: IScalar) -> IScalar {
+        const DELTA: f32 = 1f32 / (1 << 17) as f32;
+        const CONV_FACTOR: f32 = (1u16 << 15) as f32;
+        let theta_float = std::f32::consts::PI * (theta.to_bits() as f32) / CONV_FACTOR;
+        let mut n = 1u64;
+        let mut term = theta_float;
+        let mut acc = theta_float;
+        while f_abs(term) > DELTA {
+            let sign = if n % 2 != 0 { -1f32 } else { 1f32 };
+            let exp = 2 * n + 1;
+            term = sign * float_powi(theta_float, exp) / factorial(exp) as f32;
+            acc += term;
+            n += 1;
+        }
+        IScalar::from_bits((acc * CONV_FACTOR) as i16)
+    }
+    const fn generate() -> [IScalar; 257] {
+        let mut table = [IScalar::ZERO; 257];
+        let mut i = i8::MIN as isize;
+        while i <= i8::MAX as isize {
+            let value = IScalar::from_bits((i as i16) << 8);
+            table[(i - (i8::MIN as isize)) as usize] = calc(value);
+            i += 1;
+        }
+        table
+    }
+    const LOOKUP_TABLE: [IScalar; 257] = generate();
+    let x_bits = (x.to_bits() as i32).wrapping_add(1 << 15) as u16;
+    let idx = (x_bits >> 8) as usize;
+    let frac = Scalar::from_bits((x_bits & 0xFF) << 8);
+    LOOKUP_TABLE[idx]
+        + IScalar::from_num((LOOKUP_TABLE[idx + 1] - LOOKUP_TABLE[idx]).wide_mul_unsigned(frac))
+}
+
+/// Calculate cos(x*pi)
+pub fn cos_pi(x: IScalar) -> IScalar {
+    sin_pi(IScalar::lit("0.5").wrapping_sub(x))
+}
+
+pub fn inverse(x: Scalar) -> ScaleOutput {
+    const fn calc(n: Scalar) -> ScaleOutput {
+        let n_float = (n.to_bits() as f32) / 65536f32;
+        let ret = (65536f32 / n_float) as u32;
+        ScaleOutput::from_bits(ret)
+    }
+    const fn generate() -> [ScaleOutput; 257] {
+        let mut table = [ScaleOutput::MAX; 257];
+        table[256] = ScaleOutput::ONE;
+        let mut i = 1u16;
+        while i < 256u16 {
+            let value = Scalar::from_bits(i << 8);
+            table[i as usize] = calc(value);
+            i += 1;
+        }
+        table
+    }
+    const LOOKUP_TABLE: [ScaleOutput; 257] = generate();
+    let x_bits = x.to_bits();
+    let idx = (x_bits >> 8) as usize;
+    let frac = Scalar::from_bits((x_bits & 0xFF) << 8);
+    let table_diff = LOOKUP_TABLE[idx + 1] - LOOKUP_TABLE[idx];
+    LOOKUP_TABLE[idx] + scale_fixedfloat(table_diff, frac)
+}
+
+pub fn one_over_one_plus_scalar(x: Scalar) -> Scalar {
+    const fn calc(n: Scalar) -> Scalar {
+        let n_float = (n.to_bits() as f32) / 65536f32;
+        let ret = (65536f32 / (1f32 + n_float)) as u16;
+        Scalar::from_bits(ret)
+    }
+    const fn generate() -> [Scalar; 257] {
+        let mut table = [Scalar::MAX; 257];
+        table[256] = Scalar::lit("0.5");
+        let mut i = 1u16;
+        while i < 256u16 {
+            let value = Scalar::from_bits(i << 8);
+            table[i as usize] = calc(value);
+            i += 1;
+        }
+        table
+    }
+    const LOOKUP_TABLE: [Scalar; 257] = generate();
+    let x_bits = x.to_bits();
+    let idx = (x_bits >> 8) as usize;
+    let frac = Scalar::from_bits((x_bits & 0xFF) << 8);
+    LOOKUP_TABLE[idx] - Scalar::from_num((LOOKUP_TABLE[idx] - LOOKUP_TABLE[idx + 1]).wide_mul(frac))
+}
+
+pub fn one_over_one_minus(x: Scalar) -> ScaleOutput {
+    const fn calc(n: Scalar) -> ScaleOutput {
+        let n_float = (n.to_bits() as f32) / 65536f32;
+        let ret = (65536f32 / (1f32 - n_float)) as u32;
+        ScaleOutput::from_bits(ret)
+    }
+    const fn generate() -> [ScaleOutput; 257] {
+        let mut table = [ScaleOutput::MAX; 257];
+        table[0] = ScaleOutput::ONE;
+        let mut i = 1u16;
+        while i < 256u16 {
+            let value = Scalar::from_bits(i << 8);
+            table[i as usize] = calc(value);
+            i += 1;
+        }
+        table
+    }
+    const LOOKUP_TABLE: [ScaleOutput; 257] = generate();
+    let x_bits = x.to_bits();
+    let idx = (x_bits >> 8) as usize;
+    let frac = Scalar::from_bits((x_bits & 0xFF) << 8);
+    let table_diff = LOOKUP_TABLE[idx + 1] - LOOKUP_TABLE[idx];
+    LOOKUP_TABLE[idx] + scale_fixedfloat(table_diff, frac)
+}
 
 /// Take a 32 bit fixed point number A and a 16 bit fixed point number B, and return
 /// a 32 bit fixed point number representing the product of those two numbers with
@@ -128,80 +275,6 @@ where
         U1F15::from_num(x2 + one_minus_x + one_minus_x.unwrapped_shl(1)),
         shift,
     )
-}
-
-/// Perform the same calculation as [one_over_one_plus], but with a 16 bit
-/// fixed point number as the input, and use a quartic taylor series instead
-/// of a quadratic one.  This is significantly more accurate at the cost of an
-/// extra two 32-bit multiplies.
-pub fn one_over_one_plus_highacc(x: U0F16) -> (U1F15, u32) {
-    let (x_shifted, shift) = one_over_one_plus_helper(U16F16::from_num(x));
-    const FIVE_NAR: U3F13 = U3F13::lit("5");
-    const FIVE: U4F28 = U4F28::lit("5");
-    const TEN: U4F28 = U4F28::lit("10");
-    let x_shifted_trunc = U1F15::from_num(x_shifted);
-    let p1 = x_shifted_trunc.wide_mul(FIVE_NAR - U3F13::from_num(x_shifted_trunc));
-    let p2 = x_shifted_trunc.wide_mul(U3F13::from_num(TEN - p1));
-    let p3 = x_shifted_trunc.wide_mul(U3F13::from_num(TEN - p2));
-    (U1F15::from_num(FIVE - p3), shift)
-}
-
-/// Fixed point sin(x), using a 7th order taylor series approximation about
-/// x == 0.  This is fairly accurate from -pi to pi.
-///
-/// # Panics
-///
-/// This function may panic due to fixed-point overflow if given an input ouside
-/// of the range -pi to pi, though it has been tested to be safe up to +/- 3.2
-pub fn sin_fixed(x: Sample) -> Sample {
-    //small angle approximation.  Faster and removes 0 as an edge case
-    if x.abs() < SMALL_ANGLE_LESS {
-        return x;
-    }
-    //x^2.  Always >0, so use unsigned to avoid overflow with 4 bits
-    //perhaps use wrapping_from_num if !debug?
-    let x2 = USample::from_num(x.wide_mul(x));
-    // sin(x) = x - x^3/3! + x^5/5! - x^7/7! (+ higher order terms)
-    //        = x { 1 - x^2/6 [ 1 - x^2/20 ( 1 - x^2/42 ) ] }
-    //
-    // let c = x^2 * (16/21) * (1/32) = x^2/42
-    let c = FRAC_16_21.wide_mul(x2).unwrapped_shr(5);
-    // let c_nested = 1 - c
-    let c_nested = Scalar::from_num(U4F28::ONE - c);
-    // let b = x^2 * (4/5) * (1/16) = x^2 / 20
-    let b = Scalar::from_num(FRAC_4_5.wide_mul(x2).unwrapped_shr(4));
-    // let b_nested = 1 - b*c_nested
-    let b_nested = Scalar::from_num(U16F16::ONE - U16F16::from_num(b.wide_mul(c_nested)));
-    // let a = x^2 * (2/3) * (1/4) = x^2 / 6
-    let a = U2F14::from_num(FRAC_2_3.wide_mul(x2).unwrapped_shr(2));
-    let a_nested = I1F15::from_num(I2F30::ONE - I2F30::from_num(a.wide_mul(b_nested)));
-    // sin(x) ~= x*a_nested
-    Sample::from_num(x.wide_mul(a_nested))
-}
-
-/// Fixed point cos(x), using a sixth order taylor series approximation about
-/// x == 0.  This is fairly accurate from -pi/2 to pi/2.
-///
-/// # Panics
-///
-/// This function may panic due to fixed point overflow if given a number outside
-/// of the range -pi to pi, though it has been tested out to 3.2.
-pub fn cos_fixed(x: Sample) -> Sample {
-    let x2 = USample::from_num(x.wide_mul(x));
-    //small angle approximation.  Faster and removes 0 as an edge case
-    if x.abs() < SMALL_ANGLE_LESS {
-        return Sample::ONE - Sample::from_num(x2.unwrapped_shr(1));
-    }
-    // c = x^2 * (8/15) * (1/16) = x^2/30
-    let c = FRAC_8_15.wide_mul(x2).unwrapped_shr(4);
-    let c_nested = Scalar::from_num(U4F28::ONE - c);
-    // b = x^2 * (2/3) * (1/8) = x^2/12
-    let b = Scalar::from_num(FRAC_2_3.wide_mul(x2).unwrapped_shr(3));
-    let b_nested = Scalar::from_num(U16F16::ONE - U16F16::from_num(b.wide_mul(c_nested)));
-    // let a = x^2/2, a*b_nested:
-    let a_mult_b_nested = x2.wide_mul(b_nested).unwrapped_shr(1);
-    // cos(x) ~= 1 - a*b_nested
-    Sample::ONE - Sample::from_num(a_mult_b_nested)
 }
 
 /// A very rough approximation of tan(x) using a quadratic taylor series expansion.
@@ -314,70 +387,9 @@ mod tests {
     //test for correctness of constants
     #[test]
     fn const_fraction_correctness() {
-        assert_eq!(FRAC_16_21, Scalar::from_num(16.0 / 21.0));
-        assert_eq!(FRAC_4_5, Scalar::from_num(4.0 / 5.0));
         assert_eq!(FRAC_2_3, Scalar::from_num(2.0 / 3.0));
-        assert_eq!(FRAC_8_15, Scalar::from_num(8.0 / 15.0));
     }
-    //
-    //SIN TESTS:
-    //
-    #[test]
-    fn sin_zero_and_small_angles() {
-        //make sure we don't panic on the edge case
-        let _ = sin_fixed(SMALL_ANGLE_LESS);
-        assert_eq!(sin_fixed(Sample::ZERO), Sample::ZERO);
-    }
-    #[test]
-    fn sin_fixed_rms_error() {
-        let numsteps = 2000;
-        let mut error = 0.0;
-        for i in 0..=numsteps {
-            let x = (core::f32::consts::TAU * i as f32) / (numsteps as f32) - core::f32::consts::PI;
-            let fixed = sin_fixed(Sample::from_num(x));
-            let float = x.sin();
-            let this_error = float - fixed.to_num::<f32>();
-            error += this_error * this_error;
-        }
-        error /= numsteps as f32;
-        error = error.sqrt();
-        assert!(error < 0.02); //RMS error on interval (-pi, pi)
-    }
-    #[test]
-    fn sin_slightly_over_bounds_no_overflows() {
-        let _a = sin_fixed(Sample::lit("3.2"));
-        let _b = sin_fixed(Sample::lit("-3.2"));
-    }
-    //
-    //COS TESTS:
-    //
-    #[test]
-    fn cos_zero_and_small_angles() {
-        //make sure we don't panic on the edge case
-        let _ = cos_fixed(SMALL_ANGLE_LESS);
-        assert_eq!(cos_fixed(Sample::ZERO), Sample::ONE);
-    }
-    #[test]
-    fn cos_fixed_rms_error() {
-        let numsteps = 2000;
-        let mut error = 0.0;
-        for i in 0..=numsteps {
-            let x = (core::f32::consts::TAU * i as f32) / (numsteps as f32) - core::f32::consts::PI;
-            let fixed = cos_fixed(Sample::from_num(x));
-            let float = x.cos();
-            let this_error = float - fixed.to_num::<f32>();
-            error += this_error * this_error;
-        }
-        error /= numsteps as f32;
-        error = error.sqrt();
-        //TODO: Is this good enough?  RMS error is good on (-pi/2, pi/2)
-        assert!(error < 0.06); //RMS error on interval (-pi, pi)
-    }
-    #[test]
-    fn cos_slightly_over_bounds_no_overflows() {
-        let _a = cos_fixed(Sample::lit("3.2"));
-        let _b = cos_fixed(Sample::lit("-3.2"));
-    }
+    //TODO: Test sin/cos
     #[test]
     fn midi_pitch_calculations() {
         for i in 0..=127 {

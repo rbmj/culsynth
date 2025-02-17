@@ -48,6 +48,7 @@ pub use fixedmath::Frequency as FrequencyFxP;
 pub use fixedmath::Note as NoteFxP;
 pub use fixedmath::Sample as SampleFxP;
 pub use fixedmath::Scalar as ScalarFxP;
+pub use fixedmath::ScaleOutput as ScaleOutputFxP;
 pub use fixedmath::SignedNote as SignedNoteFxP;
 pub use fixedmath::USample as USampleFxP;
 /// An envelope rise/fall time parameter, represented in seconds as an unsigned
@@ -62,8 +63,9 @@ pub type LfoFreqFxP = fixedmath::U7F9;
 /// A signed value in the range `[-1, 1)` - used where we need a signed version
 /// of a [ScalarFxP]
 pub type IScalarFxP = fixedmath::I1F15;
-/// A 32-bit fixed point number representing a sinusoid's phase.  
-type PhaseFxP = fixedmath::I4F28;
+/// A 32-bit fixed point number representing a sinusoid's phase angle divided
+/// by pi - therefore a number between -1 and 1
+type PhaseFxP = fixedmath::I1F31;
 /// A 16 bit fixed point number representing a tuning offset from -32 to +32
 /// semitones
 pub type CoarseTuneFxP = fixedmath::I6F10;
