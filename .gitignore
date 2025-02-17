@@ -11,3 +11,4 @@ perf.data.old
 /culsynth_web/package.json
 /culsynth_web/dist
 /static/pkg
+/static_debug
