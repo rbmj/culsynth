@@ -64,14 +64,14 @@ pub trait MidiHandler {
     }
 }
 
-const NAME: &'static str = "CulSynth";
-const VENDOR: &'static str = "rbmj";
-const URL: &'static str = "https://github.com/rbmj/culsynth";
-const EMAIL: &'static str = "rbmj@verizon.net";
-const ID: &'static str = "com.rbmj.culsynth";
-const DESCRIPTION: Option<&'static str> = Some("Culsynth Softsynth");
-const CLASS_ID: [u8; 16] = *b"CulSySynthesizer";
-const VERSION: &'static str = env!("CARGO_PKG_VERSION");
+pub const NAME: &'static str = "CulSynth";
+pub const VENDOR: &'static str = "rbmj";
+pub const URL: &'static str = "https://github.com/rbmj/culsynth";
+pub const EMAIL: &'static str = "rbmj@verizon.net";
+pub const ID: &'static str = "com.rbmj.culsynth";
+pub const DESCRIPTION: Option<&'static str> = Some("Culsynth Softsynth");
+pub const CLASS_ID: [u8; 16] = *b"CulSySynthesizer";
+pub const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
 #[derive(Default, Clone, Copy, PartialEq)]
 #[repr(u8)]

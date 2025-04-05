@@ -18,11 +18,12 @@ name = "culsynth-standalone"
 path = "src/main.rs"
 
 [dependencies]
-nih_plug = { git = "https://github.com/rbmj/nih-plug.git", version = "0.0.0", features = ["standalone", "vst3"] , optional = true }
+nih_plug = { git = "https://github.com/rbmj/nih-plug.git", version = "0.0.0", features = ["vst3"] , optional = true }
 nih_plug_egui = { git = "https://github.com/rbmj/nih-plug.git", version = "0.0.0" , optional = true }
 lazy_static = "1.4.0"
 regex = "1.10.3"
 piano_keyboard = "0.2.3"
+pipewire = { version = "0.8.0" , optional = true}
 eframe = { workspace = true, optional = true }
 egui = { workspace = true, optional = true}
 log = { workspace = true}
@@ -37,8 +38,10 @@ console_error_panic_hook = { version = "0.1.7", optional = true }
 console_log = { version = "1.0", optional = true }
 
 [features]
-default = ["nih", "getrandom"]
+default = ["nih", "getrandom", "pw-standalone"]
 nih = ["dep:nih_plug", "dep:nih_plug_egui"]
+nih-standalone = ["nih_plug/standalone", "dep:nih_plug_egui"]
+pw-standalone = ["dep:pipewire", "dep:eframe", "dep:egui"]
 eframe = ["dep:eframe", "dep:egui"]
 wasm = ["getrandom?/wasm_js"]
 audioworklet = ["dep:wasm-bindgen", "dep:web-sys", "getrandom?/wasm_js", "dep:console_error_panic_hook", "dep:console_log"]
