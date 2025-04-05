@@ -6,7 +6,7 @@ use wmidi::MidiMessage;
 #[cfg(not(feature = "audioworklet"))]
 pub mod editor;
 
-mod voicealloc;
+pub mod voicealloc;
 
 pub use culsynth as backend;
 
