@@ -124,7 +124,8 @@ pub fn sin_pi(x: IScalar) -> IScalar {
 
 /// Calculate cos(x*pi)
 pub fn cos_pi(x: IScalar) -> IScalar {
-    sin_pi(IScalar::lit("0.5").wrapping_sub(x))
+    const HALF: IScalar = IScalar::lit("0.5");
+    sin_pi(HALF.wrapping_sub(x))
 }
 
 pub fn inverse(x: Scalar) -> ScaleOutput {

@@ -4,6 +4,8 @@ use crate::{MidiHandler, Tuning, VoiceMode};
 use culsynth::voice::modulation::{ModDest, ModMatrix};
 use culsynth::voice::VoiceParams;
 use egui::widgets;
+#[cfg(feature = "instrumentation")]
+use ringbuffer::RingBuffer;
 
 use std::sync::Arc;
 
@@ -31,6 +33,45 @@ impl SynthSender for NullSender {
     fn send(&self, _synth: Box<dyn VoiceAllocator>) {}
 }
 
+#[cfg(feature = "instrumentation")]
+struct EditorInstrumentation {
+    pub buffer: ringbuffer::ConstGenericRingBuffer<u32, 256>,
+    pub should_show: bool,
+}
+
+#[cfg(feature = "instrumentation")]
+impl EditorInstrumentation {
+    pub fn new() -> Self {
+        Self {
+            buffer: ringbuffer::ConstGenericRingBuffer::from([0; 256]),
+            should_show: false,
+        }
+    }
+    pub fn draw(&mut self, egui_ctx: &egui::Context) {
+        self.buffer.push(crate::instrumentation::get_last());
+        egui::Window::new("Instrumentation")
+            .open(&mut self.should_show)
+            .show(egui_ctx, |ui| {
+                use egui_plot::{Line, Plot, PlotPoints};
+                const TIME: f64 = 1e9 * 1024f64 / 48000f64;
+                let points = self
+                    .buffer
+                    .iter()
+                    .enumerate()
+                    .map(|(n, t)| [n as f64, *t as f64 / TIME])
+                    .collect::<Vec<[f64; 2]>>();
+                let line = Line::new("Instrumentation", PlotPoints::new(points));
+                Plot::new("Data")
+                    .view_aspect(2.0)
+                    .include_y(0.0)
+                    .set_margin_fraction(egui::Vec2::new(0.0, 0.2))
+                    .show(ui, |plot_ui| {
+                        plot_ui.line(line);
+                    })
+            });
+    }
+}
+
 /// Struct to hold the global state information for the plugin editor (GUI).
 pub struct Editor {
     main_ui: main_ui::MainUi,
@@ -38,6 +79,8 @@ pub struct Editor {
     show_mod_matrix: bool,
     show_settings: bool,
     show_about: bool,
+    #[cfg(feature = "instrumentation")]
+    instrumentation: EditorInstrumentation,
 }
 
 impl Default for Editor {
@@ -52,12 +95,26 @@ impl Editor {
         n
     }
     pub fn new() -> Self {
-        Editor {
-            main_ui: Default::default(),
-            kbd_panel: Default::default(),
-            show_mod_matrix: false,
-            show_settings: false,
-            show_about: false,
+        #[cfg(feature = "instrumentation")]
+        {
+            Editor {
+                main_ui: Default::default(),
+                kbd_panel: Default::default(),
+                show_mod_matrix: false,
+                show_settings: false,
+                show_about: false,
+                instrumentation: EditorInstrumentation::new(),
+            }
+        }
+        #[cfg(not(feature = "instrumentation"))]
+        {
+            Editor {
+                main_ui: Default::default(),
+                kbd_panel: Default::default(),
+                show_mod_matrix: false,
+                show_settings: false,
+                show_about: false,
+            }
         }
     }
     fn draw_modmatrix(ui: &mut egui::Ui, matrix: &ModMatrix<i16>, handler: &impl MidiHandler) {
@@ -148,6 +205,10 @@ impl Editor {
                 Self::draw_modmatrix(ui, matrix, midi_handler);
             },
         );
+        #[cfg(feature = "instrumentation")]
+        {
+            self.instrumentation.draw(egui_ctx);
+        }
     }
     fn draw_status_bar(&mut self, egui_ctx: &egui::Context, proc_ctx: &impl ContextReader) {
         egui::TopBottomPanel::top("status")
@@ -166,6 +227,12 @@ impl Editor {
                         }
                         if ui.button("About").clicked() {
                             self.show_about = true;
+                        }
+                        #[cfg(feature = "instrumentation")]
+                        {
+                            if ui.button("INST").clicked() {
+                                self.instrumentation.should_show = true;
+                            }
                         }
                     });
                     columns[0].expand_to_include_x(third);

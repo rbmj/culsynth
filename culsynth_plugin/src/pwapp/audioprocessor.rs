@@ -1,14 +1,24 @@
-use std::io::Write;
 use std::sync::mpsc;
 
-use pipewire::spa::param::audio::{AudioFormat, AudioInfoRaw};
+use pipewire::spa::param::audio::AudioInfoRaw;
 use pipewire::spa::pod::{Pod, PodObject};
 use wmidi::MidiMessage;
 
-use culsynth_plugin::voicealloc::{MonoSynth, PolySynth, VoiceAllocator};
-use culsynth_plugin::{ownedmidihandler::OwnedMidiHandler, MidiHandler};
+use crate::voicealloc::{MonoSynth, PolySynth, VoiceAllocator};
+use crate::{ownedmidihandler::OwnedMidiHandler, MidiHandler};
 
-use crate::PwContext;
+use super::supportedformats::PwSupportedFormats;
+use super::PwContext;
+
+unsafe fn transmute_buf<'a, T>(buf: &'a mut [u8]) -> &'a mut [T] {
+    unsafe {
+        std::slice::from_raw_parts_mut(
+            buf.as_mut_ptr() as *mut T,
+            buf.len() / std::mem::size_of::<T>(),
+        )
+    }
+}
+
 pub struct PwAudioProcessor {
     midi_rx: mpsc::Receiver<MidiMessage<'static>>,
     synth_rx: mpsc::Receiver<Box<dyn VoiceAllocator>>,
@@ -17,7 +27,6 @@ pub struct PwAudioProcessor {
     param_handler: OwnedMidiHandler,
     audio_fmt: Option<AudioInfoRaw>,
     context: Option<PwContext>,
-    acc: f32,
 }
 
 impl PwAudioProcessor {
@@ -30,7 +39,7 @@ impl PwAudioProcessor {
             sample_rate: 0,
             bufsize: 0,
             fixed: false,
-            voice_mode: culsynth_plugin::VoiceMode::Poly16,
+            voice_mode: crate::VoiceMode::Poly16,
         };
         Self {
             midi_rx,
@@ -40,10 +49,10 @@ impl PwAudioProcessor {
             param_handler: OwnedMidiHandler::new(wmidi::Channel::Ch1),
             audio_fmt: None,
             context: Some(context),
-            acc: 0f32,
         }
     }
     pub fn process(&mut self, mut pwbuf: pipewire::buffer::Buffer) -> Result<(), &'static str> {
+        let instrumentation = crate::instrumentation::begin();
         while let Ok(synth) = self.synth_rx.try_recv() {
             if let Some(fmt) = self.audio_fmt {
                 let _ = self.ctx_tx.try_send(PwContext {
@@ -51,9 +60,9 @@ impl PwAudioProcessor {
                     bufsize: 0,
                     fixed: synth.get_context().is_fixed_point(),
                     voice_mode: if synth.is_poly() {
-                        culsynth_plugin::VoiceMode::Poly16
+                        crate::VoiceMode::Poly16
                     } else {
-                        culsynth_plugin::VoiceMode::Mono
+                        crate::VoiceMode::Mono
                     },
                 });
             }
@@ -70,50 +79,47 @@ impl PwAudioProcessor {
 
         let first_block = pwbuf.datas_mut().first_mut().ok_or("No data blocks")?;
         let buf = first_block.data().ok_or("Buffer not memory mapped")?;
-        let bufsz = buf.len();
-        let mut buf = std::io::Cursor::new(buf);
         let fmt = self.audio_fmt.ok_or("Audio format not set")?;
+        let num_ch = fmt.channels() as usize;
         let mut matrix = Some(self.param_handler.get_matrix());
         let params = self.param_handler.get_params();
-        const MAX_FRAMES: usize = 1024;
         match fmt.format() {
-            AudioFormat::F32LE => {
-                let frame_stride = fmt.channels() as usize * std::mem::size_of::<f32>();
-                let mut num_frames = bufsz / frame_stride;
-                //num_frames = std::cmp::max(num_frames, MAX_FRAMES);
-                for _frameidx in 0..num_frames {
+            PwSupportedFormats::FMT_F32 => {
+                let buf = unsafe { transmute_buf::<f32>(buf) };
+                let frame_stride = num_ch * std::mem::size_of::<f32>();
+                let mut num_frames = 0usize;
+                for frame in buf.chunks_exact_mut(num_ch) {
                     let smp_value = voicealloc.next(&params, matrix.take().as_ref());
-
-                    let smp_bytes = smp_value.to_le_bytes();
-                    for _smpidx in 0..fmt.channels() {
-                        buf.write(&smp_bytes).unwrap();
+                    for smp in frame {
+                        *smp = smp_value;
                     }
+                    num_frames += 1;
                 }
                 let chunk = first_block.chunk_mut();
                 *chunk.offset_mut() = 0;
                 *chunk.stride_mut() = frame_stride as i32;
-                *chunk.size_mut() = num_frames as u32 * frame_stride as u32;
+                *chunk.size_mut() = (num_frames * frame_stride) as u32;
             }
-            AudioFormat::S16LE => {
-                let frame_stride = fmt.channels() as usize * std::mem::size_of::<i16>();
-                let mut num_frames = bufsz / frame_stride;
-                //num_frames = std::cmp::max(num_frames, MAX_FRAMES);
-                for _frameidx in 0..num_frames {
-                    let smp_value = voicealloc.next(&params, matrix.take().as_ref());
-
-                    let smp_bytes = culsynth::SampleFxP::from_num(smp_value).to_le_bytes();
-                    for _smpidx in 0..fmt.channels() {
-                        buf.write(&smp_bytes).unwrap();
+            PwSupportedFormats::FMT_I16 => {
+                let buf = unsafe { transmute_buf::<i16>(buf) };
+                let frame_stride = num_ch * std::mem::size_of::<i16>();
+                let mut num_frames = 0usize;
+                for frame in buf.chunks_exact_mut(num_ch) {
+                    let smp_float = voicealloc.next(&params, matrix.take().as_ref());
+                    let smp_value = culsynth::SampleFxP::from_num(smp_float).to_bits();
+                    for smp in frame {
+                        *smp = smp_value;
                     }
+                    num_frames += 1;
                 }
                 let chunk = first_block.chunk_mut();
                 *chunk.offset_mut() = 0;
                 *chunk.stride_mut() = frame_stride as i32;
-                *chunk.size_mut() = num_frames as u32 * frame_stride as u32;
+                *chunk.size_mut() = (num_frames * frame_stride) as u32;
             }
             _ => return Err("Unsupported audio format"),
         }
-
+        crate::instrumentation::end(instrumentation);
         Ok(())
     }
     pub fn spa_param_changed(&mut self, id: u32, value: &Pod) {
@@ -212,10 +218,10 @@ impl PwAudioProcessor {
                 ctx.sample_rate = info_raw.rate();
                 if self.voicealloc.is_none() {
                     self.voicealloc = Some(match ctx.voice_mode {
-                        culsynth_plugin::VoiceMode::Mono => Box::new(MonoSynth::<f32>::new(
+                        crate::VoiceMode::Mono => Box::new(MonoSynth::<f32>::new(
                             culsynth::context::Context::new(ctx.sample_rate as f32),
                         )),
-                        culsynth_plugin::VoiceMode::Poly16 => Box::new(PolySynth::<f32>::new(
+                        crate::VoiceMode::Poly16 => Box::new(PolySynth::<f32>::new(
                             culsynth::context::Context::new(ctx.sample_rate as f32),
                             16,
                         )),

@@ -3,7 +3,6 @@
 use culsynth::{CoarseTuneFxP, FineTuneFxP};
 use wmidi::MidiMessage;
 
-#[cfg(not(feature = "audioworklet"))]
 pub mod editor;
 
 pub mod voicealloc;
@@ -16,6 +15,9 @@ pub struct Tuning {
     pub coarse: CoarseTuneFxP,
 }
 
+#[cfg(feature = "pw-standalone")]
+pub mod pwapp;
+
 #[cfg(feature = "nih")]
 pub mod nih;
 
@@ -25,16 +27,12 @@ pub(crate) use nih_plug_egui::egui;
 #[cfg(all(not(feature = "nih"), not(feature = "audioworklet")))]
 pub(crate) use egui;
 
-#[cfg(feature = "eframe")]
-pub mod eframe;
-
-#[cfg(target_family = "wasm")]
-pub mod wasm;
-
 #[cfg(feature = "audioworklet")]
 pub mod audioworklet;
 
 pub mod ownedmidihandler;
+
+mod instrumentation;
 
 pub trait MidiHandler {
     fn send(&self, msg: MidiMessage<'static>);

@@ -235,6 +235,7 @@ impl Plugin for CulSynthPlugin {
         _aux: &mut AuxiliaryBuffers,
         context: &mut impl ProcessContext<Self>,
     ) -> ProcessStatus {
+        let instrumentation = crate::instrumentation::begin();
         if let Ok(synth) = self.synth_rx.try_recv() {
             self.update_context(
                 synth.get_context(),
@@ -306,6 +307,7 @@ impl Plugin for CulSynthPlugin {
         if self.params.editor_state.is_open() {
             //Do editor update logic
         }
+        crate::instrumentation::end(instrumentation);
         ProcessStatus::KeepAlive
     }
 }
