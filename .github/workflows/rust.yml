@@ -44,16 +44,6 @@ jobs:
     - name: Run tests for plugin
       run: cargo test --verbose
 
-    - name: Build webapp audioworklet
-      run: wasm-pack build --target web --no-typescript --out-dir ../static/pkg culsynth_plugin --no-default-features --features "audioworklet"
-    - name: build webapp editorui
-      run: wasm-pack build --target web --no-typescript --out-dir ../static/pkg culsynth_web
-    - name: Upload to GitHub Pages
-      id: deployment
-      uses: actions/upload-pages-artifact@v3
-      with:
-        path: static/
-
   build-web:
     runs-on: ubuntu-latest
     steps:
