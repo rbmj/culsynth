@@ -16,7 +16,7 @@ jobs:
     - name: Install dependencies
       run: sudo apt install libasound2-dev libgl-dev libjack-dev libx11-xcb-dev  libxcb1-dev libxcb-dri2-0-dev libxcb-icccm4-dev libxcursor-dev libxkbcommon-dev libxcb-shape0-dev libxcb-xfixes0-dev
     - name: Checkout repo
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
     - name: Rustup
       uses: actions-rs/toolchain@v1
       with:
@@ -48,6 +48,45 @@ jobs:
       run: wasm-pack build --target web --no-typescript --out-dir ../static/pkg culsynth_plugin --no-default-features --features "audioworklet"
     - name: build webapp editorui
       run: wasm-pack build --target web --no-typescript --out-dir ../static/pkg culsynth_web
+    - name: Upload to GitHub Pages
+      id: deployment
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: static/
+
+  build-web:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Install dependencies
+      run: sudo apt install libasound2-dev libgl-dev libjack-dev libx11-xcb-dev  libxcb1-dev libxcb-dri2-0-dev libxcb-icccm4-dev libxcursor-dev libxkbcommon-dev libxcb-shape0-dev libxcb-xfixes0-dev
+    - name: Checkout repo
+      uses: actions/checkout@v4
+      with:
+        repository: 'rbmj/culsynth-web'
+    - name: Rustup
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+        target: wasm32-unknown-unknown
+    - name: Install wasm-toolchain
+      uses: taiki-e/install-action@v2
+      with:
+        tool: wasm-bindgen,wasm-pack
+    - name: Cache files
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+    - name: Build webapp audioworklet
+      run: wasm-pack build --target web --no-typescript --out-dir ../static/pkg culsynth-web-audioworklet
+    - name: build webapp editorui
+      run: wasm-pack build --target web --no-typescript --out-dir ../static/pkg culsynth-web-ui
     - name: Upload to GitHub Pages
       id: deployment
       uses: actions/upload-pages-artifact@v3
