@@ -17,16 +17,6 @@ jobs:
       run: sudo apt install libasound2-dev libgl-dev libjack-dev libx11-xcb-dev  libxcb1-dev libxcb-dri2-0-dev libxcb-icccm4-dev libxcursor-dev libxkbcommon-dev libxcb-shape0-dev libxcb-xfixes0-dev
     - name: Checkout repo
       uses: actions/checkout@v4
-    - name: Rustup
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-        override: true
-        target: wasm32-unknown-unknown
-    - name: Install wasm-toolchain
-      uses: taiki-e/install-action@v2
-      with:
-        tool: wasm-bindgen,wasm-pack
     - name: Build
       run: cargo build --verbose
     - name: Cache files
