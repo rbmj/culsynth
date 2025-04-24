@@ -6,7 +6,6 @@ members = [
     "culsynth_plugin",
     "culsynth_bindings",
     "culsynth_2040",
-    "culsynth_web",
     "xtask",
 ]
 
