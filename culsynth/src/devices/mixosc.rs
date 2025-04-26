@@ -1,7 +1,8 @@
 use super::*;
 
 /// A parameter pack for [MixOsc].
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct MixOscParams<T: DspFormatBase> {
     /// The tuning offset, in semitones offset from 12TET/A440
     pub tune: T::NoteOffset,
@@ -82,7 +83,8 @@ impl<T: DspFormat> Device<T> for MixOsc<T> {
 }
 
 /// This struct contains parameters for a synced oscillator pair
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct SyncedMixOscsParams<T: DspFormatBase> {
     /// Parameters for the primary oscillator
     pub primary: MixOscParams<T>,

@@ -25,12 +25,37 @@ pub(crate) mod detail {
 }
 
 #[repr(transparent)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
+#[serde(from = "LfoOptionsSerde")]
+#[serde(into = "LfoOptionsSerde")]
 /// A struct to package together the various LFO configuration options in one
 /// convenient struct that fits in 16 bits.  We could get away with packing
 /// it in 8 bits, but we'll use 16 to allow for future expansion
 pub struct LfoOptions {
     bits: u16,
+}
+
+#[derive(Serialize, Deserialize, Default)]
+#[serde(default)]
+struct LfoOptionsSerde {
+    wave: LfoWave,
+    bipolar: bool,
+    retrigger: bool,
+}
+
+impl From<LfoOptionsSerde> for LfoOptions {
+    fn from(value: LfoOptionsSerde) -> Self {
+        LfoOptions::new(value.wave, value.bipolar, value.retrigger)
+    }
+}
+impl From<LfoOptions> for LfoOptionsSerde {
+    fn from(value: LfoOptions) -> Self {
+        LfoOptionsSerde {
+            wave: value.wave().unwrap_or_default(),
+            bipolar: value.bipolar(),
+            retrigger: value.retrigger(),
+        }
+    }
 }
 
 impl LfoOptions {
@@ -100,6 +125,39 @@ pub enum LfoWave {
     SampleGlide,
 }
 
+impl Serialize for LfoWave {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_u8(*self as u8)
+    }
+}
+
+struct LfoWaveVisitor;
+impl<'de> serde::de::Visitor<'de> for LfoWaveVisitor {
+    type Value = u8;
+    fn visit_u8<E>(self, value: u8) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(value)
+    }
+    fn expecting(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
+        formatter.write_str("An integer corresponding to a valid LfoWave")
+    }
+}
+
+impl<'de> Deserialize<'de> for LfoWave {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let as_int = deserializer.deserialize_u8(LfoWaveVisitor {})?;
+        Ok(LfoWave::new_from_u8(as_int).unwrap_or_default())
+    }
+}
+
 impl LfoWave {
     const ELEM: [LfoWave; 6] = [
         Self::Sine,
@@ -162,7 +220,8 @@ impl TryFrom<u8> for LfoWave {
 }
 
 /// A struct packaging together several slices to act as parameters for an LFO
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct LfoParams<T: DspFormatBase> {
     /// The frequency of the LFO, in Hz
     pub freq: T::LfoFreq,

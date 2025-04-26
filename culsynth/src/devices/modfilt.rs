@@ -13,7 +13,8 @@ pub struct ModFiltInput<T: DspFormatBase> {
 }
 
 /// A parameter pack for a [ModFiltFxP]
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct ModFiltParams<T: DspFormatBase> {
     /// The amount of envelope modulation, from 0 (none) to 1 (the envelope
     /// will, at peak, fully open the filter)

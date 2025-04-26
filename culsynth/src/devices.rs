@@ -3,6 +3,8 @@
 use crate::{DspFloat, DspFormat, DspFormatBase, DspType};
 use core::iter::{repeat, Iterator, Repeat};
 
+use serde::{Deserialize, Serialize};
+
 pub(crate) mod amp;
 pub(crate) mod env;
 pub(crate) mod filt;

@@ -19,7 +19,7 @@ oorandom = { workspace = true }
 arrayvec = { workspace = true }
 wmidi = { workspace = true }
 fixed = { workspace = true }
-
+serde = { workspace = true}
 
 [features]
 libm = ["num-traits/libm"]

@@ -2,10 +2,13 @@
 use num_traits::float::FloatCore as NumTraitsFloat;
 #[cfg(feature = "libm")]
 use num_traits::Float as NumTraitsFloat;
+use serde::{Deserialize, Serialize};
 
 /// Types must implement this trait to instantiate any of the generic devices
 /// in this module.  Implementations are provided for `f32` and `f64`.
-pub trait Float: NumTraitsFloat + From<u16> + Default + Copy {
+pub trait Float:
+    NumTraitsFloat + From<u16> + Default + Copy + Serialize + for<'a> Deserialize<'a>
+{
     /// 0
     const ZERO: Self;
     /// 1

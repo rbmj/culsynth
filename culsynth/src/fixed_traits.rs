@@ -2,10 +2,11 @@ use super::ScalarFxP;
 use core::ops::Add;
 use fixed::types::extra::{LeEqU16, LeEqU32, Sum, Unsigned, U16};
 use fixed::{traits::Fixed, FixedI32};
+use serde::{Deserialize, Serialize};
 
 /// A trait encompassing 16 bit fixed point numbers along with a couple of
 /// convenience methods for the type.
-pub trait Fixed16: Fixed {
+pub trait Fixed16: Fixed + Serialize + for<'a> Deserialize<'a> {
     /// The value one, or if one is not representable, the maximum representable
     /// by the type
     const ONE_OR_MAX: Self = if let Some(val) = Self::TRY_ONE {

@@ -10,7 +10,8 @@ pub struct RingModInput<T: DspFormatBase> {
 }
 
 /// Params for a [RingMod]
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct RingModParams<T: DspFormatBase> {
     /// Gain of the original first (carrier) signal, to be mixed
     /// back into the device's output.

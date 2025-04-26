@@ -1,6 +1,8 @@
 //! This module contains a struct composing various devices together as a
 //! single voice unit for a basic subtractive synthesizer.
 
+use serde::{Deserialize, Serialize};
+
 use crate::{devices::*, DspFloat, DspFormat, Fixed16};
 
 use self::modulation::{ModMatrix, ModSection};
@@ -10,7 +12,8 @@ pub mod modulation;
 pub mod nrpn;
 
 /// A parameter pack for a [Voice]
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct VoiceParams<T: DspFormat> {
     /// Oscillator section parameters
     pub oscs_p: SyncedMixOscsParams<T>,

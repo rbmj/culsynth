@@ -2,6 +2,7 @@ use super::*;
 use core::ops::{Add, Neg, Sub};
 use fixed::traits::{FromFixed, ToFixed};
 use fixedmath::scale_fixedfloat;
+use serde::{Deserialize, Serialize};
 
 /// A trait encompassing the different sample data types (e.g. 16 bit fixed,
 /// 32 bit float, etc).
@@ -87,7 +88,14 @@ pub trait DspFloat:
 /// A trait to simplify common operations on DSP Types.  This is used to
 /// maximize the amount of code that can be agnostic to fixed and floating point
 pub trait DspType<T: DspFormatBase>:
-    Copy + Default + Send + Add<Self, Output = Self> + Sub<Self, Output = Self> + PartialOrd
+    Copy
+    + Default
+    + Send
+    + Add<Self, Output = Self>
+    + Sub<Self, Output = Self>
+    + PartialOrd
+    + Serialize
+    + for<'a> Deserialize<'a>
 {
     /// A constant representing the value PI (3.14159...)
     const PI: Self;
