@@ -24,11 +24,8 @@ pub mod nih;
 #[cfg(feature = "nih")]
 pub(crate) use nih_plug_egui::egui;
 
-#[cfg(all(not(feature = "nih"), not(feature = "audioworklet")))]
+#[cfg(not(feature = "nih"))]
 pub(crate) use egui;
-
-#[cfg(feature = "audioworklet")]
-pub mod audioworklet;
 
 pub mod ownedmidihandler;
 
