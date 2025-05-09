@@ -3,6 +3,8 @@
 CulSynth is currently a DSP library and [nih-plug](https://github.com/robbert-vdh/nih-plug)
 based virtual instrument written in Rust.
 
+Try the [demo](https://rbmj.github.io/culsynth/)!
+
 ![Screenshot](screenshot.png)
 
 ## Goals
@@ -37,10 +39,10 @@ On Windows:
 
 ## Licensing
 
-This project is licensed under the MIT License.  However, due to the licensing
-of the bindings any plugins built in VST3 format are licensed under the terms of
-the GPLv3.  It incorporates several dependencies under the MIT, Apache v2, BSD,
-ISC, Boost, and ZLib licenses.
+The source code to this project is licensed under the MIT license.  Any compiled
+binaries built with the 'vst3' feature are licensed under the terms of the GPLv3
+due to GPL-licensed dependencies with this feature.  All builds incorporate
+several dependencies under the MIT, Apache v2, BSD, ISC, Boost, and ZLib licenses.
 
 This project incorporates fonts from the Noto Project and Google under the terms
 of the SIL Open Font License v1.1 (see `resources/fonts/OFL.txt`).
@@ -66,4 +68,3 @@ distros) need to be installed in order to successfully compile:
 - [ ] Fixed point profiling/optimization
 - [ ] More MIDI CC implementations, patch memory, etc.
 - [ ] Port to RPi Pico
-- [ ] WebASM backend (explore feasibility)
