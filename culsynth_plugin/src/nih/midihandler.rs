@@ -1,6 +1,6 @@
 use super::CulSynthParams;
 use crate::MidiHandler;
-use culsynth::voice::cc;
+use culsynth::voice::{modulation::ModDest, nrpn::NrpnMsb};
 use nih_plug::context::gui::ParamSetter;
 use nih_plug::nih_log;
 use std::sync::atomic::{AtomicU8, Ordering::Relaxed};
@@ -72,8 +72,8 @@ impl<'a> PluginMidiHandler<'a> {
         let lsb = self.parent.nrpn_cc_lsb.load(Relaxed);
         const MAX_VAL: f32 = ((1 << 14) - 1) as f32;
         let norm_value = (value as f32) / MAX_VAL;
-        match msb {
-            cc::NRPN_CATEGORY_CC => {
+        match NrpnMsb::from_msb(msb) {
+            Some(NrpnMsb::Cc) => {
                 // If MSB of NRPN is 0, treat as high-fidelity CC
                 let new_cc = wmidi::ControlFunction(wmidi::U7::from_u8_lossy(lsb));
                 // This will screw up LFOs, so ignore:
@@ -88,20 +88,13 @@ impl<'a> PluginMidiHandler<'a> {
                     self.setter.end_set_parameter(param);
                 }
             }
-            cc::NRPN_CATEGORY_MODDEST => {
+            Some(NrpnMsb::Modulation(src)) => {
                 //Treat as ModMatrix Destination Assignment
-                if let Some((dst, _)) = self.params.modmatrix.nrpn_to_slot(lsb) {
-                    self.setter.begin_set_parameter(dst);
-                    self.setter.set_parameter(dst, value as i32);
-                    self.setter.end_set_parameter(dst);
-                }
-            }
-            cc::NRPN_CATEGORY_MODMAG => {
-                //Treat as ModMatrix Magnitude Assignment
-                if let Some((_, mag)) = self.params.modmatrix.nrpn_to_slot(lsb) {
-                    self.setter.begin_set_parameter(mag);
-                    self.setter.set_parameter_normalized(mag, norm_value);
-                    self.setter.end_set_parameter(mag);
+                if let Some(dst) = ModDest::from_u7(U7::from_u8_lossy(lsb)) {
+                    let param = self.params.modmatrix.entry(src, dst);
+                    self.setter.begin_set_parameter(param);
+                    self.setter.set_parameter_normalized(param, norm_value);
+                    self.setter.end_set_parameter(param);
                 }
             }
             _ => {

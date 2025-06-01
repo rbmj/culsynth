@@ -17,9 +17,7 @@
 
 use wmidi::{ControlFunction, U7};
 
-pub const NRPN_CATEGORY_CC: U7 = U7::from_u8_lossy(0);
-pub const NRPN_CATEGORY_MODDEST: U7 = U7::from_u8_lossy(1);
-pub const NRPN_CATEGORY_MODMAG: U7 = U7::from_u8_lossy(2);
+use super::modulation::ModDest;
 
 pub const CC_SIGNED_ZERO: wmidi::U7 = U7::from_u8_lossy(64);
 
@@ -87,94 +85,153 @@ pub const ENV_M2_RELEASE: ControlFunction = ControlFunction(U7::from_u8_lossy(10
 
 pub struct OscCCs {
     pub sin: ControlFunction,
+    pub mod_sin: ModDest,
     pub sq: ControlFunction,
+    pub mod_sq: ModDest,
     pub tri: ControlFunction,
+    pub mod_tri: ModDest,
     pub saw: ControlFunction,
+    pub mod_saw: ModDest,
     pub shape: ControlFunction,
+    pub mod_shape: ModDest,
     pub coarse: ControlFunction,
+    pub mod_coarse: ModDest,
     pub fine: ControlFunction,
+    pub mod_fine: ModDest,
 }
 
 pub const OSC1_CC_ALL: OscCCs = OscCCs {
     sin: OSC1_SIN,
+    mod_sin: ModDest::Osc1Sin,
     sq: OSC1_SQ,
+    mod_sq: ModDest::Osc1Sq,
     tri: OSC1_TRI,
+    mod_tri: ModDest::Osc1Tri,
     saw: OSC1_SAW,
+    mod_saw: ModDest::Osc1Saw,
     shape: OSC1_SHAPE,
+    mod_shape: ModDest::Osc1Shape,
     coarse: OSC1_COARSE,
+    mod_coarse: ModDest::Osc1Coarse,
     fine: OSC1_FINE,
+    mod_fine: ModDest::Osc1Fine,
 };
 
 pub const OSC2_CC_ALL: OscCCs = OscCCs {
     sin: OSC2_SIN,
+    mod_sin: ModDest::Osc2Sin,
     sq: OSC2_SQ,
+    mod_sq: ModDest::Osc2Sq,
     tri: OSC2_TRI,
+    mod_tri: ModDest::Osc2Tri,
     saw: OSC2_SAW,
+    mod_saw: ModDest::Osc2Saw,
     shape: OSC2_SHAPE,
+    mod_shape: ModDest::Osc2Shape,
     coarse: OSC2_COARSE,
+    mod_coarse: ModDest::Osc2Coarse,
     fine: OSC2_FINE,
+    mod_fine: ModDest::Osc2Fine,
 };
 
 pub struct EnvCCs {
     pub attack: ControlFunction,
+    pub mod_attack: ModDest,
     pub decay: ControlFunction,
+    pub mod_decay: ModDest,
     pub sustain: ControlFunction,
+    pub mod_sustain: ModDest,
     pub release: ControlFunction,
+    pub mod_release: ModDest,
 }
 
 pub const ENV_AMP_CCS_ALL: EnvCCs = EnvCCs {
     attack: ENV_AMP_ATTACK,
+    mod_attack: ModDest::EnvAmpA,
     decay: ENV_AMP_DECAY,
+    mod_decay: ModDest::EnvAmpD,
     sustain: ENV_AMP_SUSTAIN,
+    mod_sustain: ModDest::EnvAmpS,
     release: ENV_AMP_RELEASE,
+    mod_release: ModDest::EnvAmpR,
 };
 
 pub const ENV_FILT_CCS_ALL: EnvCCs = EnvCCs {
     attack: ENV_FILT_ATTACK,
+    mod_attack: ModDest::EnvFiltA,
     decay: ENV_FILT_DECAY,
+    mod_decay: ModDest::EnvFiltD,
     sustain: ENV_FILT_SUSTAIN,
+    mod_sustain: ModDest::EnvFiltS,
     release: ENV_FILT_RELEASE,
+    mod_release: ModDest::EnvFiltR,
 };
 
 pub const ENV_M1_CCS_ALL: EnvCCs = EnvCCs {
     attack: ENV_M1_ATTACK,
+    mod_attack: ModDest::Env1A,
     decay: ENV_M1_DECAY,
+    mod_decay: ModDest::Env1D,
     sustain: ENV_M1_SUSTAIN,
+    mod_sustain: ModDest::Env1S,
     release: ENV_M1_RELEASE,
+    mod_release: ModDest::Env1R,
 };
 
 pub const ENV_M2_CCS_ALL: EnvCCs = EnvCCs {
     attack: ENV_M2_ATTACK,
+    mod_attack: ModDest::Env2A,
     decay: ENV_M2_DECAY,
+    mod_decay: ModDest::Env2D,
     sustain: ENV_M2_SUSTAIN,
+    mod_sustain: ModDest::Env2S,
     release: ENV_M2_RELEASE,
+    mod_release: ModDest::Env2R,
 };
 
 pub struct FiltCCs {
     pub cutoff: ControlFunction,
+    pub mod_cutoff: ModDest,
     pub resonance: ControlFunction,
+    pub mod_resonance: ModDest,
     pub kbd: ControlFunction,
+    pub mod_kbd: ModDest,
     pub vel: ControlFunction,
+    pub mod_vel: ModDest,
     pub env: ControlFunction,
+    pub mod_env: ModDest,
     pub low: ControlFunction,
+    pub mod_low: ModDest,
     pub band: ControlFunction,
+    pub mod_band: ModDest,
     pub high: ControlFunction,
+    pub mod_high: ModDest,
 }
 
 pub const FILT_CCS_ALL: FiltCCs = FiltCCs {
     cutoff: FILT_CUTOFF,
+    mod_cutoff: ModDest::FiltCutoff,
     resonance: FILT_RESONANCE,
+    mod_resonance: ModDest::FiltRes,
     kbd: FILT_KBD,
+    mod_kbd: ModDest::FiltKbd,
     vel: FILT_VEL,
+    mod_vel: ModDest::FiltVel,
     env: FILT_ENV,
+    mod_env: ModDest::FiltEnv,
     low: FILT_LOW,
+    mod_low: ModDest::FiltLow,
     band: FILT_BAND,
+    mod_band: ModDest::FiltBand,
     high: FILT_HIGH,
+    mod_high: ModDest::FiltHigh,
 };
 
 pub struct LfoCCs {
     pub rate: ControlFunction,
+    pub mod_rate: ModDest,
     pub depth: ControlFunction,
+    pub mod_depth: ModDest,
     pub wave: ControlFunction,
     pub retrigger: ControlFunction,
     pub bipolar: ControlFunction,
@@ -182,7 +239,9 @@ pub struct LfoCCs {
 
 pub const LFO1_CCS_ALL: LfoCCs = LfoCCs {
     rate: LFO1_RATE,
+    mod_rate: ModDest::Lfo1Rate,
     depth: LFO1_DEPTH,
+    mod_depth: ModDest::Lfo1Depth,
     wave: LFO1_WAVE,
     retrigger: LFO1_RETRIGGER,
     bipolar: LFO1_BIPOLAR,
@@ -190,7 +249,9 @@ pub const LFO1_CCS_ALL: LfoCCs = LfoCCs {
 
 pub const LFO2_CCS_ALL: LfoCCs = LfoCCs {
     rate: LFO2_RATE,
+    mod_rate: ModDest::Lfo2Rate,
     depth: LFO2_DEPTH,
+    mod_depth: ModDest::Lfo2Depth,
     wave: LFO2_WAVE,
     retrigger: LFO2_RETRIGGER,
     bipolar: LFO2_BIPOLAR,
@@ -198,19 +259,18 @@ pub const LFO2_CCS_ALL: LfoCCs = LfoCCs {
 
 pub struct RingModCCs {
     pub mix_a: ControlFunction,
+    pub mod_mix_a: ModDest,
     pub mix_b: ControlFunction,
+    pub mod_mix_b: ModDest,
     pub mix_mod: ControlFunction,
+    pub mod_mix_mod: ModDest,
 }
 
 pub const RING_CCS_ALL: RingModCCs = RingModCCs {
     mix_a: RING_MIXA,
+    mod_mix_a: ModDest::RingOsc1,
     mix_b: RING_MIXB,
+    mod_mix_b: ModDest::RingOsc2,
     mix_mod: RING_MIXMOD,
+    mod_mix_mod: ModDest::RingMod,
 };
-
-pub fn modmatrix_nrpn_lsb(src: crate::voice::modulation::ModSrc, slot: usize) -> u8 {
-    let src = src as u8;
-    let slot = slot as u8;
-    let lsb = ((src & 0xF) | (slot << 4)) & 0x7F;
-    lsb
-}

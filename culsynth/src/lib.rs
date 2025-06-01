@@ -20,8 +20,9 @@
 
 use fixed::{traits::Fixed, FixedI32};
 
-mod fixedmath;
+pub mod fixedmath;
 mod float_approx;
+pub mod patch;
 pub mod util;
 
 /// True if using libm for floating-point math, false if using internal
@@ -65,7 +66,7 @@ pub type LfoFreqFxP = fixedmath::U7F9;
 pub type IScalarFxP = fixedmath::I1F15;
 /// A 32-bit fixed point number representing a sinusoid's phase angle divided
 /// by pi - therefore a number between -1 and 1
-type PhaseFxP = fixedmath::I1F31;
+pub type PhaseFxP = fixedmath::I1F31;
 /// A 16 bit fixed point number representing a tuning offset from -32 to +32
 /// semitones
 pub type CoarseTuneFxP = fixedmath::I6F10;

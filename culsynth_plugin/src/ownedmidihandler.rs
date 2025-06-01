@@ -2,6 +2,7 @@ use culsynth::{
     voice::{
         cc,
         modulation::{ModDest, ModMatrix},
+        nrpn::NrpnMsb,
         VoiceParams,
     },
     SignedNoteFxP,
@@ -16,40 +17,28 @@ struct MidiData {
     params: VoiceParams<i16>,
     tuning: (Tuning, Tuning),
     matrix: ModMatrix<i16>,
-    nrpn_lsb: u8,
+    nrpn_lsb: wmidi::U7,
     nrpn_msb: wmidi::U7,
-    data_msb: u8,
+    data_msb: wmidi::U7,
 }
 
 impl MidiData {
-    fn handle_nrpn(&mut self, data_lsb: u8) {
-        match self.nrpn_msb {
-            cc::NRPN_CATEGORY_CC => {
+    fn handle_nrpn(&mut self, data_lsb: wmidi::U7) {
+        match NrpnMsb::from_msb(self.nrpn_msb) {
+            Some(NrpnMsb::Cc) => {
                 // This will be treated as a high fidelity CC, but leaving unimplemented for now
             }
-            cc::NRPN_CATEGORY_MODDEST => {
-                // Mod matrix destination
-                if let Some((src, slot)) = self.matrix.nrpn_to_slot(self.nrpn_lsb as u8) {
-                    let mut dest = self.data_msb as u16;
-                    dest <<= 7;
-                    dest |= data_lsb as u16;
-                    if let Ok(mut mod_dest) = ModDest::try_from(dest) {
-                        if src.is_secondary() {
-                            mod_dest = mod_dest.remove_secondary_invalid_dest()
-                        }
-                        self.matrix.get_mut(src, slot).map(|x| x.0 = mod_dest);
-                    }
-                }
-            }
-            cc::NRPN_CATEGORY_MODMAG => {
-                // Mod matrix magnitude
-                if let Some((src, slot)) = self.matrix.nrpn_to_slot(self.nrpn_lsb as u8) {
-                    let mut mag = self.data_msb as i16;
-                    mag <<= 7;
-                    mag |= data_lsb as i16;
-                    mag -= 1 << 13;
-                    mag <<= 2;
-                    self.matrix.get_mut(src, slot).map(|x| x.1 = IScalarFxP::from_bits(mag));
+            Some(NrpnMsb::Modulation(src)) => {
+                // Modulation
+                if let Some(dest) = ModDest::from_u7(data_lsb) {
+                    let msb: u8 = self.data_msb.into();
+                    let lsb: u8 = data_lsb.into();
+                    let mut value = msb as i16;
+                    value <<= 7;
+                    value |= lsb as i16;
+                    value -= 1 << 13;
+                    value <<= 2;
+                    *self.matrix.slot_mut(src, dest) = IScalarFxP::from_bits(value);
                 }
             }
             _ => {}
@@ -69,9 +58,9 @@ impl OwnedMidiHandler {
                 params: VoiceParams::default(),
                 tuning: (Tuning::default(), Tuning::default()),
                 matrix: ModMatrix::default(),
-                nrpn_lsb: 0,
+                nrpn_lsb: wmidi::U7::default(),
                 nrpn_msb: wmidi::U7::default(),
-                data_msb: 0,
+                data_msb: wmidi::U7::default(),
             }),
             channel,
         }
@@ -110,10 +99,10 @@ impl MidiHandler for OwnedMidiHandler {
                     d.nrpn_msb = value;
                 }
                 wmidi::ControlFunction::DATA_ENTRY_MSB => {
-                    d.data_msb = value.into();
+                    d.data_msb = value;
                 }
                 wmidi::ControlFunction::DATA_ENTRY_LSB => {
-                    d.handle_nrpn(value.into());
+                    d.handle_nrpn(value);
                 }
                 _ => {
                     d.params.apply_cc(cc, value);
