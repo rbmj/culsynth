@@ -12,5 +12,5 @@ pub enum PatchType {
 
 pub struct Patch {
     name_arr: [u8; 32],
-    params: culsynth::voice::VoiceParams<i16>,
+    params: crate::voice::VoiceParams<i16>,
 }
