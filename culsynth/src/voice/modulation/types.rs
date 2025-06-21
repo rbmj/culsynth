@@ -1,6 +1,6 @@
 /// An enum representing a choice in modulation source
 #[repr(u16)]
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, PartialEq)]
 pub enum ModSrc {
     /// MIDI Note On velocity
     #[default]
@@ -87,7 +87,7 @@ pub enum ModDest {
     #[default]
     Null,
     /// Course tune for oscillator 1, ranging from -32 to +32 semitones
-    Osc1Course,
+    Osc1Coarse,
     /// Fine tune for oscillator 1, ranging from -2 to +2 semitones
     Osc1Fine,
     /// The wave shape (phase distortion) of oscillator 1
@@ -101,7 +101,7 @@ pub enum ModDest {
     /// The mix of the sawtooth wave output for oscillator 1
     Osc1Saw,
     /// Course tune for oscillator 2, ranging from -32 to +32 semitones
-    Osc2Course,
+    Osc2Coarse,
     /// Fine tune for oscillator 1, ranging from -2 to +2 semitones
     Osc2Fine,
     /// The wave shape (phase distortion) of oscillator 2
@@ -168,6 +168,19 @@ pub enum ModDest {
     Env2S,
     /// The release of modulation envelope 2
     Env2R,
+
+    /// The rate/frequency of LFO 1, in Hz
+    Lfo1Rate,
+    /// The modulation depth of LFO 1, from 0 to 1
+    Lfo1Depth,
+    /// The attack of modulation envelope 1
+    Env1A,
+    /// The decay of modulation envelope 1
+    Env1D,
+    /// The sustain of modulation envelope 1
+    Env1S,
+    /// The release of modulation envelope 1
+    Env1R,
 }
 
 impl ModDest {
@@ -189,14 +202,14 @@ impl ModDest {
     pub const fn to_str(&self) -> &'static str {
         match self {
             Self::Null => "NONE",
-            Self::Osc1Course => "Osc1Course",
+            Self::Osc1Coarse => "Osc1Course",
             Self::Osc1Fine => "Osc1Fine",
             Self::Osc1Shape => "Osc1Shape",
             Self::Osc1Sin => "Osc1Sin",
             Self::Osc1Sq => "Osc1Sq",
             Self::Osc1Tri => "Osc1Tri",
             Self::Osc1Saw => "Osc1Saw",
-            Self::Osc2Course => "Osc2Course",
+            Self::Osc2Coarse => "Osc2Course",
             Self::Osc2Fine => "Osc2Fine",
             Self::Osc2Shape => "Osc2Shape",
             Self::Osc2Sin => "Osc2Sin",
@@ -228,6 +241,12 @@ impl ModDest {
             Self::Env2D => "Env2D",
             Self::Env2S => "Env2S",
             Self::Env2R => "Env2R",
+            Self::Lfo1Rate => "Lfo1Rate",
+            Self::Lfo1Depth => "Lfo1Depth",
+            Self::Env1A => "Env1A",
+            Self::Env1D => "Env1D",
+            Self::Env1S => "Env1S",
+            Self::Env1R => "Env1R",
         }
     }
     /// The first modulation destination, in order
@@ -236,7 +255,7 @@ impl ModDest {
     }
     /// The last modulation destination, in order
     pub const fn max() -> Self {
-        Self::Env2R
+        Self::Env1R
     }
     /// The number of modulation destinations
     pub const fn numel() -> usize {
@@ -248,6 +267,17 @@ impl ModDest {
     /// LFO2/ENV2 to avoid self/co-modulation
     pub const fn max_secondary() -> Self {
         Self::EnvAmpR
+    }
+    /// An array containing all of the valid modulation destinations, in order
+    pub const ELEMENTS: [Self; Self::numel()] = Self::elements_array();
+    const fn elements_array() -> [Self; Self::numel()] {
+        let mut ret = [Self::Null; Self::numel()];
+        let mut i = 0u16;
+        while i < Self::numel() as u16 {
+            ret[i as usize] = unsafe { core::mem::transmute(i) };
+            i += 1;
+        }
+        ret
     }
     /// An iterator over all modulation destinations
     pub fn elements() -> impl core::iter::Iterator<Item = ModDest> {
@@ -268,6 +298,16 @@ impl ModDest {
             Self::max()
         };
         ((Self::min() as u16)..=(max as u16)).map(|x| unsafe { core::mem::transmute(x) })
+    }
+    /// Convert a U7 to a ModDest
+    pub fn from_u7(val: wmidi::U7) -> Option<Self> {
+        let val: u8 = val.into();
+        let val: u16 = val.into();
+        if val >= Self::min() as u16 && val <= Self::max() as u16 {
+            Some(unsafe { core::mem::transmute(val) })
+        } else {
+            None
+        }
     }
 }
 
@@ -313,7 +353,7 @@ pub struct OscModDest {
 
 /// The modulation destinations corresponding to oscillator 1
 pub const OSC1_MOD_DEST: OscModDest = OscModDest {
-    course: ModDest::Osc1Course,
+    course: ModDest::Osc1Coarse,
     fine: ModDest::Osc1Fine,
     shape: ModDest::Osc1Shape,
     sin: ModDest::Osc1Sin,
@@ -324,7 +364,7 @@ pub const OSC1_MOD_DEST: OscModDest = OscModDest {
 
 /// The modulation destinations corresponding to oscillator 2
 pub const OSC2_MOD_DEST: OscModDest = OscModDest {
-    course: ModDest::Osc2Course,
+    course: ModDest::Osc2Coarse,
     fine: ModDest::Osc2Fine,
     shape: ModDest::Osc2Shape,
     sin: ModDest::Osc2Sin,

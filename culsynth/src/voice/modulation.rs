@@ -1,70 +1,59 @@
 //! This module contains data to allow modulation of a `Voice`
-use arrayvec::ArrayVec;
-
-use crate::{devices::*, EnvParamFxP, LfoFreqFxP};
+use crate::{devices::*, EnvParamFxP, IScalarFxP, LfoFreqFxP};
 use crate::{DspFloat, DspFormat, DspFormatBase, DspType};
 use crate::{ScalarFxP, SignedNoteFxP};
 
 mod types;
 pub use types::*;
 
-/// The number of modulation slots per [ModSrc] in a [ModMatrix]
-pub const MOD_SLOTS: usize = 4;
-
-type ModMatrixRowEntries<T> = [(ModDest, <T as DspFormatBase>::IScalar); MOD_SLOTS];
-type ModMatrixEntry<T> = (ModSrc, ModMatrixRowEntries<T>);
-
 /// A Modulation Matrix
 ///
-/// It contains a series of rows, one for each [ModSrc].  Each row is a tuple
-/// of `(ModSrc, [(ModDest, IScalar); MOD_SLOTS])` - that is, the first item
-/// is the modulation source, and the second is an array of [MOD_SLOTS] tuples,
-/// each containing the modulation destination ([ModDest]) and modulation depth
-/// as an `IScalar` (see [DspFormat]).
-///
-/// The implementation of `Default` creates a ModMatrix with rows initialized
-/// for each [ModSrc] and each slot mapped to [ModDest::Null] with a depth of 0.
+/// FIXME
 #[derive(Clone)]
 pub struct ModMatrix<T: DspFormatBase> {
-    /// The rows making up the modmatrix
-    pub rows: [ModMatrixEntry<T>; ModSrc::numel()],
+    rows: [[T::IScalar; ModSrc::numel()]; ModDest::numel()],
+}
+
+impl<T: DspFormatBase> ModMatrix<T> {
+    /// Create a new ModMatrix, with zero modulation in all slots
+    pub const fn new() -> Self {
+        Self {
+            rows: [[T::IScalar::ZERO; ModSrc::numel()]; ModDest::numel()],
+        }
+    }
+    /// Create a new ModMatrix based on a callback that returns the modulation for
+    /// a given slot
+    pub fn from_fn(callback: impl Fn(ModSrc, ModDest) -> T::IScalar) -> Self {
+        let mut rows = [[T::IScalar::ZERO; ModSrc::numel()]; ModDest::numel()];
+        for dest in ModDest::elements() {
+            for src in ModSrc::elements() {
+                rows[dest as usize][*src as usize] = callback(*src, dest);
+            }
+        }
+        Self { rows }
+    }
+    /// Get a slot in the ModMatrix
+    pub fn slot(&self, src: ModSrc, dest: ModDest) -> T::IScalar {
+        self.rows[dest as usize][src as usize]
+    }
+    /// Get a mutable reference to a slot in the ModMatrix
+    pub fn slot_mut(&mut self, src: ModSrc, dest: ModDest) -> &mut T::IScalar {
+        &mut self.rows[dest as usize][src as usize]
+    }
 }
 
 impl<T: DspFormatBase> Default for ModMatrix<T> {
     fn default() -> Self {
-        Self {
-            rows: ModSrc::ELEM.map(|src| (src, [(ModDest::Null, Default::default()); MOD_SLOTS])),
-        }
+        Self::new()
     }
 }
 
-impl<T: DspFormatBase> ModMatrix<T> {
-    /// If there is an entry in this matrix from `src` to `dest`, return the
-    /// modulation depth, else return None
-    pub fn get_modulation(&self, src: ModSrc, dest: ModDest) -> Option<T::IScalar> {
-        self.rows[src as usize]
-            .1
-            .iter()
-            .find_map(|x| if x.0 == dest { Some(x.1) } else { None })
-    }
-    /// Get the ModSrc and Slot corresponding to a NRPN number
-    pub fn nrpn_to_slot(&self, midi: u8) -> Option<(ModSrc, usize)> {
-        let src = ModSrc::from_u8(midi & 0xF)?;
-        let slot = midi as usize >> 4;
-        Some((src, slot))
-    }
-    /// Get an entry in the modmatrix (mutable)
-    pub fn get_mut(&mut self, src: ModSrc, slot: usize) -> Option<&mut (ModDest, T::IScalar)> {
-        self.rows[src as usize].1.get_mut(slot)
-    }
-}
+impl<T: DspFormatBase> ModMatrix<T> {}
 
 impl<T: DspFloat> From<&ModMatrix<i16>> for ModMatrix<T> {
     fn from(value: &ModMatrix<i16>) -> Self {
         Self {
-            rows: value
-                .rows
-                .map(|(src, dests)| (src, dests.map(|(dest, depth)| (dest, depth.to_num())))),
+            rows: value.rows.map(|row| row.map(|x| IScalarFxP::to_num(x))),
         }
     }
 }
@@ -94,37 +83,6 @@ pub struct ModSectionParams<T: DspFormatBase> {
     pub env2_params: EnvParams<T>,
 }
 
-#[derive(Clone)]
-struct ModMatrixExpanded<T: DspFormatBase> {
-    rows: [ArrayVec<(ModSrc, T::IScalar), { ModSrc::numel() }>; ModDest::numel()],
-}
-
-impl<T: DspFormatBase> From<&ModMatrix<T>> for ModMatrixExpanded<T> {
-    fn from(value: &ModMatrix<T>) -> Self {
-        let mut ret = Self::default();
-        for (src, entries) in value.rows {
-            for (dest, depth) in entries {
-                if dest == ModDest::Null {
-                    continue;
-                }
-                // FIXME: is it worth making these bigger for pathological
-                // code instead of silently failing?  Or should there be some
-                // form of validation at construction time?
-                let _ = ret.rows[dest as usize].try_push((src, depth));
-            }
-        }
-        ret
-    }
-}
-
-impl<T: DspFormatBase> Default for ModMatrixExpanded<T> {
-    fn default() -> Self {
-        Self {
-            rows: core::array::from_fn(|_| ArrayVec::new()),
-        }
-    }
-}
-
 /// A struct containing all of the necessary information to modulate parameters
 pub struct Modulator<'a, T: DspFormatBase> {
     velocity: T::Scalar,
@@ -134,7 +92,7 @@ pub struct Modulator<'a, T: DspFormatBase> {
     env2: T::Scalar,
     lfo1: T::Sample,
     lfo2: T::Sample,
-    matrix: &'a ModMatrixExpanded<T>,
+    matrix: &'a ModMatrix<T>,
 }
 
 impl<'a, T: DspFormatBase + ModulatorOps> Modulator<'a, T> {
@@ -183,7 +141,7 @@ pub struct ModSection<
     lfo2: Lfo<T>,
     env1: Env<T>,
     env2: Env<T>,
-    expanded_matrix: ModMatrixExpanded<T>,
+    matrix: ModMatrix<T>,
 }
 
 impl<T: DspFormat> ModSection<T> {
@@ -195,7 +153,7 @@ impl<T: DspFormat> ModSection<T> {
             lfo2: Lfo::new(seed2),
             env1: Default::default(),
             env2: Default::default(),
-            expanded_matrix: Default::default(),
+            matrix: Default::default(),
         }
     }
     /// Build a [Modulator] from all the required data, to include the
@@ -211,7 +169,7 @@ impl<T: DspFormat> ModSection<T> {
         let lfo1_out = self.lfo1.next(context, gate, params.lfo1_params);
         let env1_out = self.env1.next(context, gate, params.env1_params);
         if let Some(matrix) = entries {
-            self.expanded_matrix = matrix.into();
+            self.matrix = matrix.clone();
         }
         // LFO2/ENV2 are default here, so empty slices.
         let modulator = Modulator {
@@ -222,7 +180,7 @@ impl<T: DspFormat> ModSection<T> {
             lfo2: T::Sample::zero(),
             env1: env1_out,
             env2: T::Scalar::zero(),
-            matrix: &self.expanded_matrix,
+            matrix: &self.matrix,
         };
         T::modulate_lfo_freq(&modulator, &mut params.lfo2_params.freq, ModDest::Lfo2Rate);
         T::modulate_scalar(
@@ -272,23 +230,36 @@ pub(crate) mod detail {
     /// Returns true if any modulation was performed, or false otherwise
     pub fn modulate<T: crate::Fixed16>(modulator: &Modulator<i16>, dest: ModDest, value: T) -> T {
         use crate::fixedmath::{I16F16, I17F15, I1F31};
-        let mut acc = value.widen();
-        for (src, depth) in modulator.matrix.rows[dest as usize].iter().copied() {
-            let mod_amt = match src {
-                ModSrc::Velocity => modulator.velocity.wide_mul_signed(depth),
-                ModSrc::Aftertouch => modulator.aftertouch.wide_mul_signed(depth),
-                ModSrc::ModWheel => modulator.modwheel.wide_mul_signed(depth),
-                ModSrc::Env1 => modulator.env1.wide_mul_signed(depth),
-                ModSrc::Env2 => modulator.env2.wide_mul_signed(depth),
-                ModSrc::Lfo1 => I1F31::saturating_from_num(modulator.lfo1.wide_mul(depth)),
-                ModSrc::Lfo2 => I1F31::saturating_from_num(modulator.lfo2.wide_mul(depth)),
-            };
-            acc += T::widened_from_bits(if T::IS_SIGNED {
-                I17F15::from_num(mod_amt).to_bits()
+        fn bits<T: fixed::traits::Fixed>(value: T) -> i32 {
+            if T::IS_SIGNED {
+                I17F15::from_num(value).to_bits()
             } else {
-                I16F16::from_num(mod_amt).to_bits()
-            });
+                I16F16::from_num(value).to_bits()
+            }
         }
+        let mut acc = value.widen();
+        let row = &modulator.matrix.rows[dest as usize];
+        acc += T::widened_from_bits(bits(
+            modulator.velocity.wide_mul_signed(row[ModSrc::Velocity as usize]),
+        ));
+        acc += T::widened_from_bits(bits(
+            modulator.aftertouch.wide_mul_signed(row[ModSrc::Aftertouch as usize]),
+        ));
+        acc += T::widened_from_bits(bits(
+            modulator.modwheel.wide_mul_signed(row[ModSrc::ModWheel as usize]),
+        ));
+        acc += T::widened_from_bits(bits(
+            modulator.env1.wide_mul_signed(row[ModSrc::Env1 as usize]),
+        ));
+        acc += T::widened_from_bits(bits(
+            modulator.env2.wide_mul_signed(row[ModSrc::Env2 as usize]),
+        ));
+        acc += T::widened_from_bits(bits(I1F31::saturating_from_num(
+            modulator.lfo1.wide_mul(row[ModSrc::Lfo1 as usize]),
+        )));
+        acc += T::widened_from_bits(bits(I1F31::saturating_from_num(
+            modulator.lfo2.wide_mul(row[ModSrc::Lfo2 as usize]),
+        )));
         T::saturating_from_num(acc)
     }
     pub fn coeff_from_fixed<T: crate::Fixed16, U: DspFloat>() -> U {
@@ -309,19 +280,14 @@ pub(crate) mod detail {
         coeff: T,
     ) -> T {
         let mut acc = T::ZERO;
-        for (src, depth) in modulator.matrix.rows[dest as usize].iter().copied() {
-            acc = acc
-                + (depth
-                    * match src {
-                        ModSrc::Velocity => modulator.velocity,
-                        ModSrc::Aftertouch => modulator.aftertouch,
-                        ModSrc::ModWheel => modulator.modwheel,
-                        ModSrc::Env1 => modulator.env1,
-                        ModSrc::Env2 => modulator.env2,
-                        ModSrc::Lfo1 => modulator.lfo1,
-                        ModSrc::Lfo2 => modulator.lfo2,
-                    });
-        }
+        let row = &modulator.matrix.rows[dest as usize];
+        acc = acc + modulator.velocity * row[ModSrc::Velocity as usize];
+        acc = acc + modulator.aftertouch * row[ModSrc::Aftertouch as usize];
+        acc = acc + modulator.modwheel * row[ModSrc::ModWheel as usize];
+        acc = acc + modulator.env1 * row[ModSrc::Env1 as usize];
+        acc = acc + modulator.env2 * row[ModSrc::Env2 as usize];
+        acc = acc + modulator.lfo1 * row[ModSrc::Lfo1 as usize];
+        acc = acc + modulator.lfo2 * row[ModSrc::Lfo2 as usize];
         acc = value + (acc * coeff);
         if acc > coeff {
             acc = coeff;

@@ -128,6 +128,8 @@ pub fn cos_pi(x: IScalar) -> IScalar {
     sin_pi(HALF.wrapping_sub(x))
 }
 
+/// Calculate 1/x for a 16 bit fixed point number, and return the result as a
+/// 32 bit fixed point number
 pub fn inverse(x: Scalar) -> ScaleOutput {
     const fn calc(n: Scalar) -> ScaleOutput {
         let n_float = (n.to_bits() as f32) / 65536f32;
@@ -153,6 +155,7 @@ pub fn inverse(x: Scalar) -> ScaleOutput {
     LOOKUP_TABLE[idx] + scale_fixedfloat(table_diff, frac)
 }
 
+/// Calculate 1/(1+x) for a 16 bit fixed point number
 pub fn one_over_one_plus_scalar(x: Scalar) -> Scalar {
     const fn calc(n: Scalar) -> Scalar {
         let n_float = (n.to_bits() as f32) / 65536f32;
@@ -177,6 +180,7 @@ pub fn one_over_one_plus_scalar(x: Scalar) -> Scalar {
     LOOKUP_TABLE[idx] - Scalar::from_num((LOOKUP_TABLE[idx] - LOOKUP_TABLE[idx + 1]).wide_mul(frac))
 }
 
+/// Calculate 1/(1-x) for a 16 bit fixed point number
 pub fn one_over_one_minus(x: Scalar) -> ScaleOutput {
     const fn calc(n: Scalar) -> ScaleOutput {
         let n_float = (n.to_bits() as f32) / 65536f32;

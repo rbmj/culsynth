@@ -1,7 +1,8 @@
 use crate::voicealloc::{MonoSynth, PolySynth, VoiceAllocator};
 use crate::{egui, ContextReader};
 use crate::{MidiHandler, Tuning, VoiceMode};
-use culsynth::voice::modulation::{ModDest, ModMatrix};
+use culsynth::voice::modulation::{ModDest, ModMatrix, ModSrc};
+use culsynth::voice::nrpn::Nrpn;
 use culsynth::voice::VoiceParams;
 use egui::widgets;
 #[cfg(feature = "instrumentation")]
@@ -72,13 +73,68 @@ impl EditorInstrumentation {
     }
 }
 
+struct EditorModData {
+    last_time: std::time::Instant,
+    phase: culsynth::PhaseFxP,
+    cur_modsource: Option<ModSrc>,
+    cur_moddest: Option<ModDest>,
+}
+
+impl EditorModData {
+    pub fn new() -> Self {
+        EditorModData {
+            last_time: std::time::Instant::now(),
+            phase: culsynth::PhaseFxP::ZERO,
+            cur_modsource: None,
+            cur_moddest: None,
+        }
+    }
+    pub fn update(&mut self) {
+        let new_time = std::time::Instant::now();
+        let delta_t = (new_time - self.last_time).as_nanos() as i32;
+        self.phase = self.phase.wrapping_add(culsynth::PhaseFxP::from_bits(delta_t << 2));
+        self.last_time = new_time;
+    }
+    pub fn src_dst_enable(&self) -> (ModSrc, ModDest, bool) {
+        if let (Some(src), Some(dst)) = (self.cur_modsource, self.cur_moddest) {
+            (src, dst, true)
+        } else {
+            (ModSrc::Velocity, ModDest::Null, false)
+        }
+    }
+    pub fn set_toggle_src(&mut self, src: ModSrc) {
+        if self.cur_modsource == Some(src) {
+            self.cur_modsource = None;
+        } else {
+            self.cur_modsource = Some(src);
+        }
+    }
+    pub fn set_toggle_dst(&mut self, dst: ModDest) {
+        if self.cur_moddest == Some(dst) {
+            self.cur_moddest = None;
+        } else {
+            self.cur_moddest = Some(dst);
+        }
+    }
+    pub fn src(&self) -> Option<ModSrc> {
+        self.cur_modsource
+    }
+    pub fn dst(&self) -> Option<ModDest> {
+        self.cur_moddest
+    }
+    pub fn intensity(&self) -> f32 {
+        let sinx = culsynth::fixedmath::sin_pi(self.phase.to_num()).to_bits() as i32;
+        (sinx + (1 << 15)) as f32 / (1 << 16) as f32
+    }
+}
+
 /// Struct to hold the global state information for the plugin editor (GUI).
 pub struct Editor {
     main_ui: main_ui::MainUi,
     kbd_panel: kbd::KbdPanel,
-    show_mod_matrix: bool,
     show_settings: bool,
     show_about: bool,
+    mod_data: EditorModData,
     #[cfg(feature = "instrumentation")]
     instrumentation: EditorInstrumentation,
 }
@@ -100,9 +156,9 @@ impl Editor {
             Editor {
                 main_ui: Default::default(),
                 kbd_panel: Default::default(),
-                show_mod_matrix: false,
                 show_settings: false,
                 show_about: false,
+                mod_data: EditorModData::new(),
                 instrumentation: EditorInstrumentation::new(),
             }
         }
@@ -111,58 +167,11 @@ impl Editor {
             Editor {
                 main_ui: Default::default(),
                 kbd_panel: Default::default(),
-                show_mod_matrix: false,
                 show_settings: false,
                 show_about: false,
+                mod_data: EditorModData::new(),
             }
         }
-    }
-    fn draw_modmatrix(ui: &mut egui::Ui, matrix: &ModMatrix<i16>, handler: &impl MidiHandler) {
-        egui::Grid::new("MODMATRIX").show(ui, |ui| {
-            ui.label("");
-            ui.label("Slot A");
-            ui.label("Slot B");
-            ui.label("Slot C");
-            ui.label("Slot D");
-            ui.end_row();
-            for (src, slots) in matrix.rows {
-                ui.label(src.to_str());
-                for (idx, (dst, mag)) in slots.iter().enumerate() {
-                    let id_str = format!("MMRow{}Slot{}", src as u16, idx);
-                    let nrpn_lsb = culsynth::voice::cc::modmatrix_nrpn_lsb(src, idx);
-                    ui.vertical(|ui| {
-                        ui.separator();
-                        let mut new_dst = *dst;
-                        egui::ComboBox::from_id_salt(id_str).selected_text(dst.to_str()).show_ui(
-                            ui,
-                            |ui| {
-                                let sec = src.is_secondary();
-                                for value in ModDest::elements_secondary_if(sec) {
-                                    ui.selectable_value(&mut new_dst, value, value.to_str());
-                                }
-                            },
-                        );
-                        if new_dst != *dst {
-                            let nrpn = (1u16 << 7) | nrpn_lsb as u16;
-                            handler.send_nrpn(
-                                wmidi::U14::try_from(nrpn).unwrap(),
-                                wmidi::U14::try_from(new_dst as u16).unwrap(),
-                            );
-                        }
-                        let nrpn = (2u16 << 7) | nrpn_lsb as u16;
-                        ui.add(param_widget::MidiCcSlider::new_fixed_nrpn(
-                            *mag,
-                            culsynth::IScalarFxP::ZERO,
-                            Some("%"),
-                            wmidi::U14::try_from(nrpn).unwrap(),
-                            "",
-                            handler,
-                        ));
-                    });
-                }
-                ui.end_row();
-            }
-        });
     }
     /// Draw the editor panel
     pub fn update(
@@ -175,10 +184,39 @@ impl Editor {
         midi_handler: &impl MidiHandler,
         synth_sender: Option<&impl SynthSender>,
     ) {
+        self.mod_data.update();
         self.draw_status_bar(egui_ctx, proc_ctx);
         self.kbd_panel.show(egui_ctx, midi_handler);
+        egui::TopBottomPanel::bottom("mod_panel").show(egui_ctx, |ui| {
+            ui.horizontal(|ui| {
+                for src in ModSrc::elements() {
+                    if ui
+                        .selectable_label(self.mod_data.src() == Some(*src), src.to_str())
+                        .clicked()
+                    {
+                        self.mod_data.set_toggle_src(*src)
+                    }
+                }
+                let mag = culsynth::IScalarFxP::ZERO;
+                let (src, dst, enable) = self.mod_data.src_dst_enable();
+                ui.add_enabled_ui(enable, |ui| {
+                    ui.add(
+                        param_widget::MidiCcSliderBuilder::new(
+                            "Mod",
+                            midi_handler,
+                            matrix.slot(src, dst),
+                        )
+                        .with_nrpn(Nrpn::Modulation(src, dst).to_u14())
+                        .as_percent()
+                        .with_default(mag)
+                        .horizontal()
+                        .build(),
+                    );
+                });
+            });
+        });
         egui::CentralPanel::default().show(egui_ctx, |ui| {
-            self.main_ui.draw(ui, params, tuning, midi_handler);
+            self.main_ui.draw(ui, params, tuning, midi_handler, matrix, &mut self.mod_data);
         });
         egui::Window::new("Settings")
             .open(&mut self.show_settings)
@@ -199,12 +237,6 @@ impl Editor {
                 });
             },
         );
-        egui::Window::new("Modulation Matrix").open(&mut self.show_mod_matrix).show(
-            egui_ctx,
-            |ui| {
-                Self::draw_modmatrix(ui, matrix, midi_handler);
-            },
-        );
         #[cfg(feature = "instrumentation")]
         {
             self.instrumentation.draw(egui_ctx);
@@ -221,9 +253,6 @@ impl Editor {
                     columns[0].horizontal_centered(|ui| {
                         if ui.button("Settings").clicked() {
                             self.show_settings = true;
-                        }
-                        if ui.button("Mod Matrix").clicked() {
-                            self.show_mod_matrix = true;
                         }
                         if ui.button("About").clicked() {
                             self.show_about = true;

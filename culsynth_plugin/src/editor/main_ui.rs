@@ -6,7 +6,8 @@ use culsynth::voice::VoiceParams;
 use culsynth::{CoarseTuneFxP, FineTuneFxP};
 
 use super::egui;
-use super::param_widget::MidiCcSlider;
+use super::param_widget::MidiCcSliderBuilder;
+use super::EditorModData;
 use crate::MidiHandler;
 use crate::Tuning;
 
@@ -20,6 +21,8 @@ impl MainUi {
         params: &VoiceParams<i16>,
         tune: (Tuning, Tuning),
         dispatcher: &dyn MidiHandler,
+        matrix: &culsynth::voice::modulation::ModMatrix<i16>,
+        mod_data: &mut EditorModData,
     ) {
         ui.spacing_mut().slider_width = super::SLIDER_WIDTH;
         ui.vertical(|ui| {
@@ -32,6 +35,8 @@ impl MainUi {
                     &OSC1_CC_ALL,
                     None,
                     dispatcher,
+                    matrix,
+                    mod_data,
                 );
                 ui.separator();
                 draw_osc(
@@ -42,6 +47,8 @@ impl MainUi {
                     &OSC2_CC_ALL,
                     Some((OSC_SYNC, params.oscs_p.sync)),
                     dispatcher,
+                    matrix,
+                    mod_data,
                 );
                 ui.separator();
                 draw_ringmod(
@@ -50,15 +57,41 @@ impl MainUi {
                     &params.ring_p,
                     &RING_CCS_ALL,
                     dispatcher,
+                    matrix,
+                    mod_data,
                 );
             });
             ui.separator();
             ui.horizontal(|ui| {
-                draw_filter(ui, "Filter", &params.filt_p, &FILT_CCS_ALL, dispatcher);
+                draw_filter(
+                    ui,
+                    "Filter",
+                    &params.filt_p,
+                    &FILT_CCS_ALL,
+                    dispatcher,
+                    matrix,
+                    mod_data,
+                );
                 ui.separator();
-                draw_lfo(ui, "LFO 1", &params.lfo1_p, &LFO1_CCS_ALL, dispatcher);
+                draw_lfo(
+                    ui,
+                    "LFO 1",
+                    &params.lfo1_p,
+                    &LFO1_CCS_ALL,
+                    dispatcher,
+                    matrix,
+                    mod_data,
+                );
                 ui.separator();
-                draw_lfo(ui, "LFO 2", &params.lfo2_p, &LFO2_CCS_ALL, dispatcher);
+                draw_lfo(
+                    ui,
+                    "LFO 2",
+                    &params.lfo2_p,
+                    &LFO2_CCS_ALL,
+                    dispatcher,
+                    matrix,
+                    mod_data,
+                );
             });
             ui.separator();
             ui.horizontal(|ui| {
@@ -68,6 +101,8 @@ impl MainUi {
                     &params.filt_env_p,
                     &ENV_FILT_CCS_ALL,
                     dispatcher,
+                    matrix,
+                    mod_data,
                 );
                 ui.separator();
                 draw_env(
@@ -76,6 +111,8 @@ impl MainUi {
                     &params.amp_env_p,
                     &ENV_AMP_CCS_ALL,
                     dispatcher,
+                    matrix,
+                    mod_data,
                 );
                 ui.separator();
                 draw_env(
@@ -84,6 +121,8 @@ impl MainUi {
                     &params.env1_p,
                     &ENV_M1_CCS_ALL,
                     dispatcher,
+                    matrix,
+                    mod_data,
                 );
                 ui.separator();
                 draw_env(
@@ -92,6 +131,8 @@ impl MainUi {
                     &params.env2_p,
                     &ENV_M2_CCS_ALL,
                     dispatcher,
+                    matrix,
+                    mod_data,
                 );
             });
         });
@@ -106,6 +147,8 @@ fn draw_osc(
     osc_ccs: &OscCCs,
     sync: Option<(wmidi::ControlFunction, bool)>,
     dispatcher: &dyn MidiHandler,
+    matrix: &culsynth::voice::modulation::ModMatrix<i16>,
+    mod_data: &mut EditorModData,
 ) {
     let default_params = MixOscParams::<i16>::default();
     ui.vertical(|ui| {
@@ -135,81 +178,60 @@ fn draw_osc(
         ui.horizontal(|ui| {
             use culsynth::util::*;
             ui.add(
-                MidiCcSlider::new_fixed(
-                    tuning.coarse,
-                    CoarseTuneFxP::ZERO,
-                    Some("semi"),
-                    osc_ccs.coarse,
-                    "CRS",
-                    dispatcher,
-                )
-                .vertical(),
+                MidiCcSliderBuilder::new("CRS", dispatcher, tuning.coarse)
+                    .with_control(osc_ccs.coarse)
+                    .with_units("semi")
+                    .with_default(CoarseTuneFxP::ZERO)
+                    .with_mod_data(mod_data, matrix, osc_ccs.mod_coarse)
+                    .build(),
             );
             ui.add(
-                MidiCcSlider::new_fixed(
-                    tuning.fine,
-                    FineTuneFxP::ZERO,
-                    Some("semi"),
-                    osc_ccs.fine,
-                    "FIN",
-                    dispatcher,
-                )
-                .vertical(),
+                MidiCcSliderBuilder::new("FIN", dispatcher, tuning.fine)
+                    .with_control(osc_ccs.fine)
+                    .with_units("semi")
+                    .with_default(FineTuneFxP::ZERO)
+                    .with_mod_data(mod_data, matrix, osc_ccs.mod_fine)
+                    .build(),
             );
             ui.add(
-                MidiCcSlider::new_percent(
-                    params.shape,
-                    default_params.shape,
-                    None,
-                    osc_ccs.shape,
-                    "SHP",
-                    dispatcher,
-                )
-                .vertical(),
+                MidiCcSliderBuilder::new("SHP", dispatcher, params.shape)
+                    .with_control(osc_ccs.shape)
+                    .with_default(default_params.shape)
+                    .with_mod_data(mod_data, matrix, osc_ccs.mod_shape)
+                    .as_percent()
+                    .build(),
             );
             ui.add(
-                MidiCcSlider::new_percent(
-                    params.sin,
-                    default_params.sin,
-                    None,
-                    osc_ccs.sin,
-                    SIN_CHARSTR,
-                    dispatcher,
-                )
-                .vertical(),
+                MidiCcSliderBuilder::new(SIN_CHARSTR, dispatcher, params.sin)
+                    .with_control(osc_ccs.sin)
+                    .with_default(default_params.sin)
+                    .with_mod_data(mod_data, matrix, osc_ccs.mod_sin)
+                    .as_percent()
+                    .build(),
             );
             ui.add(
-                MidiCcSlider::new_percent(
-                    params.tri,
-                    default_params.tri,
-                    None,
-                    osc_ccs.tri,
-                    TRI_CHARSTR,
-                    dispatcher,
-                )
-                .vertical(),
+                MidiCcSliderBuilder::new(TRI_CHARSTR, dispatcher, params.tri)
+                    .with_control(osc_ccs.tri)
+                    .with_default(default_params.tri)
+                    .with_mod_data(mod_data, matrix, osc_ccs.mod_tri)
+                    .as_percent()
+                    .build(),
             );
             ui.add(
-                MidiCcSlider::new_percent(
-                    params.sq,
-                    default_params.sq,
-                    None,
-                    osc_ccs.sq,
-                    SQ_CHARSTR,
-                    dispatcher,
-                )
-                .vertical(),
+                MidiCcSliderBuilder::new(SQ_CHARSTR, dispatcher, params.sq)
+                    .with_control(osc_ccs.sq)
+                    .with_default(default_params.sq)
+                    .with_mod_data(mod_data, matrix, osc_ccs.mod_sq)
+                    .as_percent()
+                    .build(),
             );
             ui.add(
-                MidiCcSlider::new_percent(
-                    params.saw,
-                    default_params.saw,
-                    None,
-                    osc_ccs.saw,
-                    SAW_CHARSTR,
-                    dispatcher,
-                )
-                .vertical(),
+                MidiCcSliderBuilder::new(SAW_CHARSTR, dispatcher, params.saw)
+                    .with_control(osc_ccs.saw)
+                    .with_default(default_params.saw)
+                    .with_mod_data(mod_data, matrix, osc_ccs.mod_saw)
+                    .as_percent()
+                    .build(),
             );
         });
     });
@@ -221,6 +243,8 @@ fn draw_lfo(
     params: &LfoParams<i16>,
     lfo_ccs: &LfoCCs,
     dispatcher: &dyn MidiHandler,
+    matrix: &culsynth::voice::modulation::ModMatrix<i16>,
+    mod_data: &mut EditorModData,
 ) {
     const DEFAULT_PARAMS: LfoParams<i16> = LfoParams::new();
     const DEFAULT_WAVE: LfoWave = DEFAULT_PARAMS.opts.wave().unwrap();
@@ -229,26 +253,20 @@ fn draw_lfo(
         ui.horizontal(|ui| {
             ui.horizontal(|ui| {
                 ui.add(
-                    MidiCcSlider::new_fixed(
-                        params.freq,
-                        DEFAULT_PARAMS.freq,
-                        Some("Hz"),
-                        lfo_ccs.rate,
-                        "RATE",
-                        dispatcher,
-                    )
-                    .vertical(),
+                    MidiCcSliderBuilder::new("RATE", dispatcher, params.freq)
+                        .with_control(lfo_ccs.rate)
+                        .with_default(DEFAULT_PARAMS.freq)
+                        .with_mod_data(mod_data, matrix, lfo_ccs.mod_rate)
+                        .with_units("Hz")
+                        .build(),
                 );
                 ui.add(
-                    MidiCcSlider::new_percent(
-                        params.depth,
-                        DEFAULT_PARAMS.depth,
-                        None,
-                        lfo_ccs.depth,
-                        "DEPTH",
-                        dispatcher,
-                    )
-                    .vertical(),
+                    MidiCcSliderBuilder::new("DEPTH", dispatcher, params.depth)
+                        .with_control(lfo_ccs.depth)
+                        .with_default(DEFAULT_PARAMS.depth)
+                        .with_mod_data(mod_data, matrix, lfo_ccs.mod_depth)
+                        .as_percent()
+                        .build(),
                 );
             });
             ui.vertical(|ui| {
@@ -291,43 +309,36 @@ fn draw_ringmod(
     params: &RingModParams<i16>,
     ccs: &RingModCCs,
     dispatcher: &dyn MidiHandler,
+    matrix: &culsynth::voice::modulation::ModMatrix<i16>,
+    mod_data: &mut EditorModData,
 ) {
     const DEFAULT_PARAMS: RingModParams<i16> = RingModParams::new();
     ui.vertical(|ui| {
         ui.label(label);
         ui.horizontal(|ui| {
             ui.add(
-                MidiCcSlider::new_percent(
-                    params.mix_a,
-                    DEFAULT_PARAMS.mix_a,
-                    None,
-                    ccs.mix_a,
-                    "Osc 1",
-                    dispatcher,
-                )
-                .vertical(),
+                MidiCcSliderBuilder::new("Osc 1", dispatcher, params.mix_a)
+                    .with_control(ccs.mix_a)
+                    .with_default(DEFAULT_PARAMS.mix_a)
+                    .with_mod_data(mod_data, matrix, ccs.mod_mix_a)
+                    .as_percent()
+                    .build(),
             );
             ui.add(
-                MidiCcSlider::new_percent(
-                    params.mix_b,
-                    DEFAULT_PARAMS.mix_b,
-                    None,
-                    ccs.mix_b,
-                    "Osc 2",
-                    dispatcher,
-                )
-                .vertical(),
+                MidiCcSliderBuilder::new("Osc 2", dispatcher, params.mix_b)
+                    .with_control(ccs.mix_b)
+                    .with_default(DEFAULT_PARAMS.mix_b)
+                    .with_mod_data(mod_data, matrix, ccs.mod_mix_b)
+                    .as_percent()
+                    .build(),
             );
             ui.add(
-                MidiCcSlider::new_percent(
-                    params.mix_mod,
-                    DEFAULT_PARAMS.mix_mod,
-                    None,
-                    ccs.mix_mod,
-                    "Ring",
-                    dispatcher,
-                )
-                .vertical(),
+                MidiCcSliderBuilder::new("Ring", dispatcher, params.mix_mod)
+                    .with_control(ccs.mix_mod)
+                    .with_default(DEFAULT_PARAMS.mix_mod)
+                    .with_mod_data(mod_data, matrix, ccs.mod_mix_mod)
+                    .as_percent()
+                    .build(),
             );
         });
     });
@@ -339,98 +350,75 @@ fn draw_filter(
     params: &ModFiltParams<i16>,
     ccs: &FiltCCs,
     dispatcher: &dyn MidiHandler,
+    matrix: &culsynth::voice::modulation::ModMatrix<i16>,
+    mod_data: &mut EditorModData,
 ) {
     let default_params: ModFiltParams<i16> = Default::default();
     ui.vertical(|ui| {
         ui.label(label);
         ui.horizontal(|ui| {
             ui.add(
-                MidiCcSlider::new_fixed(
-                    params.cutoff,
-                    default_params.cutoff,
-                    None,
-                    ccs.cutoff,
-                    "Cut",
-                    dispatcher,
-                )
-                .vertical(),
+                MidiCcSliderBuilder::new("Cut", dispatcher, params.cutoff)
+                    .with_control(ccs.cutoff)
+                    .with_default(default_params.cutoff)
+                    .with_mod_data(mod_data, matrix, ccs.mod_cutoff)
+                    .build(),
             );
             ui.add(
-                MidiCcSlider::new_percent(
-                    params.resonance,
-                    default_params.resonance,
-                    None,
-                    ccs.resonance,
-                    "Res",
-                    dispatcher,
-                )
-                .vertical(),
+                MidiCcSliderBuilder::new("Res", dispatcher, params.resonance)
+                    .with_control(ccs.resonance)
+                    .with_default(default_params.resonance)
+                    .with_mod_data(mod_data, matrix, ccs.mod_resonance)
+                    .as_percent()
+                    .build(),
             );
             ui.add(
-                MidiCcSlider::new_percent(
-                    params.kbd_tracking,
-                    default_params.kbd_tracking,
-                    None,
-                    ccs.kbd,
-                    "Kbd",
-                    dispatcher,
-                )
-                .vertical(),
+                MidiCcSliderBuilder::new("Kbd", dispatcher, params.kbd_tracking)
+                    .with_control(ccs.kbd)
+                    .with_default(default_params.kbd_tracking)
+                    .with_mod_data(mod_data, matrix, ccs.mod_kbd)
+                    .as_percent()
+                    .build(),
             );
             ui.add(
-                MidiCcSlider::new_percent(
-                    params.vel_mod,
-                    default_params.vel_mod,
-                    None,
-                    ccs.vel,
-                    "Vel",
-                    dispatcher,
-                )
-                .vertical(),
+                MidiCcSliderBuilder::new("Vel", dispatcher, params.vel_mod)
+                    .with_control(ccs.vel)
+                    .with_default(default_params.vel_mod)
+                    .with_mod_data(mod_data, matrix, ccs.mod_vel)
+                    .as_percent()
+                    .build(),
             );
             ui.add(
-                MidiCcSlider::new_percent(
-                    params.env_mod,
-                    default_params.env_mod,
-                    None,
-                    ccs.env,
-                    "Env",
-                    dispatcher,
-                )
-                .vertical(),
+                MidiCcSliderBuilder::new("Env", dispatcher, params.env_mod)
+                    .with_control(ccs.env)
+                    .with_default(default_params.env_mod)
+                    .with_mod_data(mod_data, matrix, ccs.mod_env)
+                    .as_percent()
+                    .build(),
             );
             ui.add(
-                MidiCcSlider::new_percent(
-                    params.low_mix,
-                    default_params.low_mix,
-                    None,
-                    ccs.low,
-                    "Low",
-                    dispatcher,
-                )
-                .vertical(),
+                MidiCcSliderBuilder::new("Low", dispatcher, params.low_mix)
+                    .with_control(ccs.low)
+                    .with_default(default_params.low_mix)
+                    .with_mod_data(mod_data, matrix, ccs.mod_low)
+                    .as_percent()
+                    .build(),
             );
             ui.add(
-                MidiCcSlider::new_percent(
-                    params.band_mix,
-                    default_params.band_mix,
-                    None,
-                    ccs.band,
-                    "Band",
-                    dispatcher,
-                )
-                .vertical(),
+                MidiCcSliderBuilder::new("Band", dispatcher, params.band_mix)
+                    .with_control(ccs.band)
+                    .with_default(default_params.band_mix)
+                    .with_mod_data(mod_data, matrix, ccs.mod_band)
+                    .as_percent()
+                    .build(),
             );
             ui.add(
-                MidiCcSlider::new_percent(
-                    params.high_mix,
-                    default_params.high_mix,
-                    None,
-                    ccs.high,
-                    "High",
-                    dispatcher,
-                )
-                .vertical(),
+                MidiCcSliderBuilder::new("High", dispatcher, params.high_mix)
+                    .with_control(ccs.high)
+                    .with_default(default_params.high_mix)
+                    .with_mod_data(mod_data, matrix, ccs.mod_high)
+                    .as_percent()
+                    .build(),
             );
         });
     });
@@ -442,54 +430,44 @@ fn draw_env(
     params: &EnvParams<i16>,
     ccs: &EnvCCs,
     dispatcher: &dyn MidiHandler,
+    matrix: &culsynth::voice::modulation::ModMatrix<i16>,
+    mod_data: &mut EditorModData,
 ) {
     let default_params: EnvParams<i16> = Default::default();
     ui.vertical(|ui| {
         ui.label(label);
         ui.horizontal(|ui| {
             ui.add(
-                MidiCcSlider::new_fixed(
-                    params.attack,
-                    default_params.attack,
-                    Some("s"),
-                    ccs.attack,
-                    "A",
-                    dispatcher,
-                )
-                .vertical(),
+                MidiCcSliderBuilder::new("A", dispatcher, params.attack)
+                    .with_control(ccs.attack)
+                    .with_default(default_params.attack)
+                    .with_mod_data(mod_data, matrix, ccs.mod_attack)
+                    .with_units("s")
+                    .build(),
             );
             ui.add(
-                MidiCcSlider::new_fixed(
-                    params.decay,
-                    default_params.decay,
-                    Some("s"),
-                    ccs.decay,
-                    "D",
-                    dispatcher,
-                )
-                .vertical(),
+                MidiCcSliderBuilder::new("D", dispatcher, params.decay)
+                    .with_control(ccs.decay)
+                    .with_default(default_params.decay)
+                    .with_mod_data(mod_data, matrix, ccs.mod_decay)
+                    .with_units("s")
+                    .build(),
             );
             ui.add(
-                MidiCcSlider::new_percent(
-                    params.sustain,
-                    default_params.sustain,
-                    None,
-                    ccs.sustain,
-                    "S",
-                    dispatcher,
-                )
-                .vertical(),
+                MidiCcSliderBuilder::new("S", dispatcher, params.sustain)
+                    .with_control(ccs.sustain)
+                    .with_default(default_params.sustain)
+                    .with_mod_data(mod_data, matrix, ccs.mod_sustain)
+                    .as_percent()
+                    .build(),
             );
             ui.add(
-                MidiCcSlider::new_fixed(
-                    params.release,
-                    default_params.release,
-                    Some("s"),
-                    ccs.release,
-                    "R",
-                    dispatcher,
-                )
-                .vertical(),
+                MidiCcSliderBuilder::new("R", dispatcher, params.release)
+                    .with_control(ccs.release)
+                    .with_default(default_params.release)
+                    .with_mod_data(mod_data, matrix, ccs.mod_release)
+                    .with_units("s")
+                    .build(),
             );
         });
     });
